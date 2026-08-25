@@ -1,0 +1,23 @@
+{
+  "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
+  "appId": "com.datav.scada.studio",
+  "productName": "datav-scada-studio",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "package.json"
+  ],
+  "linux": {
+    "target": ["dir", "AppImage", "deb"],
+    "category": "Development;Utility;Graphics",
+    "executableName": "datav-scada-studio",
+    "synopsis": "SCADA Industrial Big Screen Studio"
+  },
+  "win": {
+    "target": ["nsis", "portable"],
+    "executableName": "datav-scada-studio"
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "DataV Leafer Industrial Big Screen Studio",
+  "description": "Industrial-grade DataV & SCADA big screen editor powered by LeaferJS canvas engine with multi-screen project management, electrical diagramming, cross-platform Web, Windows, and Linux Electron 33.2.1 support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
