@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveTeleSignalState } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -11,36 +12,24 @@ const props = defineProps<Props>();
 
 const breakerState = computed(() => {
   const { data, style, customProps } = props.component;
-  const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
-
-  // Status: 'closed' (合闸) | 'open' (分闸) | 'fault' (故障)
-  let status: 'closed' | 'open' | 'fault' = customProps?.state || 'closed';
   
-  if (boundDs && boundDs.data) {
-    const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey;
-    if (sKey && boundDs.data[sKey] !== undefined) {
-      const val = boundDs.data[sKey];
-      if (typeof val === 'boolean') {
-        status = val ? 'closed' : 'open';
-      } else if (typeof val === 'string') {
-        if (val.toLowerCase().includes('open') || val.includes('分') || val === '0') status = 'open';
-        else if (val.toLowerCase().includes('fault') || val.includes('故障')) status = 'fault';
-        else status = 'closed';
-      } else if (typeof val === 'number') {
-        status = val === 1 ? 'closed' : 'open';
-      }
-    }
-  }
+  const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey || data?.mapping?.valueKey;
+  const defaultVal = customProps?.state !== undefined ? customProps.state : 1;
 
-  const isClosed = status === 'closed';
-  const statusColor = status === 'fault' 
+  const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
+
+  const isClosed = resolved.isClosed || resolved.numericValue === 1;
+  const status = resolved.isFault ? 'fault' : (isClosed ? 'closed' : 'open');
+  const statusColor = resolved.color || (status === 'fault' 
     ? '#f59e0b' 
-    : (isClosed ? (style.breakerColorClosed || '#ef4444') : (style.breakerColorOpen || '#10b981'));
+    : (isClosed ? (style.breakerColorClosed || '#ef4444') : (style.breakerColorOpen || '#10b981')));
 
   return {
     status,
     isClosed,
     statusColor,
+    statusText: resolved.statusText,
+    numericValue: resolved.numericValue,
     stroke: style.stroke || statusColor,
     strokeWidth: style.strokeWidth || 2.5
   };

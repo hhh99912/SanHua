@@ -139,6 +139,10 @@ const handleClick = (e: MouseEvent) => {
         } 
       }));
     }
+  } else {
+    // Default SCADA behavior: open control modal for bound device
+    const deviceId = props.component.data?.mapping?.deviceId;
+    window.dispatchEvent(new CustomEvent('scada:open:control', { detail: { deviceId } }));
   }
 };
 </script>

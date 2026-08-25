@@ -1,5 +1,5 @@
 export type ComponentCategory = 
-  | 'basic'        // 基础图元与控制器 (直线/折线/矩形/圆形/文本/按钮/指示灯)
+  | 'basic'        // 基础图元与控制器 (矩形/圆形/多边形/星形/菱形/文本/按钮/指示灯等)
   | 'electrical'   // 电力一次系统图元 (断路器/手车/隔离开关/主变/互感器/避雷器/母线/电表)
   | 'industrial'   // 工业SCADA与流体 (储罐/管道/泵阀/电机/矩阵/报警)
   | 'charts'       // 统计图表与大屏仪表
@@ -10,34 +10,57 @@ export type ComponentCategory =
   | 'media';
 
 export type ComponentType = 
-  // 1. Basic & Interactive Primitives (基础图元与控制器)
-  | 'draw-line'          // 直线 / 电气导线 (含流动粒子与电压色)
-  | 'draw-polyline'      // 折线 / 直角走线 / 绕线母线 (含直角拐弯与流动微粒)
-  | 'ctrl-button'        // 工业控制按钮 (含点动/自锁/操作指令/大屏跳转)
-  | 'ctrl-indicator'     // 状态指示灯 / 信号灯 (含红绿黄蓝灰多态与闪烁)
-  | 'draw-rect'          // 基础矩形 / 圆角矩形 / 科技卡片底座
-  | 'draw-circle'        // 基础圆形 / 同心圆环 / 法兰盘
-  | 'draw-polygon'       // 正多边形 / 六角形 / 警示菱形
-  | 'draw-text'          // 静态文本 / 工业标牌 / 线路标注
-  | 'draw-arrow'         // 导向箭头 / 潮流方向指示
-  | 'draw-pipe'          // 介质管道 (双线/法兰/流动介质)
+  // 1. All Conventional Basic Primitives (常规基础图元与控制器)
+  | 'draw-rect'             // 矩形 / 科技卡片底座
+  | 'draw-rounded-rect'     // 圆角矩形
+  | 'draw-circle'           // 正圆形 / 节点
+  | 'draw-ellipse'          // 椭圆形
+  | 'draw-triangle'         // 正三角形 (向上)
+  | 'draw-triangle-down'    // 倒三角形 (向下)
+  | 'draw-triangle-right'   // 向右三角形
+  | 'draw-diamond'          // 菱形 / 判定框
+  | 'draw-pentagon'         // 正五边形
+  | 'draw-hexagon'          // 正六边形 / 蜂窝
+  | 'draw-polygon'          // 多边形
+  | 'draw-octagon'          // 正八边形
+  | 'draw-star'             // 五角星
+  | 'draw-star4'            // 四角星 / 光芒星
+  | 'draw-trapezoid'        // 等腰梯形
+  | 'draw-parallelogram'    // 平行四边形
+  | 'draw-cross'            // 十字形 / 加号
+  | 'draw-ring'             // 同心圆环
+  | 'draw-sector'           // 扇形 / 饼块
+  | 'draw-heart'            // 心形
+  | 'draw-bubble'           // 对话气泡 / 标注框
+  | 'draw-cube'             // 立方体 / 3D等轴块
+  | 'draw-cylinder'         // 圆柱体 / 储液桶
+  | 'draw-arc'              // 弧线 / 曲线
+  | 'draw-line'             // 直线 / 电气导线
+  | 'draw-polyline'         // 折线 / 直角走线
+  | 'draw-arrow'            // 单向导向箭头
+  | 'draw-double-arrow'     // 双向导向箭头
+  | 'draw-elbow'            // 直角弯头管
+  | 'draw-text'             // 静态文本 / 工业标牌
+  | 'ctrl-button'           // 工业控制按钮 (支持下发遥控)
+  | 'ctrl-indicator'        // 状态指示灯 (0: 停止/分闸, 1: 运行/合闸, 2: 故障/告警)
+  | 'draw-pipe'             // 介质管道
   
   // 2. Electrical Power System Primary Components (电力一次系统图元)
-  | 'elec-breaker'       // 高压/真空断路器 QF
-  | 'elec-handcart'      // 开关柜可抽出式手车
-  | 'elec-disconnector'  // 隔离开关 / 隔离刀闸 QS
-  | 'elec-grounding'     // 接地刀闸 QE
-  | 'elec-transformer'   // 电力主变压器 TM (双绕组/三绕组)
-  | 'elec-ct'            // 电流互感器 TA / CT
-  | 'elec-pt'            // 电压互感器 TV / PT
-  | 'elec-arrester'      // 氧化锌避雷器 F
-  | 'elec-busbar'        // 高低压母线段与母联 Busbar
-  | 'elec-multimeter'    // 三相微机保护测控多功能电表
+  | 'elec-breaker'          // 高压/真空断路器 QF (0: 分闸, 1: 合闸, 2: 故障)
+  | 'elec-handcart'         // 开关柜可抽出式手车 (0: 试验位, 1: 工作位, 2: 故障)
+  | 'elec-disconnector'     // 隔离开关 / 隔离刀闸 QS (0: 分闸, 1: 合闸, 2: 故障)
+  | 'elec-grounding'        // 接地刀闸 QE (0: 分闸, 1: 合闸, 2: 故障)
+  | 'elec-transformer'      // 电力主变压器 TM
+  | 'elec-ct'               // 电流互感器 TA / CT
+  | 'elec-pt'               // 电压互感器 TV / PT
+  | 'elec-arrester'         // 氧化锌避雷器 F
+  | 'elec-busbar'           // 高低压母线段 Busbar
+  | 'elec-multimeter'       // 多功能电力电表
 
-  // 3. Composite & Grouped Symbols (SCADA 组合自定义图元)
-  | 'composite-symbol'   // 纯图元拼装组合体 (无需SVG，多图元复合容器)
+  // 3. Composite Symbols
+  | 'composite-symbol'      // 复合组合图元
   
-  // 4. Charts & Analytics
+  // 4. Charts
   | 'chart-line'
   | 'chart-bar'
   | 'chart-pie'
@@ -45,7 +68,7 @@ export type ComponentType =
   | 'chart-radar'
   | 'chart-scatter'
 
-  // 5. Industrial & SCADA
+  // 5. Industrial
   | 'ind-tank'
   | 'ind-pipe'
   | 'ind-valve'
@@ -53,17 +76,17 @@ export type ComponentType =
   | 'ind-alarm-list'
   | 'ind-matrix'
 
-  // 6. Metrics & Text
-  | 'metric-float'       // 浮点数数据显示 (默认0.00，支持单位与精度)
+  // 6. Metrics
+  | 'metric-float'
   | 'metric-flipper'
   | 'metric-card'
   | 'metric-title'
   | 'metric-progress'
 
-  // 7. Navigation & Multi-Screen Controls
+  // 7. Navigation
   | 'nav-tabs'
 
-  // 8. Custom Primitives
+  // 8. Custom
   | 'custom-svg'
   | 'custom-html'
 
@@ -76,7 +99,6 @@ export type ComponentType =
   | 'deco-glow-ring'
 
   // 10. Vector Pen Drawing
-  | 'draw-star'
   | 'draw-pen-path'
   | 'draw-svg-icon';
 
@@ -105,6 +127,7 @@ export interface StyleConfig {
   textColor?: string;
   textAlign?: 'left' | 'center' | 'right';
   letterSpacing?: number;
+  text?: string;
   glowColor?: string;
   glowBlur?: number;
   themePreset?: 'cyber-cyan' | 'industrial-amber' | 'hazard-yellow' | 'tech-emerald' | 'crimson-alert' | 'slate-steel';
@@ -115,27 +138,27 @@ export interface StyleConfig {
   prefix?: string;
   suffix?: string;
   
-  // Streamer / Flowing Light (流光动效配置)
-  streamer?: boolean;
-  streamerColor?: string;
-  streamerSpeed?: number;
-  streamerType?: 'laser' | 'particle' | 'pulse' | 'dash' | 'glow-wave';
-  streamerDirection?: 'forward' | 'backward';
-  streamerWidth?: number;
+  // Streamer Glow
+  streamer?: {
+    active?: boolean;
+    color?: string;
+    speed?: number;
+    type?: 'laser' | 'pulse' | 'dots';
+    direction?: 'forward' | 'reverse';
+    width?: number;
+  };
 
-  // State Value & Telemetry Dynamic Mapping
-  stateBindingValue?: string | number;
-  bladeAngleOpen?: number;
-  bladeAngleClosed?: number;
+  // State Value: Integer Enum (0, 1, 2, 3, 4...) or string
+  stateBindingValue?: number | string;
   
-  // Electrical Specific Appearance Styles
-  breakerColorClosed?: string; // Default Red or Green (合闸色)
-  breakerColorOpen?: string;   // Default Green or Red (分闸色)
+  // Electrical styles
+  breakerColorClosed?: string; // 1 (合闸色，默认红)
+  breakerColorOpen?: string;   // 0 (分闸色，默认绿)
   voltageLevel?: '500kV' | '220kV' | '110kV' | '35kV' | '10kV' | '0.4kV' | 'DC';
   feederName?: string;
   showLabels?: boolean;
 
-  // Line & Polyline Specific
+  // Line
   lineStyle?: 'solid' | 'dashed' | 'dotted';
   lineType?: 'straight' | 'step-horizontal' | 'step-vertical' | 'multi-step';
   startArrow?: boolean;
@@ -143,14 +166,14 @@ export interface StyleConfig {
   jointRadius?: number;
   points?: Array<{ x: number; y: number }>;
 
-  // Control Button Specific
+  // Button
   buttonText?: string;
   buttonVariant?: 'solid' | 'outline' | 'glass' | 'metallic' | 'emergency-stop';
   buttonColorTheme?: 'cyan' | 'emerald' | 'amber' | 'rose' | 'indigo' | 'slate';
   buttonIcon?: string;
   isPressed?: boolean;
 
-  // Status Indicator Specific
+  // Status Indicator
   indicatorShape?: 'circle' | 'square' | 'ring' | 'pill';
   indicatorState?: 'normal' | 'alarm' | 'warning' | 'standby' | 'offline';
   indicatorColor?: string;
@@ -161,19 +184,96 @@ export interface StyleConfig {
 export interface AnimationConfig {
   enable?: boolean;
   type?: 'flow' | 'rotate' | 'blink' | 'pulse' | 'wave' | 'counter-up';
-  speed?: number; // seconds or rate
+  speed?: number;
   direction?: 'forward' | 'backward' | 'clockwise' | 'counter-clockwise';
   loop?: boolean;
 }
 
+// -------------------------------------------------------------
+// SCADA & Power Dispatching Device-Centric Dataset Data Models
+// (以装置号为初始单位，下挂遥测、遥信、电度、遥控、遥调)
+// -------------------------------------------------------------
+
+// 1. 遥测 (YC / Telemetry - Analog): 点号, 系数, 单位, 数值等
+export interface DeviceTelemetryPoint {
+  pointId: number | string; // 点号 (Point ID)
+  name: string;             // 遥测名称 (如 'A相电压 Ua', '有功功率 P')
+  factor: number;           // 系数 (如 1.0, 0.1, 0.01)
+  unit: string;             // 单位 (如 'kV', 'V', 'A', 'kW', '℃')
+  rawValue?: number;        // 原始采集值
+  value: number;            // 实际工程值 (rawValue * factor)
+  description?: string;
+}
+
+// 2. 遥信 (YX / Tele-signal - Status): 点号, 整数枚举数值
+export interface DeviceTeleSignalPoint {
+  pointId: number | string; // 点号 (Point ID)
+  name: string;             // 遥信名称 (如 '断路器位置', '手车工作位置')
+  value: number;            // 状态整数枚举值: 如 0 (分闸/停), 1 (合闸/运), 2 (故障/跳闸), 3 (试验位), 4 (工作位) 等任意枚举整数
+  statusText?: string;      // 状态文本说明 (如 '分闸', '合闸', '故障', '试验位')
+  enumMapping?: Record<number, string>; // 状态枚举映射字典
+  description?: string;
+}
+
+// 3. 电度 (DD / Energy - Metering): 点号, 系数, 单位, 数值等
+export interface DeviceEnergyPoint {
+  pointId: number | string; // 点号 (Point ID)
+  name: string;             // 电度名称 (如 '正向有功总电能', '今日用电量')
+  factor: number;           // 系数 (如 0.01, 1.0)
+  unit: string;             // 单位 (如 'kWh', 'MWh', 'kvarh')
+  value: number;            // 累计电度数值
+  description?: string;
+}
+
+// 4. 遥控 (YK / Tele-control): 挂在装置下，支持在主界面与右键菜单中执行
+export interface DeviceTeleControlPoint {
+  pointId: number | string; // 点号 (Point ID)
+  name: string;             // 遥控名称 (如 '断路器合分遥控')
+  targetPointId?: number | string; // 关联下发的遥信点号
+  options: Array<{ label: string; value: number }>; // e.g. [{ label: '分闸 (0)', value: 0 }, { label: '合闸 (1)', value: 1 }]
+  lastExecutedValue?: number;
+  lastExecutedTime?: string;
+  description?: string;
+}
+
+// 5. 遥调 (YT / Tele-regulation): 挂在装置下，支持在主界面与右键菜单中执行
+export interface DeviceTeleRegulationPoint {
+  pointId: number | string; // 点号 (Point ID)
+  name: string;             // 遥调名称 (如 '变压器有载分接头档位 / 电压基准调节')
+  unit: string;             // 单位 (如 'V', 'kV', '%', '档', 'A')
+  min: number;
+  max: number;
+  step: number;
+  value: number;            // 当前定值/设定值
+  lastExecutedTime?: string;
+  description?: string;
+}
+
+// 装置 (Device / Unit): 以装置号为初始单位
+export interface ScadaDeviceItem {
+  deviceId: string;         // 装置号 (如 'DEV-101', '101')
+  deviceName: string;       // 装置名 (如 '10kV 进线 101 测控保护装置')
+  deviceType?: string;      // 装置类型 (如 '线路保护测控', '主变保护', '电能质量')
+  commStatus: number;       // 通信状态: 1 在线, 0 离线, 2 异常
+  ipAddress?: string;       // 通信IP/地址
+  telemetries: DeviceTelemetryPoint[];          // 遥测列表 (YC)
+  teleSignals: DeviceTeleSignalPoint[];          // 遥信列表 (YX - 整数枚举)
+  energies: DeviceEnergyPoint[];                 // 电度列表 (DD)
+  teleControls: DeviceTeleControlPoint[];        // 遥控列表 (YK)
+  teleRegulations: DeviceTeleRegulationPoint[];  // 遥调列表 (YT)
+}
+
 export interface DataFieldMapping {
+  deviceId?: string;        // 装置号
+  pointCategory?: 'telemetry' | 'teleSignal' | 'energy' | 'teleControl' | 'teleRegulation'; // 遥测/遥信/电度/遥控/遥调
+  pointId?: string | number;// 装置下挂点号
   valueKey?: string;
   titleKey?: string;
   unitKey?: string;
   seriesKey?: string;
   categoriesKey?: string;
   statusKey?: string;
-  stateKey?: string; // for breaker/handcart/isolator/indicator state
+  stateKey?: string;        // for breaker/switch state
   voltageKey?: string;
   currentKey?: string;
   powerKey?: string;
@@ -187,10 +287,12 @@ export interface DataFieldMapping {
 }
 
 export interface ComponentAction {
-  type: 'none' | 'jump-screen' | 'toggle-telemetry' | 'open-modal' | 'external-link' | 'dispatch-command';
+  type: 'none' | 'jump-screen' | 'tele-control' | 'tele-regulation' | 'open-modal' | 'external-link';
   targetScreenId?: string;
-  telemetryField?: string;
-  commandValue?: any;
+  deviceId?: string;
+  pointId?: string | number;
+  controlValue?: number;
+  regulationValue?: number;
   url?: string;
   label?: string;
 }
@@ -200,14 +302,14 @@ export interface ComponentDataConfig {
   useStatic?: boolean;
   staticData?: any;
   mapping: DataFieldMapping;
-  autoRefreshInterval?: number; // in milliseconds
+  autoRefreshInterval?: number;
   action?: ComponentAction;
 }
 
 export interface CustomSymbolStateDef {
-  id: string; // e.g. "1", "2", "3" or "normal", "alarm", "standby"
-  name: string; // e.g. "状态 1 (合闸/运行)", "状态 2 (分闸/断开)", "状态 3 (故障/告警)"
-  matchValue?: string | number; // Telemetry matched value (e.g. 0, 1, 2, "closed", "open", "alarm")
+  id: string; // "0", "1", "2"
+  name: string; // e.g. "状态 0 (分闸)", "状态 1 (合闸)", "状态 2 (故障)"
+  matchValue?: 0 | 1 | 2 | string | number;
   description?: string;
   children: ScreenComponent[];
   style?: StyleConfig;
@@ -231,12 +333,11 @@ export interface ScreenComponent {
   animation?: AnimationConfig;
   data?: ComponentDataConfig;
   customProps?: Record<string, any>;
-  // For Composite & Grouped SCADA Custom Symbols
   children?: ScreenComponent[];
   isGroup?: boolean;
   symbolId?: string;
   states?: CustomSymbolStateDef[];
-  activeState?: string | number; // e.g. "1", "2", "3"
+  activeState?: 0 | 1 | 2 | string | number; // e.g. 0, 1, 2
 }
 
 export interface DatasetField {
@@ -254,7 +355,8 @@ export interface DatasetItem {
   updateIntervalMs: number;
   apiUrl?: string;
   headers?: Record<string, string>;
-  data: any;
+  devices: ScadaDeviceItem[]; // 以装置号为初始单位的设备阵列
+  data: any;                  // 扁平化兼容字段映射
   fields: DatasetField[];
   isStreaming?: boolean;
 }
@@ -287,7 +389,6 @@ export interface CustomSymbolDef {
   defaultStyle: StyleConfig;
   defaultData?: ComponentDataConfig;
   defaultCustomProps?: Record<string, any>;
-  // Visual SCADA Composite Sub-Elements (Completely customizable without raw SVG!)
   children?: ScreenComponent[];
   states?: CustomSymbolStateDef[];
   activeStateId?: string;

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveTeleSignalState } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -12,39 +13,41 @@ const props = defineProps<Props>();
 const style = computed(() => props.component.style || {});
 const mapping = computed(() => props.component.data?.mapping || {});
 
-// Extract status from bound dataset if present
-const boundData = computed(() => {
-  if (!props.component.data?.datasetId || !props.datasets) return null;
-  const ds = props.datasets.find(d => d.id === props.component.data.datasetId);
-  return ds?.data;
-});
+const indicatorState = computed(() => {
+  const sKey = mapping.value.statusKey || mapping.value.stateKey || mapping.value.valueKey;
+  const defaultVal = style.value.indicatorState || 'normal';
 
-const currentState = computed<'normal' | 'alarm' | 'warning' | 'standby' | 'offline'>(() => {
-  if (boundData.value && mapping.value.statusKey && boundData.value[mapping.value.statusKey] !== undefined) {
-    const raw = String(boundData.value[mapping.value.statusKey]).toLowerCase();
-    if (raw === 'normal' || raw === 'ok' || raw === 'true' || raw === '1' || raw === 'closed' || raw === 'run') return 'normal';
-    if (raw === 'alarm' || raw === 'trip' || raw === 'error' || raw === 'fault') return 'alarm';
-    if (raw === 'warning' || raw === 'warn') return 'warning';
-    if (raw === 'standby' || raw === 'test') return 'standby';
-    return 'offline';
-  }
-  return style.value.indicatorState || 'normal';
+  const resolved = resolveTeleSignalState(props.datasets, props.component.data?.datasetId, sKey, defaultVal);
+  
+  let stateType: 'normal' | 'alarm' | 'warning' | 'standby' | 'offline' = 'normal';
+  if (resolved.isFault) stateType = 'alarm';
+  else if (resolved.isTest) stateType = 'standby';
+  else if (resolved.isClosed) stateType = 'normal';
+  else if (resolved.isOpen) stateType = 'standby';
+  else if (style.value.indicatorState) stateType = style.value.indicatorState;
+
+  return {
+    stateType,
+    statusText: resolved.statusText,
+    color: resolved.color,
+    numericValue: resolved.numericValue
+  };
 });
 
 const labelText = computed(() => style.value.indicatorLabel || props.component.name || '运行指示');
 const shape = computed(() => style.value.indicatorShape || 'circle');
-const blinkSpeed = computed(() => style.value.indicatorBlinkSpeed || (currentState.value === 'alarm' ? 'fast' : 'none'));
+const blinkSpeed = computed(() => style.value.indicatorBlinkSpeed || (indicatorState.value.stateType === 'alarm' ? 'fast' : 'none'));
 
 // Color palettes for LED
 const stateColors = computed(() => {
-  switch (currentState.value) {
+  switch (indicatorState.value.stateType) {
     case 'alarm':
       return {
         core: '#ef4444',
         glow: 'rgba(239, 68, 68, 0.8)',
         shadow: '0 0 16px rgba(239, 68, 68, 0.9)',
         text: 'text-red-400',
-        label: '故障告警'
+        label: indicatorState.value.statusText || '故障告警'
       };
     case 'warning':
       return {
@@ -52,7 +55,7 @@ const stateColors = computed(() => {
         glow: 'rgba(245, 158, 11, 0.8)',
         shadow: '0 0 16px rgba(245, 158, 11, 0.8)',
         text: 'text-amber-400',
-        label: '越限预警'
+        label: indicatorState.value.statusText || '越限预警'
       };
     case 'standby':
       return {
@@ -60,7 +63,7 @@ const stateColors = computed(() => {
         glow: 'rgba(59, 130, 246, 0.8)',
         shadow: '0 0 14px rgba(59, 130, 246, 0.7)',
         text: 'text-blue-400',
-        label: '热备用'
+        label: indicatorState.value.statusText || '分闸/备用'
       };
     case 'offline':
       return {
@@ -77,7 +80,7 @@ const stateColors = computed(() => {
         glow: 'rgba(16, 185, 129, 0.8)',
         shadow: '0 0 16px rgba(16, 185, 129, 0.8)',
         text: 'text-emerald-400',
-        label: '正常运行'
+        label: indicatorState.value.statusText || '合闸/正常'
       };
   }
 });

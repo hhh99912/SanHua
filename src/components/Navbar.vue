@@ -22,7 +22,8 @@ import {
   MousePointer,
   Minus,
   Workflow,
-  Laptop
+  Laptop,
+  Radio
 } from 'lucide-vue-next';
 import { ScreenConfig } from '../types';
 import { templates } from '../data/templates';
@@ -48,6 +49,7 @@ const emit = defineEmits<{
   (e: 'toggle:streaming'): void;
   (e: 'open:preview'): void;
   (e: 'open:datasets'): void;
+  (e: 'open:control'): void;
   (e: 'open:json'): void;
   (e: 'open:symbols'): void;
   (e: 'open:platform'): void;
@@ -299,6 +301,16 @@ const handleSelectTemplate = (id: string) => {
       >
         <Database class="w-3.5 h-3.5 text-cyan-400" />
         <span>数据集</span>
+      </button>
+
+      <!-- SCADA Tele-Control Center (遥控遥调执行) -->
+      <button
+        @click="emit('open:control')"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-950/40 border border-amber-500/50 hover:border-amber-400 hover:bg-amber-950 text-xs font-mono text-amber-300 transition-all cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.15)]"
+        title="执行主界面遥控分合闸与遥调指令 (YK / YT)"
+      >
+        <Radio class="w-3.5 h-3.5 text-amber-400" />
+        <span>遥控遥调</span>
       </button>
 
       <!-- Custom Symbol Library Button -->

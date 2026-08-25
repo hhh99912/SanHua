@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveDataPointValue } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -11,7 +12,6 @@ const props = defineProps<Props>();
 
 const metricState = computed(() => {
   const { data, style, customProps } = props.component;
-  const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
 
   let suffix = style.suffix ?? customProps?.suffix ?? '';
   let prefix = style.prefix ?? customProps?.prefix ?? '';
@@ -22,17 +22,21 @@ const metricState = computed(() => {
 
   let rawVal: any = customProps?.value ?? 0.0;
   
-  if (boundDs && boundDs.data) {
-    const vKey = data?.mapping?.valueKey;
-    if (vKey && boundDs.data[vKey] !== undefined) {
-      rawVal = boundDs.data[vKey];
-    } else if (typeof boundDs.data === 'number') {
+  const vKey = data?.mapping?.valueKey || data?.mapping?.voltageKey || data?.mapping?.currentKey || data?.mapping?.powerKey;
+  if (vKey) {
+    const val = resolveDataPointValue(props.datasets, data?.datasetId, vKey);
+    if (val !== undefined) {
+      rawVal = val;
+    }
+  } else if (data?.datasetId) {
+    const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
+    if (boundDs && typeof boundDs.data === 'number') {
       rawVal = boundDs.data;
     }
   }
 
   const num = parseFloat(rawVal);
-  const formattedVal = isNaN(num) ? (0).toFixed(decimals) : num.toFixed(decimals);
+  const formattedVal = isNaN(num) ? String(rawVal) : num.toFixed(decimals);
 
   const textColor = style.textColor || style.stroke || '#00f2ff';
   const bgColor = style.fill || 'transparent';

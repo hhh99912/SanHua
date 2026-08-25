@@ -9,7 +9,7 @@ import {
   ScreenItem,
   CustomSymbolDef
 } from './types';
-import { INITIAL_DATASETS, tickDataset } from './data/presetDatasets';
+import { INITIAL_DATASETS, tickDataset, executeSimulatedTeleControl, executeSimulatedTeleRegulation } from './data/presetDatasets';
 import { PRESET_MULTI_SCREENS } from './data/presetMultiScreens';
 import { getCustomSymbols, addCustomSymbol } from './utils/customSymbolStorage';
 import Navbar from './components/Navbar.vue';
@@ -24,6 +24,7 @@ import DatasetManagerModal from './components/DatasetManagerModal.vue';
 import JsonExportImportModal from './components/JsonExportImportModal.vue';
 import PreviewScreen from './components/PreviewScreen.vue';
 import DesktopPlatformModal from './components/DesktopPlatformModal.vue';
+import ScadaControlModal from './components/ScadaControlModal.vue';
 import { Sparkles, Layers, Box, Zap } from 'lucide-vue-next';
 
 // 1. Initial State: Load Multi-Screen Electrical Project
@@ -50,6 +51,8 @@ const drawTool = ref<'select' | 'draw-line' | 'draw-polyline'>('select');
 
 // Modals
 const showDatasetsModal = ref(false);
+const showControlModal = ref(false);
+const controlInitialDeviceId = ref<string | undefined>(undefined);
 const showJsonModal = ref(false);
 const showPreviewModal = ref(false);
 const showSymbolModal = ref(false);
@@ -187,6 +190,13 @@ const handleDeleteScreen = (screenId: string) => {
 };
 
 // 2. Undo / Redo History System
+interface HistorySnapshot {
+  screen: ScreenConfig;
+  components: ScreenComponent[];
+  datasets: DatasetItem[];
+  selectedId: string | null;
+}
+
 const historyStack = ref<HistorySnapshot[]>([]);
 const historyIndex = ref<number>(-1);
 const isPerformingHistory = ref(false);
@@ -207,7 +217,7 @@ const recordHistory = () => {
   }
 
   historyStack.value.push(snapshot);
-  if (historyStack.value.length > 40) {
+  if (historyStack.value.length > 50) {
     historyStack.value.shift();
   }
   historyIndex.value = historyStack.value.length - 1;
@@ -676,10 +686,41 @@ const selectedComponent = computed(() => {
 // Dynamic Dataset Simulation Loop & Jump Screen Event Listener
 let simulationTimer: any = null;
 
+// Tele-Control Execution (YK 遥控指令执行与遥信联动刷新)
+const handleExecuteControl = (deviceId: string, pointId: number | string, targetValue: number) => {
+  datasets.value = datasets.value.map(ds => {
+    const hasDevice = ds.devices?.some(d => d.deviceId === deviceId);
+    if (hasDevice) {
+      const res = executeSimulatedTeleControl(ds, deviceId, pointId, targetValue);
+      return res.updatedDataset;
+    }
+    return ds;
+  });
+  recordHistory();
+};
+
+// Tele-Regulation Execution (YT 遥调定值下发与遥测联动)
+const handleExecuteRegulation = (deviceId: string, pointId: number | string, targetValue: number) => {
+  datasets.value = datasets.value.map(ds => {
+    const hasDevice = ds.devices?.some(d => d.deviceId === deviceId);
+    if (hasDevice) {
+      const res = executeSimulatedTeleRegulation(ds, deviceId, pointId, targetValue);
+      return res.updatedDataset;
+    }
+    return ds;
+  });
+  recordHistory();
+};
+
 const handleGlobalJumpEvent = (e: any) => {
   if (e.detail) {
     handleSwitchScreen(e.detail);
   }
+};
+
+const handleGlobalScadaControlEvent = (e: any) => {
+  controlInitialDeviceId.value = e.detail?.deviceId || undefined;
+  showControlModal.value = true;
 };
 
 onMounted(() => {
@@ -694,12 +735,14 @@ onMounted(() => {
 
   window.addEventListener('resize', fitToScreen);
   window.addEventListener('datav:jump:screen', handleGlobalJumpEvent);
+  window.addEventListener('scada:open:control', handleGlobalScadaControlEvent);
 });
 
 onBeforeUnmount(() => {
   if (simulationTimer) clearInterval(simulationTimer);
   window.removeEventListener('resize', fitToScreen);
   window.removeEventListener('datav:jump:screen', handleGlobalJumpEvent);
+  window.removeEventListener('scada:open:control', handleGlobalScadaControlEvent);
 });
 </script>
 
@@ -719,6 +762,7 @@ onBeforeUnmount(() => {
       @toggle:streaming="isStreaming = !isStreaming"
       @open:preview="showPreviewModal = true"
       @open:datasets="showDatasetsModal = true"
+      @open:control="showControlModal = true; controlInitialDeviceId = undefined;"
       @open:json="showJsonModal = true"
       @open:symbols="showSymbolModal = true"
       @open:platform="showPlatformModal = true"
@@ -809,6 +853,9 @@ onBeforeUnmount(() => {
           @align="handleAlignComponent"
           @ungroup="handleUngroup"
           @save:symbol="handleOpenSaveSymbolModal"
+          @undo="handleUndo"
+          @redo="handleRedo"
+          @open:control-modal="(devId) => { controlInitialDeviceId = devId; showControlModal = true; }"
         />
 
         <!-- Bottom Multi-Screen Page Manager Bar -->
@@ -844,6 +891,17 @@ onBeforeUnmount(() => {
       :visible="showDatasetsModal"
       :datasets="datasets"
       @close="showDatasetsModal = false"
+      @update:datasets="datasets = $event; recordHistory();"
+    />
+
+    <!-- 1.5. SCADA Tele-Control Center Modal (主界面遥控分合闸与遥调指令执行) -->
+    <ScadaControlModal
+      :visible="showControlModal"
+      :datasets="datasets"
+      :initialDeviceId="controlInitialDeviceId"
+      @close="showControlModal = false"
+      @execute:control="handleExecuteControl"
+      @execute:regulation="handleExecuteRegulation"
       @update:datasets="datasets = $event; recordHistory();"
     />
 

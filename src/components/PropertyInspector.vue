@@ -25,9 +25,18 @@ import {
   Workflow,
   ToggleRight,
   CircleDot,
-  Binary
+  Binary,
+  Search,
+  Cpu,
+  Radio,
+  Sliders,
+  HelpCircle,
+  BarChart2,
+  FileCode,
+  CheckCircle2,
+  Info
 } from 'lucide-vue-next';
-import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem } from '../types';
+import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
 
 interface Props {
   component: ScreenComponent | null;
@@ -53,6 +62,15 @@ const emit = defineEmits<{
 
 const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry');
 
+// SCADA Hierarchical Data Binding State
+const dataBindingSource = ref<'scada' | 'static'>('scada');
+const selectedDeviceId = ref<string>('DEV-101');
+const selectedTeleCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
+const selectedTargetField = ref<string>('valueKey');
+const pointSearchQuery = ref<string>('');
+const staticJsonInput = ref<string>('');
+const staticJsonMsg = ref<string>('');
+
 const themeColors = [
   '#00f2ff', // Cyber Cyan
   '#3b82f6', // Electric Blue
@@ -65,9 +83,181 @@ const themeColors = [
 ];
 
 const boundDataset = computed(() => {
-  if (!props.component?.data?.datasetId) return null;
-  return props.datasets.find(d => d.id === props.component?.data?.datasetId);
+  if (!props.component?.data?.datasetId) {
+    return props.datasets[0] || null;
+  }
+  return props.datasets.find(d => d.id === props.component?.data?.datasetId) || props.datasets[0] || null;
 });
+
+// Extract devices from the active dataset
+const currentDatasetDevices = computed<ScadaDeviceItem[]>(() => {
+  const ds = boundDataset.value;
+  if (!ds) return [];
+  if (Array.isArray(ds.devices) && ds.devices.length > 0) {
+    return ds.devices;
+  }
+  // Fallback check in data.devices
+  if (ds.data && Array.isArray((ds.data as any).devices)) {
+    return (ds.data as any).devices;
+  }
+  return [];
+});
+
+// Currently selected device in the picker
+const selectedDevice = computed<ScadaDeviceItem | undefined>(() => {
+  return currentDatasetDevices.value.find(d => d.deviceId === selectedDeviceId.value) || currentDatasetDevices.value[0];
+});
+
+// Filtered points under current device and category
+const filteredPoints = computed(() => {
+  const dev = selectedDevice.value;
+  if (!dev) return [];
+  let list: any[] = [];
+  if (selectedTeleCategory.value === 'yc') {
+    list = dev.telemetries || [];
+  } else if (selectedTeleCategory.value === 'yx') {
+    list = dev.teleSignals || [];
+  } else if (selectedTeleCategory.value === 'dd') {
+    list = dev.energies || [];
+  } else if (selectedTeleCategory.value === 'yk') {
+    list = dev.teleControls || [];
+  } else if (selectedTeleCategory.value === 'yt') {
+    list = dev.teleRegulations || [];
+  }
+
+  if (!pointSearchQuery.value.trim()) return list;
+  const q = pointSearchQuery.value.toLowerCase().trim();
+  return list.filter(item => 
+    String(item.pointId).includes(q) || 
+    (item.name && item.name.toLowerCase().includes(q)) ||
+    (item.description && item.description.toLowerCase().includes(q))
+  );
+});
+
+// Component type checks
+const isChartComponent = computed(() => {
+  if (!props.component) return false;
+  return ['chart-line', 'chart-bar', 'chart-pie', 'chart-gauge', 'chart-radar', 'gauge-dashboard', 'tank-level'].includes(props.component.type);
+});
+
+const isElectricalSwitch = computed(() => {
+  if (!props.component) return false;
+  return ['elec-breaker', 'elec-disconnector', 'elec-grounding', 'elec-handcart', 'ctrl-indicator'].includes(props.component.type);
+});
+
+// Point binding action
+const handleBindPointToComponent = (point: any) => {
+  if (!props.component) return;
+  const dev = selectedDevice.value;
+  if (!dev) return;
+
+  const datasetId = boundDataset.value?.id || 'ds-substation-scada';
+  const cat = selectedTeleCategory.value;
+  let pointKey = '';
+  let pointCat: any = 'telemetry';
+
+  if (cat === 'yc') {
+    pointKey = `${dev.deviceId}_YC_${point.pointId}`;
+    pointCat = 'telemetry';
+  } else if (cat === 'yx') {
+    pointKey = `${dev.deviceId}_YX_${point.pointId}`;
+    pointCat = 'teleSignal';
+  } else if (cat === 'dd') {
+    pointKey = `${dev.deviceId}_DD_${point.pointId}`;
+    pointCat = 'energy';
+  } else if (cat === 'yk') {
+    pointKey = `${dev.deviceId}_YK_${point.pointId}`;
+    pointCat = 'teleControl';
+  } else if (cat === 'yt') {
+    pointKey = `${dev.deviceId}_YT_${point.pointId}`;
+    pointCat = 'teleRegulation';
+  }
+
+  const mappingUpdates: Record<string, any> = {
+    deviceId: dev.deviceId,
+    pointCategory: pointCat,
+    pointId: point.pointId,
+    deviceName: dev.deviceName
+  };
+
+  // If electrical switch or YX, map stateKey / valueKey
+  if (isElectricalSwitch.value || cat === 'yx') {
+    mappingUpdates.stateKey = pointKey;
+    mappingUpdates.valueKey = pointKey;
+    mappingUpdates.statusKey = pointKey;
+  } else if (selectedTargetField.value) {
+    mappingUpdates[selectedTargetField.value] = pointKey;
+  } else {
+    mappingUpdates.valueKey = pointKey;
+  }
+
+  if (point.unit) {
+    mappingUpdates.unitKey = `${pointKey}_unit`;
+  }
+
+  updateComponentData({
+    datasetId,
+    useStatic: false,
+    mapping: {
+      ...props.component.data.mapping,
+      ...mappingUpdates
+    }
+  });
+};
+
+// Chart Preset Binding Helpers
+const handleBindChartPreset = (presetType: 'power-trend' | 'voltage-trend' | 'load-bar') => {
+  if (!props.component) return;
+  const datasetId = boundDataset.value?.id || 'ds-substation-scada';
+
+  if (presetType === 'power-trend') {
+    updateComponentData({
+      datasetId,
+      useStatic: false,
+      mapping: {
+        ...props.component.data.mapping,
+        categoriesKey: 'series_time',
+        seriesKey: 'series_power'
+      }
+    });
+  } else if (presetType === 'voltage-trend') {
+    updateComponentData({
+      datasetId,
+      useStatic: false,
+      mapping: {
+        ...props.component.data.mapping,
+        categoriesKey: 'series_time',
+        seriesKey: 'series_voltage'
+      }
+    });
+  } else if (presetType === 'load-bar') {
+    updateComponentData({
+      datasetId,
+      useStatic: false,
+      mapping: {
+        ...props.component.data.mapping,
+        categoriesKey: 'series_device_names',
+        seriesKey: 'series_device_load'
+      }
+    });
+  }
+};
+
+// Apply Static JSON
+const handleApplyStaticData = () => {
+  if (!props.component) return;
+  try {
+    const parsed = JSON.parse(staticJsonInput.value || '{}');
+    updateComponentData({
+      useStatic: true,
+      staticData: parsed
+    });
+    staticJsonMsg.value = '✓ 静态数据已生效';
+    setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+  } catch (err: any) {
+    staticJsonMsg.value = '❌ JSON 格式错误: ' + err.message;
+  }
+};
 
 // Update component helper
 const updateComponentProps = (updates: Partial<ScreenComponent>) => {
@@ -633,6 +823,51 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
+          <!-- SPECIFIC CONTROLS: Electrical Primary Switchgear Status (0: 分闸, 1: 合闸, 2: 故障) -->
+          <div v-if="['elec-breaker', 'elec-disconnector', 'elec-grounding', 'elec-handcart', 'ctrl-indicator'].includes(component.type)" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
+            <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+              <span class="flex items-center gap-1.5">
+                <Zap class="w-4 h-4 text-amber-400" />
+                <span>设备开关状态 (枚举值: 0 / 1 / 2)</span>
+              </span>
+              <span class="font-mono text-cyan-400 font-bold">
+                当前: {{ component.customProps?.state ?? component.customProps?.position ?? (component.style.indicatorState === 'alarm' ? 2 : (component.style.indicatorState === 'normal' ? 1 : 0)) }}
+              </span>
+            </div>
+
+            <div class="grid grid-cols-3 gap-1.5 pt-1">
+              <button
+                @click="updateComponentCustomProps({ state: 0, position: 0 }), updateComponentStyle({ indicatorState: 'off' })"
+                class="py-1.5 px-2 rounded-lg text-xs font-mono font-bold cursor-pointer border transition-all text-center"
+                :class="(component.customProps?.state === 0 || component.customProps?.position === 0 || component.style.indicatorState === 'off')
+                  ? 'bg-slate-700 text-white border-slate-500 shadow-sm'
+                  : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-600'"
+              >
+                0: 分闸 / 停
+              </button>
+
+              <button
+                @click="updateComponentCustomProps({ state: 1, position: 1 }), updateComponentStyle({ indicatorState: 'normal' })"
+                class="py-1.5 px-2 rounded-lg text-xs font-mono font-bold cursor-pointer border transition-all text-center"
+                :class="(component.customProps?.state === 1 || component.customProps?.position === 1 || component.style.indicatorState === 'normal')
+                  ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                  : 'bg-slate-900 text-emerald-400 border-slate-800 hover:border-emerald-500/40'"
+              >
+                1: 合闸 / 运
+              </button>
+
+              <button
+                @click="updateComponentCustomProps({ state: 2, position: 2 }), updateComponentStyle({ indicatorState: 'alarm' })"
+                class="py-1.5 px-2 rounded-lg text-xs font-mono font-bold cursor-pointer border transition-all text-center"
+                :class="(component.customProps?.state === 2 || component.customProps?.position === 2 || component.style.indicatorState === 'alarm')
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-sm'
+                  : 'bg-slate-900 text-amber-400 border-slate-800 hover:border-amber-500/40'"
+              >
+                2: 故障 / 警
+              </button>
+            </div>
+          </div>
+
           <!-- SPECIFIC CONTROLS: Metric Float -->
           <div v-if="component.type === 'metric-float'" class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
             <div class="text-xs font-bold text-cyan-300">浮点数数据显示设置</div>
@@ -799,44 +1034,299 @@ const toggleBatchLock = () => {
               </button>
             </div>
           </div>
-          <!-- Bound Dataset Picker -->
-          <div>
-            <label class="text-xs font-semibold text-slate-200 block mb-1">关联动态数据集</label>
-            <select
-              :value="component.data.datasetId || ''"
-              @change="updateComponentData({ datasetId: ($event.target as HTMLSelectElement).value })"
-              class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-semibold text-xs outline-hidden cursor-pointer"
-            >
-              <option value="">未绑定 (使用组件默认数据)</option>
-              <option v-for="ds in datasets" :key="ds.id" :value="ds.id">
-                {{ ds.name }} ({{ ds.type }})
-              </option>
-            </select>
+
+          <!-- Data Source Switcher: SCADA 4-Telemetry vs Static Data -->
+          <div class="space-y-1.5">
+            <label class="text-xs font-semibold text-slate-200 block">数据来源模式</label>
+            <div class="grid grid-cols-2 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800">
+              <button
+                @click="dataBindingSource = 'scada'"
+                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                :class="dataBindingSource === 'scada' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
+              >
+                <Cpu class="w-3.5 h-3.5" />
+                <span>SCADA 四遥数据</span>
+              </button>
+              <button
+                @click="dataBindingSource = 'static'"
+                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                :class="dataBindingSource === 'static' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
+              >
+                <FileCode class="w-3.5 h-3.5" />
+                <span>静态 JSON 数据</span>
+              </button>
+            </div>
           </div>
 
-          <!-- Dataset Field Inspector / Mappings -->
-          <div v-if="boundDataset" class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40 space-y-2">
-            <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
-              <span>可用遥测数据字段</span>
-              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-            </div>
-
-            <div class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
-              <div
-                v-for="field in (boundDataset?.fields || [])"
-                :key="field.name"
-                class="flex items-center justify-between p-2 rounded-lg bg-[#060b17] border border-slate-800 hover:border-cyan-500/60 text-xs cursor-pointer transition-colors"
-                @click="updateComponentData({ mapping: { ...component.data.mapping, valueKey: field.name, stateKey: field.name } })"
-              >
-                <div class="flex items-center gap-1.5">
-                  <span class="text-cyan-300 font-bold">{{ field.label || field.name }}</span>
-                  <span class="text-slate-400 text-[11px]">({{ field.name }})</span>
-                </div>
-                <span class="text-slate-200 font-mono font-bold">
-                  {{ (Array.isArray(boundDataset.data) ? boundDataset.data[0]?.[field.name] : boundDataset.data?.[field.name]) ?? '-' }}
+          <!-- ================= SCADA FOUR-TELEMETRY MODE ================= -->
+          <div v-if="dataBindingSource === 'scada'" class="space-y-3.5">
+            <!-- Currently Bound Summary Badge -->
+            <div class="p-2.5 rounded-lg bg-[#050a16] border border-cyan-500/30 text-xs space-y-1">
+              <div class="flex items-center justify-between text-slate-300">
+                <span class="font-semibold text-cyan-300 flex items-center gap-1">
+                  <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
+                  <span>当前绑定状态</span>
+                </span>
+                <span class="text-[10px] text-slate-400 font-mono">
+                  {{ component.data.useStatic ? '使用静态数据' : '使用SCADA实时' }}
                 </span>
               </div>
+              <div class="text-[11px] font-mono text-slate-300 break-all pt-0.5">
+                <template v-if="component.data.mapping?.stateKey || component.data.mapping?.valueKey || component.data.mapping?.seriesKey">
+                  <span class="text-cyan-400 font-bold">已绑键:</span> {{ component.data.mapping.stateKey || component.data.mapping.valueKey || component.data.mapping.seriesKey }}
+                  <span v-if="component.data.mapping.deviceId" class="text-slate-400">({{ component.data.mapping.deviceId }})</span>
+                </template>
+                <template v-else>
+                  <span class="text-amber-400/80">未绑定具体点号 (使用默认值)</span>
+                </template>
+              </div>
             </div>
+
+            <!-- Step 1: Select SCADA Dataset -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">
+                1. 选择 SCADA 集控数据集
+              </label>
+              <select
+                :value="component.data.datasetId || boundDataset?.id || ''"
+                @change="updateComponentData({ datasetId: ($event.target as HTMLSelectElement).value, useStatic: false })"
+                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-semibold text-xs outline-hidden cursor-pointer"
+              >
+                <option v-for="ds in datasets" :key="ds.id" :value="ds.id">
+                  {{ ds.name }} ({{ ds.type }})
+                </option>
+              </select>
+            </div>
+
+            <!-- Step 2: Select Device -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">
+                2. 选择受控装置 (Device)
+              </label>
+              <select
+                v-model="selectedDeviceId"
+                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-bold text-xs outline-hidden cursor-pointer"
+              >
+                <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
+                  [{{ dev.deviceId }}] {{ dev.deviceName }}
+                </option>
+              </select>
+            </div>
+
+            <!-- Step 3: Select Telemetry Category (YC / YX / DD / YK / YT) -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">
+                3. 选择四遥数据分类
+              </label>
+              <div class="grid grid-cols-5 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
+                <button
+                  @click="selectedTeleCategory = 'yc'"
+                  class="py-1 rounded text-center cursor-pointer transition-colors"
+                  :class="selectedTeleCategory === 'yc' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                >
+                  遥测 YC
+                </button>
+                <button
+                  @click="selectedTeleCategory = 'yx'"
+                  class="py-1 rounded text-center cursor-pointer transition-colors"
+                  :class="selectedTeleCategory === 'yx' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                >
+                  遥信 YX
+                </button>
+                <button
+                  @click="selectedTeleCategory = 'dd'"
+                  class="py-1 rounded text-center cursor-pointer transition-colors"
+                  :class="selectedTeleCategory === 'dd' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
+                >
+                  电度 DD
+                </button>
+                <button
+                  @click="selectedTeleCategory = 'yk'"
+                  class="py-1 rounded text-center cursor-pointer transition-colors"
+                  :class="selectedTeleCategory === 'yk' ? 'bg-purple-500 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                >
+                  遥控 YK
+                </button>
+                <button
+                  @click="selectedTeleCategory = 'yt'"
+                  class="py-1 rounded text-center cursor-pointer transition-colors"
+                  :class="selectedTeleCategory === 'yt' ? 'bg-blue-500 text-white font-bold' : 'text-slate-400 hover:text-white'"
+                >
+                  遥调 YT
+                </button>
+              </div>
+            </div>
+
+            <!-- Target Field Selector (Optional for non-switches) -->
+            <div v-if="!isElectricalSwitch">
+              <label class="text-xs font-semibold text-slate-200 block mb-1">
+                4. 绑定组件属性目标
+              </label>
+              <select
+                v-model="selectedTargetField"
+                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+              >
+                <option value="valueKey">主测量值 / 状态 (valueKey)</option>
+                <option value="stateKey">开关状态枚举 (stateKey)</option>
+                <option value="voltageKey">电压数据 (voltageKey)</option>
+                <option value="currentKey">电流数据 (currentKey)</option>
+                <option value="powerKey">功率数据 (powerKey)</option>
+                <option value="temperatureKey">温度数据 (temperatureKey)</option>
+                <option value="seriesKey">图表时序系列 (seriesKey)</option>
+              </select>
+            </div>
+
+            <!-- Step 5: Point List & Search -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-slate-200">
+                  5. 在条目列表中点击绑定点
+                </label>
+                <span class="text-[10px] text-cyan-400 font-mono">共 {{ filteredPoints.length }} 个点</span>
+              </div>
+
+              <!-- Search Input -->
+              <div class="relative">
+                <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                <input
+                  type="text"
+                  v-model="pointSearchQuery"
+                  placeholder="搜索点号、名称或说明..."
+                  class="w-full bg-[#060b17] border border-slate-800 focus:border-cyan-400 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 outline-hidden"
+                />
+              </div>
+
+              <!-- Scrollable Point List -->
+              <div class="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-0.5">
+                <div
+                  v-for="pt in filteredPoints"
+                  :key="pt.pointId"
+                  @click="handleBindPointToComponent(pt)"
+                  class="p-2 rounded-lg bg-[#060b17] border border-slate-800 hover:border-cyan-500/70 text-xs cursor-pointer transition-all flex items-center justify-between group"
+                  :class="component.data.mapping?.pointId === pt.pointId && component.data.mapping?.deviceId === selectedDevice?.deviceId ? 'border-cyan-400 bg-cyan-950/30' : ''"
+                >
+                  <div class="flex items-center gap-2 overflow-hidden">
+                    <span class="font-mono font-bold text-cyan-400 text-[11px] shrink-0">#{{ pt.pointId }}</span>
+                    <div class="truncate">
+                      <span class="font-semibold text-slate-200 block truncate group-hover:text-cyan-300">{{ pt.name }}</span>
+                      <span class="text-[10px] text-slate-400 block truncate font-mono">
+                        {{ selectedDevice?.deviceId }}_{{ selectedTeleCategory.toUpperCase() }}_{{ pt.pointId }}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div class="text-right shrink-0 pl-2">
+                    <span
+                      v-if="selectedTeleCategory === 'yc' || selectedTeleCategory === 'dd'"
+                      class="font-mono font-bold text-emerald-400 text-xs block"
+                    >
+                      {{ pt.value }} <span class="text-[10px] text-cyan-300 font-normal">{{ pt.unit || '' }}</span>
+                    </span>
+                    <span
+                      v-else-if="selectedTeleCategory === 'yx'"
+                      class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono"
+                      :class="pt.value === 1 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : (pt.value === 2 ? 'bg-amber-950 text-amber-300 border border-amber-500/40' : 'bg-slate-900 text-slate-400 border border-slate-700')"
+                    >
+                      {{ pt.value }} ({{ pt.statusText || (pt.value === 1 ? '合闸' : '分闸') }})
+                    </span>
+                    <span
+                      v-else-if="selectedTeleCategory === 'yk'"
+                      class="text-[10px] text-amber-300 font-mono"
+                    >
+                      {{ pt.options?.length || 2 }} 个选项
+                    </span>
+                    <span
+                      v-else-if="selectedTeleCategory === 'yt'"
+                      class="text-[10px] text-cyan-300 font-mono"
+                    >
+                      {{ pt.value }} {{ pt.unit }}
+                    </span>
+                  </div>
+                </div>
+
+                <div v-if="filteredPoints.length === 0" class="p-4 text-center text-xs text-slate-500">
+                  未找到符合条件的点位
+                </div>
+              </div>
+            </div>
+
+            <!-- SPECIAL SECTION: Chart Binding Explanation & Presets -->
+            <div v-if="isChartComponent" class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+                <BarChart2 class="w-4 h-4 text-cyan-400" />
+                <span>图表数据绑定生效指南</span>
+              </div>
+
+              <div class="text-[11px] text-slate-300 leading-relaxed space-y-1">
+                <p>💡 <strong class="text-white">绑定生效机制：</strong> 图表数据由 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">X轴分类 (categoriesKey)</code> 与 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">Y轴系列 (seriesKey)</code> 决定。</p>
+                <p class="text-slate-400">数据源为当前 SCADA 实时数据集中的全站时序曲线或多装置横向负荷。</p>
+              </div>
+
+              <!-- Quick Presets for Charts -->
+              <div class="space-y-1.5 pt-1 border-t border-slate-800">
+                <label class="text-[11px] font-semibold text-cyan-300 block">一键绑定全站时序与负荷曲线：</label>
+                <div class="grid grid-cols-1 gap-1.5">
+                  <button
+                    @click="handleBindChartPreset('power-trend')"
+                    class="py-1.5 px-2 rounded-lg bg-[#060b17] hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer flex items-center justify-between transition-colors"
+                  >
+                    <span>📈 绑定进线有功功率 24h 时序曲线</span>
+                    <span class="text-[10px] text-cyan-400 font-mono">series_power</span>
+                  </button>
+
+                  <button
+                    @click="handleBindChartPreset('voltage-trend')"
+                    class="py-1.5 px-2 rounded-lg bg-[#060b17] hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer flex items-center justify-between transition-colors"
+                  >
+                    <span>📉 绑定母线电压 24h 波动曲线</span>
+                    <span class="text-[10px] text-cyan-400 font-mono">series_voltage</span>
+                  </button>
+
+                  <button
+                    @click="handleBindChartPreset('load-bar')"
+                    class="py-1.5 px-2 rounded-lg bg-[#060b17] hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer flex items-center justify-between transition-colors"
+                  >
+                    <span>📊 绑定各装置实时负荷对比柱状图</span>
+                    <span class="text-[10px] text-cyan-400 font-mono">series_device_load</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ================= STATIC JSON DATA MODE ================= -->
+          <div v-else-if="dataBindingSource === 'static'" class="space-y-3">
+            <div class="p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
+              <span>📋 静态数据模式：组件将直接解析下方输入的 JSON 对象或数组，不从 SCADA 实时点表中获取更新。</span>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-slate-200">静态 JSON 格式数据</label>
+                <button
+                  @click="staticJsonInput = JSON.stringify(component.data.staticData || { value: 125.6, unit: 'kV', label: '静态测量' }, null, 2)"
+                  class="text-[10px] text-cyan-400 hover:underline cursor-pointer"
+                >
+                  填入当前默认值
+                </button>
+              </div>
+              <textarea
+                v-model="staticJsonInput"
+                placeholder='{"value": 10.5, "unit": "kV", "categories": ["01:00", "02:00"], "series": [10, 20]}'
+                class="w-full h-36 bg-[#060b17] border border-slate-800 focus:border-cyan-400 rounded-lg p-2.5 text-xs text-slate-100 font-mono outline-hidden resize-none"
+              ></textarea>
+            </div>
+
+            <div v-if="staticJsonMsg" class="text-xs font-semibold" :class="staticJsonMsg.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'">
+              {{ staticJsonMsg }}
+            </div>
+
+            <button
+              @click="handleApplyStaticData"
+              class="w-full py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors shadow-sm"
+            >
+              应用静态数据到组件
+            </button>
           </div>
         </div>
 

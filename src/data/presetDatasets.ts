@@ -1,146 +1,313 @@
-import { DatasetItem } from '../types';
+import { DatasetItem, ScadaDeviceItem, DatasetField } from '../types';
+
+// Helper to flatten device data for fast key-value lookups & chart compatibility
+export function syncFlatDataFromDevices(devices: ScadaDeviceItem[]): { data: Record<string, any>; fields: DatasetField[] } {
+  const data: Record<string, any> = {
+    timestamp: new Date().toLocaleTimeString()
+  };
+  const fields: DatasetField[] = [];
+
+  devices.forEach(dev => {
+    // Communication status
+    const commKey = `${dev.deviceId}_comm`;
+    data[commKey] = dev.commStatus;
+    fields.push({
+      name: commKey,
+      type: 'number',
+      label: `[${dev.deviceId}] ${dev.deviceName} 通信状态 (0/1/2)`,
+      sample: dev.commStatus
+    });
+
+    // 1. 遥测 (YC)
+    dev.telemetries?.forEach(yc => {
+      const key = `${dev.deviceId}_YC_${yc.pointId}`;
+      data[key] = yc.value;
+      fields.push({
+        name: key,
+        type: 'number',
+        label: `[${dev.deviceId} 遥测.${yc.pointId}] ${yc.name} (${yc.unit})`,
+        sample: yc.value
+      });
+    });
+
+    // 2. 遥信 (YX - 0, 1, 2)
+    dev.teleSignals?.forEach(yx => {
+      const key = `${dev.deviceId}_YX_${yx.pointId}`;
+      data[key] = yx.value;
+      fields.push({
+        name: key,
+        type: 'number',
+        label: `[${dev.deviceId} 遥信.${yx.pointId}] ${yx.name} (0/1/2)`,
+        sample: yx.value
+      });
+    });
+
+    // 3. 电度 (DD)
+    dev.energies?.forEach(dd => {
+      const key = `${dev.deviceId}_DD_${dd.pointId}`;
+      data[key] = dd.value;
+      fields.push({
+        name: key,
+        type: 'number',
+        label: `[${dev.deviceId} 电度.${dd.pointId}] ${dd.name} (${dd.unit})`,
+        sample: dd.value
+      });
+    });
+
+    // 4. 遥调 (YT)
+    dev.teleRegulations?.forEach(yt => {
+      const key = `${dev.deviceId}_YT_${yt.pointId}`;
+      data[key] = yt.value;
+      fields.push({
+        name: key,
+        type: 'number',
+        label: `[${dev.deviceId} 遥调.${yt.pointId}] ${yt.name} (${yt.unit})`,
+        sample: yt.value
+      });
+    });
+  });
+
+  // Global Series for ECharts
+  data['series_time'] = ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25', '10:30', '10:35', '10:40', '10:45'];
+  data['series_power'] = [6800, 7100, 7450, 7620, 7580, 7620.5, 7700, 7650, 7590, 7620.5];
+  data['series_voltage'] = [10.21, 10.23, 10.25, 10.26, 10.24, 10.25, 10.27, 10.26, 10.25, 10.25];
+  data['series_device_load'] = [76.2, 64.5, 32.0, 48.6, 82.5];
+  data['series_device_names'] = ['101进线', '1#主变', '100母联', '201低压', '301光伏'];
+
+  return { data, fields };
+}
+
+// Preset Device Configurations
+const STATION_DEVICES: ScadaDeviceItem[] = [
+  {
+    deviceId: 'DEV-101',
+    deviceName: '10kV 进线 101 测控保护装置',
+    deviceType: '线路测控保护单元',
+    commStatus: 1,
+    ipAddress: '192.168.1.101',
+    telemetries: [
+      { pointId: 1, name: 'A相电压 Ua', factor: 0.1, unit: 'kV', rawValue: 102.5, value: 10.25, description: '10kV母线A相对地电压' },
+      { pointId: 2, name: 'B相电压 Ub', factor: 0.1, unit: 'kV', rawValue: 102.8, value: 10.28, description: '10kV母线B相对地电压' },
+      { pointId: 3, name: 'C相电压 Uc', factor: 0.1, unit: 'kV', rawValue: 102.2, value: 10.22, description: '10kV母线C相对地电压' },
+      { pointId: 4, name: 'A相电流 Ia', factor: 1.0, unit: 'A', rawValue: 428.6, value: 428.6, description: '101进线A相进线电流' },
+      { pointId: 5, name: 'B相电流 Ib', factor: 1.0, unit: 'A', rawValue: 425.1, value: 425.1, description: '101进线B相进线电流' },
+      { pointId: 6, name: 'C相电流 Ic', factor: 1.0, unit: 'A', rawValue: 431.2, value: 431.2, description: '101进线C相进线电流' },
+      { pointId: 7, name: '有功功率 P', factor: 1.0, unit: 'kW', rawValue: 7620.5, value: 7620.5, description: '101三相总有功功率' },
+      { pointId: 8, name: '无功功率 Q', factor: 1.0, unit: 'kvar', rawValue: 1210.4, value: 1210.4, description: '101三相总无功功率' },
+      { pointId: 9, name: '功率因数 CosΦ', factor: 0.01, unit: '', rawValue: 98, value: 0.98, description: '101综合功率因数' },
+      { pointId: 10, name: '电网频率 F', factor: 0.01, unit: 'Hz', rawValue: 5002, value: 50.02, description: '系统电网工频频率' }
+    ],
+    teleSignals: [
+      { pointId: 1, name: '101 断路器位置 (0:分/1:合/2:跳)', value: 1, statusText: '合闸 (1)', description: '101真空断路器主触头常开辅助触点' },
+      { pointId: 2, name: '101 手车工作位置 (0:试/1:工/2:检)', value: 1, statusText: '工作位置 (1)', description: '可抽出式手车在工作试验位置' },
+      { pointId: 3, name: '101 隔离开关位置 (0:分/1:合/2:障)', value: 1, statusText: '合闸 (1)', description: '母线侧隔离刀闸位置' },
+      { pointId: 4, name: '101 接地刀闸位置 (0:分/1:合/2:障)', value: 0, statusText: '分闸 (0)', description: '线路侧接地刀闸位置' },
+      { pointId: 5, name: '101 保护事故总跳闸 (0:常/1:动/2:障)', value: 0, statusText: '正常 (0)', description: '微机保护速断过流动作出口' },
+      { pointId: 6, name: '101 机构弹簧未储能 (0:已储/1:未储/2:障)', value: 0, statusText: '正常已储能 (0)', description: '断路器操动机构储能状态' },
+      { pointId: 7, name: '101 重合闸动作 (0:复归/1:动作/2:闭锁)', value: 0, statusText: '未动作 (0)', description: '一次自动重合闸动作指示' }
+    ],
+    energies: [
+      { pointId: 1, name: '正向有功总电能', factor: 0.01, unit: 'kWh', value: 284560.8, description: '电度表双向累计正向有功电量' },
+      { pointId: 2, name: '正向无功总电能', factor: 0.01, unit: 'kvarh', value: 42150.3, description: '累计无功电能' },
+      { pointId: 3, name: '今日累计用电量', factor: 1.0, unit: 'kWh', value: 18450.0, description: '当日零点起算累计能耗' }
+    ],
+    teleControls: [
+      {
+        pointId: 1,
+        name: '101 断路器分合闸控制',
+        targetPointId: 1,
+        options: [
+          { label: '分闸指令 (0)', value: 0 },
+          { label: '合闸指令 (1)', value: 1 }
+        ]
+      },
+      {
+        pointId: 2,
+        name: '101 自动重合闸压板投退',
+        options: [
+          { label: '退出压板 (0)', value: 0 },
+          { label: '投入压板 (1)', value: 1 }
+        ]
+      },
+      {
+        pointId: 3,
+        name: '101 保护信号远方复归',
+        options: [
+          { label: '复归信号 (0)', value: 0 }
+        ]
+      }
+    ],
+    teleRegulations: [
+      { pointId: 1, name: '101 过流一段动作电流定值', unit: 'A', min: 100, max: 1500, step: 10, value: 650 },
+      { pointId: 2, name: '101 过流一段动作时限', unit: 's', min: 0.0, max: 5.0, step: 0.05, value: 0.5 }
+    ]
+  },
+  {
+    deviceId: 'DEV-102',
+    deviceName: '1# 主变压器 102 测控保护装置',
+    deviceType: '主变压器双绕组保护测控',
+    commStatus: 1,
+    ipAddress: '192.168.1.102',
+    telemetries: [
+      { pointId: 1, name: '主变高压侧电流', factor: 1.0, unit: 'A', rawValue: 245.0, value: 245.0, description: '110kV/10kV高压侧线电流' },
+      { pointId: 2, name: '主变低压侧电流', factor: 1.0, unit: 'A', rawValue: 1280.5, value: 1280.5, description: '10kV侧总输出电流' },
+      { pointId: 3, name: '主变顶层油温', factor: 1.0, unit: '℃', rawValue: 56.4, value: 56.4, description: 'PT100油面温度传感器测值' },
+      { pointId: 4, name: '主变绕组热点温度', factor: 1.0, unit: '℃', rawValue: 68.2, value: 68.2, description: '主变三相绕组最高发热点' },
+      { pointId: 5, name: '主变负荷率', factor: 1.0, unit: '%', rawValue: 64.5, value: 64.5, description: '当前出力/额定容量占比' }
+    ],
+    teleSignals: [
+      { pointId: 1, name: '主变高压侧断路器 (0:分/1:合/2:跳)', value: 1, statusText: '合闸 (1)' },
+      { pointId: 2, name: '主变低压侧断路器 (0:分/1:合/2:跳)', value: 1, statusText: '合闸 (1)' },
+      { pointId: 3, name: '主变重瓦斯保护跳闸 (0:常/1:动/2:障)', value: 0, statusText: '正常 (0)' },
+      { pointId: 4, name: '主变轻瓦斯告警 (0:常/1:动/2:障)', value: 0, statusText: '正常 (0)' },
+      { pointId: 5, name: '主变风冷系统运行 (0:停/1:运/2:障)', value: 1, statusText: '运行 (1)' }
+    ],
+    energies: [
+      { pointId: 1, name: '主变供电量累计', factor: 0.01, unit: 'MWh', value: 5240.2 }
+    ],
+    teleControls: [
+      {
+        pointId: 1,
+        name: '主变冷却风机启停控制',
+        options: [
+          { label: '风机停止 (0)', value: 0 },
+          { label: '风机启动 (1)', value: 1 }
+        ]
+      }
+    ],
+    teleRegulations: [
+      { pointId: 1, name: '有载调压分接头档位', unit: '档', min: 1, max: 17, step: 1, value: 9 },
+      { pointId: 2, name: '冷却风机自启温控阈值', unit: '℃', min: 40, max: 80, step: 1, value: 55 }
+    ]
+  },
+  {
+    deviceId: 'DEV-103',
+    deviceName: '10kV 母联 100 测控备自投装置',
+    deviceType: '母联测控与备自投单元',
+    commStatus: 1,
+    ipAddress: '192.168.1.103',
+    telemetries: [
+      { pointId: 1, name: '母联电流', factor: 1.0, unit: 'A', rawValue: 0.0, value: 0.0 },
+      { pointId: 2, name: 'I段母线电压', factor: 0.1, unit: 'kV', rawValue: 102.5, value: 10.25 },
+      { pointId: 3, name: 'II段母线电压', factor: 0.1, unit: 'kV', rawValue: 102.6, value: 10.26 }
+    ],
+    teleSignals: [
+      { pointId: 1, name: '100 母联断路器 (0:分/1:合/2:跳)', value: 0, statusText: '分闸备用 (0)' },
+      { pointId: 2, name: '备自投装置就绪 (0:未就绪/1:就绪/2:闭锁)', value: 1, statusText: '就绪 (1)' },
+      { pointId: 3, name: '备自投自锁动作 (0:复归/1:动作/2:障)', value: 0, statusText: '正常 (0)' }
+    ],
+    energies: [
+      { pointId: 1, name: '母联累计转移电量', factor: 0.01, unit: 'kWh', value: 120.0 }
+    ],
+    teleControls: [
+      {
+        pointId: 1,
+        name: '100 母联断路器分合遥控',
+        targetPointId: 1,
+        options: [
+          { label: '分闸指令 (0)', value: 0 },
+          { label: '合闸指令 (1)', value: 1 }
+        ]
+      },
+      {
+        pointId: 2,
+        name: '备自投功能远方投退',
+        options: [
+          { label: '退出备自投 (0)', value: 0 },
+          { label: '投入备自投 (1)', value: 1 }
+        ]
+      }
+    ],
+    teleRegulations: [
+      { pointId: 1, name: '备自投无压判定延时', unit: 's', min: 0.5, max: 5.0, step: 0.1, value: 1.5 }
+    ]
+  },
+  {
+    deviceId: 'DEV-201',
+    deviceName: '400V 低压综合配电 201 测控单元',
+    deviceType: '低压智能配电与电能质量',
+    commStatus: 1,
+    ipAddress: '192.168.2.201',
+    telemetries: [
+      { pointId: 1, name: '低压Uab线电压', factor: 1.0, unit: 'V', rawValue: 382.4, value: 382.4 },
+      { pointId: 2, name: '低压三相总负荷电流', factor: 1.0, unit: 'A', rawValue: 840.5, value: 840.5 },
+      { pointId: 3, name: '低压总有功功率', factor: 1.0, unit: 'kW', rawValue: 520.4, value: 520.4 },
+      { pointId: 4, name: '低压电缆接头温度', factor: 1.0, unit: '℃', rawValue: 43.8, value: 43.8 },
+      { pointId: 5, name: '电网无功功率', factor: 1.0, unit: 'kvar', rawValue: 85.0, value: 85.0 }
+    ],
+    teleSignals: [
+      { pointId: 1, name: '低压主进线断路器 (0:分/1:合/2:跳)', value: 1, statusText: '合闸 (1)' },
+      { pointId: 2, name: '电容无功自动补偿投入 (0:切除/1:投入/2:障)', value: 1, statusText: '投入 (1)' },
+      { pointId: 3, name: '低压母线过温告警 (0:常/1:动/2:障)', value: 0, statusText: '正常 (0)' }
+    ],
+    energies: [
+      { pointId: 1, name: '低压总用电量累计', factor: 0.01, unit: 'kWh', value: 98450.0 }
+    ],
+    teleControls: [
+      {
+        pointId: 1,
+        name: '电容补偿柜投切模式',
+        options: [
+          { label: '手动模式 (0)', value: 0 },
+          { label: '自动模式 (1)', value: 1 }
+        ]
+      }
+    ],
+    teleRegulations: [
+      { pointId: 1, name: '目标功率因数补偿设定', unit: '', min: 0.85, max: 0.99, step: 0.01, value: 0.96 }
+    ]
+  },
+  {
+    deviceId: 'DEV-301',
+    deviceName: '厂区分布式光伏并网 301 测控逆变装置',
+    deviceType: '光伏逆变与防孤岛保护',
+    commStatus: 1,
+    ipAddress: '192.168.3.101',
+    telemetries: [
+      { pointId: 1, name: '光伏交流输出有功功率', factor: 1.0, unit: 'kW', rawValue: 1420.8, value: 1420.8 },
+      { pointId: 2, name: '光伏直流母线电压', factor: 1.0, unit: 'V', rawValue: 680.5, value: 680.5 },
+      { pointId: 3, name: '光伏直流母线电流', factor: 1.0, unit: 'A', rawValue: 2100.0, value: 2100.0 },
+      { pointId: 4, name: '当日累计光伏发电量', factor: 1.0, unit: 'kWh', rawValue: 12450, value: 12450 },
+      { pointId: 5, name: '逆变器机芯转换效率', factor: 0.1, unit: '%', rawValue: 986, value: 98.6 },
+      { pointId: 6, name: '厂区太阳能光照辐射强度', factor: 1.0, unit: 'W/㎡', rawValue: 845, value: 845 }
+    ],
+    teleSignals: [
+      { pointId: 1, name: '逆变器并网状态 (0:待机/1:并网/2:故障)', value: 1, statusText: '并网发电 (1)' },
+      { pointId: 2, name: '防孤岛保护装置状态 (0:未投/1:投运/2:动作)', value: 1, statusText: '投运监视 (1)' },
+      { pointId: 3, name: '光伏直流侧绝缘阻抗告警 (0:常/1:告警/2:障)', value: 0, statusText: '正常 (0)' }
+    ],
+    energies: [
+      { pointId: 1, name: '光伏总累计上网电量', factor: 0.01, unit: 'kWh', value: 845200.0 }
+    ],
+    teleControls: [
+      {
+        pointId: 1,
+        name: '光伏逆变器远方启停',
+        options: [
+          { label: '远程停机 (0)', value: 0 },
+          { label: '远程启机 (1)', value: 1 }
+        ]
+      }
+    ],
+    teleRegulations: [
+      { pointId: 1, name: '光伏最大有功功率限制出力', unit: 'kW', min: 0, max: 2000, step: 50, value: 1500 }
+    ]
+  }
+];
+
+const syncStation = syncFlatDataFromDevices(STATION_DEVICES);
 
 export const INITIAL_DATASETS: DatasetItem[] = [
   {
-    id: 'ds-factory-telemetry',
-    name: '智能工厂车间遥测 (Smart Factory Telemetry)',
-    description: '实时产线能耗、转速、震动频率、温度与综合稼动率 (OEE)',
+    id: 'ds-scada-station',
+    name: '110kV/10kV 智能变电站 SCADA 集控数据集 (装置级)',
+    description: '以装置号为初始单位，涵盖 DEV-101 (10kV进线)、DEV-102 (1#主变)、DEV-103 (母联备自投)、DEV-201 (低压配电)、DEV-301 (分布式光伏) 的遥测、遥信(0/1/2)、电度、遥控与遥调',
     type: 'mock',
     updateIntervalMs: 2000,
     isStreaming: true,
-    data: {
-      factory_name: '智能智造一号超级车间',
-      timestamp: new Date().toLocaleTimeString(),
-      temperature_c: 48.6,
-      pressure_kpa: 312.4,
-      spindle_speed_rpm: 3620,
-      vibration_hz: 14.8,
-      power_consumption_kw: 845.2,
-      oee_efficiency_pct: 92.4,
-      daily_yield_units: 14280,
-      target_yield_units: 15000,
-      yield_rate_pct: 95.2,
-      alarm_count: 2,
-      equipment_status: 'RUNNING',
-      series_time: ['10:00', '10:05', '10:10', '10:15', '10:20', '10:25', '10:30', '10:35', '10:40', '10:45'],
-      series_power: [720, 780, 810, 790, 830, 845, 860, 850, 842, 855],
-      series_temp: [42.1, 43.5, 45.0, 46.2, 47.1, 48.0, 48.6, 49.1, 48.9, 48.6],
-      series_oee: [88, 89, 91, 90, 93, 94, 92, 95, 93, 92.4],
-      series_categories: ['1#冲压', '2#焊接', '3#涂装', '4#总装', '5#质检', '6#包装'],
-      series_line_output: [2800, 3100, 2450, 3600, 2100, 1230]
-    },
-    fields: [
-      { name: 'temperature_c', type: 'number', label: '温度 (°C)', sample: 48.6 },
-      { name: 'pressure_kpa', type: 'number', label: '压力 (kPa)', sample: 312.4 },
-      { name: 'spindle_speed_rpm', type: 'number', label: '主轴转速 (RPM)', sample: 3620 },
-      { name: 'power_consumption_kw', type: 'number', label: '实时功率 (kW)', sample: 845.2 },
-      { name: 'oee_efficiency_pct', type: 'number', label: 'OEE稼动率 (%)', sample: 92.4 },
-      { name: 'daily_yield_units', type: 'number', label: '今日产量 (件)', sample: 14280 },
-      { name: 'yield_rate_pct', type: 'number', label: '良品率 (%)', sample: 95.2 },
-      { name: 'alarm_count', type: 'number', label: '报警总数', sample: 2 },
-      { name: 'equipment_status', type: 'string', label: '设备工况', sample: 'RUNNING' },
-      { name: 'series_time', type: 'array', label: '时间轴序列', sample: ['10:00', '10:05'] },
-      { name: 'series_power', type: 'array', label: '功率趋势序列', sample: [720, 845] },
-      { name: 'series_temp', type: 'array', label: '温度变化序列', sample: [42.1, 48.6] },
-      { name: 'series_categories', type: 'array', label: '工序分类', sample: ['冲压', '焊接'] },
-      { name: 'series_line_output', type: 'array', label: '各工序产出', sample: [2800, 3100] }
-    ]
-  },
-  {
-    id: 'ds-chemical-tanks',
-    name: '化工储罐与流体管道监控 (Chemical Tanks & Flow)',
-    description: '1号-4号反应釜液位、进出阀门开度、流速流量及防爆安全指数',
-    type: 'mock',
-    updateIntervalMs: 1500,
-    isStreaming: true,
-    data: {
-      tank1_level_pct: 78.4,
-      tank1_volume_m3: 156.8,
-      tank1_temp_c: 64.2,
-      tank2_level_pct: 42.1,
-      tank2_volume_m3: 84.2,
-      tank3_level_pct: 91.5,
-      tank3_volume_m3: 183.0,
-      flow_rate_lpm: 432.0,
-      total_accumulated_m3: 12480.5,
-      valve_main_opening_pct: 85,
-      safety_index_score: 99.1,
-      leak_status: 'NORMAL',
-      pump_rpm: 1450,
-      series_flow: [380, 395, 410, 425, 430, 440, 435, 432, 438, 432],
-      series_tank_compare: [78.4, 42.1, 91.5, 63.0],
-      series_tank_names: ['A-101储罐', 'A-102储罐', 'B-201反应釜', 'C-301沉淀池']
-    },
-    fields: [
-      { name: 'tank1_level_pct', type: 'number', label: '1号储罐液位 (%)', sample: 78.4 },
-      { name: 'tank1_volume_m3', type: 'number', label: '1号储罐容量 (m³)', sample: 156.8 },
-      { name: 'tank2_level_pct', type: 'number', label: '2号储罐液位 (%)', sample: 42.1 },
-      { name: 'tank3_level_pct', type: 'number', label: '3号反应釜液位 (%)', sample: 91.5 },
-      { name: 'flow_rate_lpm', type: 'number', label: '主管路流量 (L/min)', sample: 432.0 },
-      { name: 'valve_main_opening_pct', type: 'number', label: '主阀门开度 (%)', sample: 85 },
-      { name: 'safety_index_score', type: 'number', label: '安全指数', sample: 99.1 },
-      { name: 'pump_rpm', type: 'number', label: '循环泵转速', sample: 1450 },
-      { name: 'series_flow', type: 'array', label: '瞬时流量时序', sample: [380, 432] },
-      { name: 'series_tank_compare', type: 'array', label: '储罐液位对比', sample: [78.4, 42.1, 91.5] }
-    ]
-  },
-  {
-    id: 'ds-energy-grid',
-    name: '工业微电网与新能源负荷 (Industrial Energy Grid)',
-    description: '光伏并网发电、储能SOC电量、厂区负荷率及碳排放减量指标',
-    type: 'mock',
-    updateIntervalMs: 3000,
-    isStreaming: true,
-    data: {
-      solar_power_kw: 1420.8,
-      grid_import_kw: 520.4,
-      battery_soc_pct: 82.5,
-      battery_power_kw: 150.0,
-      total_load_kw: 1941.2,
-      power_factor: 0.98,
-      today_green_kwh: 12450,
-      carbon_reduction_ton: 11.2,
-      cost_savings_cny: 16800,
-      grid_frequency_hz: 50.02,
-      grid_voltage_v: 382.4,
-      series_solar: [800, 950, 1100, 1250, 1380, 1420, 1450, 1410, 1390, 1420.8],
-      series_load: [1600, 1750, 1820, 1900, 1950, 1920, 1960, 1940, 1930, 1941.2],
-      series_battery_soc: [65, 68, 72, 75, 78, 80, 82, 83, 82.5, 82.5]
-    },
-    fields: [
-      { name: 'solar_power_kw', type: 'number', label: '光伏实时出力 (kW)', sample: 1420.8 },
-      { name: 'battery_soc_pct', type: 'number', label: '储能电池SOC (%)', sample: 82.5 },
-      { name: 'total_load_kw', type: 'number', label: '厂区总用电负荷 (kW)', sample: 1941.2 },
-      { name: 'power_factor', type: 'number', label: '电网功率因数', sample: 0.98 },
-      { name: 'carbon_reduction_ton', type: 'number', label: '今日减碳 (吨)', sample: 11.2 },
-      { name: 'grid_frequency_hz', type: 'number', label: '电网频率 (Hz)', sample: 50.02 }
-    ]
-  },
-  {
-    id: 'ds-industrial-alarms',
-    name: '工控系统实时报警与事件 (SCADA Incident Log)',
-    description: '关键PLC节点、传感器超限事件与预警流水',
-    type: 'mock',
-    updateIntervalMs: 4000,
-    isStreaming: true,
-    data: {
-      active_critical_count: 1,
-      active_warning_count: 3,
-      system_health_rate: 98.6,
-      alarms: [
-        { id: 'AL-1092', level: 'CRITICAL', device: '3#反应釜搅拌机', message: '电机轴承温度超限达到 88.4°C (阈值 80°C)', time: '14:28:12', status: 'UNRESOLVED' },
-        { id: 'AL-1091', level: 'WARNING', device: 'A区进料主管路', message: '流速瞬时波动超过 ±12%', time: '14:25:40', status: 'PENDING' },
-        { id: 'AL-1090', level: 'WARNING', device: '空压站 2#冷干机', message: '排气露点略有上升', time: '14:19:05', status: 'MONITORING' },
-        { id: 'AL-1089', level: 'INFO', device: 'AGV-04 搬运机器人', message: '电量低于 20%，已自动前往充电桩', time: '14:12:30', status: 'COMPLETED' },
-        { id: 'AL-1088', level: 'NORMAL', device: '5#总装机床', message: '批次刀具寿命自检正常', time: '14:02:11', status: 'CLOSED' }
-      ]
-    },
-    fields: [
-      { name: 'active_critical_count', type: 'number', label: '严重告警数', sample: 1 },
-      { name: 'active_warning_count', type: 'number', label: '预警事件数', sample: 3 },
-      { name: 'system_health_rate', type: 'number', label: '系统健康度 (%)', sample: 98.6 },
-      { name: 'alarms', type: 'array', label: '报警列表事件流', sample: [] }
-    ]
+    devices: JSON.parse(JSON.stringify(STATION_DEVICES)),
+    data: syncStation.data,
+    fields: syncStation.fields
   }
 ];
 
@@ -148,55 +315,134 @@ export const INITIAL_DATASETS: DatasetItem[] = [
 export function tickDataset(dataset: DatasetItem): DatasetItem {
   if (dataset.type !== 'mock' || !dataset.isStreaming) return dataset;
 
-  const newData = { ...dataset.data, timestamp: new Date().toLocaleTimeString() };
+  const devices = dataset.devices || [];
 
-  // Fluctuations with clamp
-  const fluc = (val: number, range: number, min = 0, max = 999999) => {
-    const delta = (Math.random() - 0.5) * 2 * range;
-    const res = +(val + delta).toFixed(1);
-    return Math.min(Math.max(res, min), max);
-  };
+  devices.forEach(dev => {
+    // 1. Tick Telemetries (遥测轻微自然波动)
+    dev.telemetries?.forEach(yc => {
+      if (yc.unit === 'kV') {
+        const delta = (Math.random() - 0.5) * 0.04;
+        yc.value = Math.max(9.8, Math.min(10.6, Number((yc.value + delta).toFixed(2))));
+      } else if (yc.unit === 'A') {
+        const delta = (Math.random() - 0.5) * (yc.value * 0.02);
+        yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
+      } else if (yc.unit === 'kW' || yc.unit === 'kvar') {
+        const delta = (Math.random() - 0.5) * (yc.value * 0.02);
+        yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
+      } else if (yc.unit === 'Hz') {
+        const delta = (Math.random() - 0.5) * 0.02;
+        yc.value = Math.max(49.95, Math.min(50.05, Number((yc.value + delta).toFixed(2))));
+      } else if (yc.unit === '℃') {
+        const delta = (Math.random() - 0.5) * 0.2;
+        yc.value = Math.max(20, Math.min(90, Number((yc.value + delta).toFixed(1))));
+      }
+    });
 
-  if (dataset.id === 'ds-factory-telemetry') {
-    newData.temperature_c = fluc(newData.temperature_c, 0.4, 30, 85);
-    newData.pressure_kpa = fluc(newData.pressure_kpa, 2.5, 200, 450);
-    newData.spindle_speed_rpm = Math.round(fluc(newData.spindle_speed_rpm, 25, 2800, 4200));
-    newData.power_consumption_kw = fluc(newData.power_consumption_kw, 5.0, 500, 1200);
-    newData.oee_efficiency_pct = fluc(newData.oee_efficiency_pct, 0.2, 80, 99.9);
-    newData.daily_yield_units = Math.round(newData.daily_yield_units + Math.floor(Math.random() * 3));
-    
-    // Shift time series
-    if (Array.isArray(newData.series_power)) {
-      const p = [...newData.series_power.slice(1), newData.power_consumption_kw];
-      newData.series_power = p;
-    }
-    if (Array.isArray(newData.series_temp)) {
-      const t = [...newData.series_temp.slice(1), newData.temperature_c];
-      newData.series_temp = t;
-    }
-  } else if (dataset.id === 'ds-chemical-tanks') {
-    newData.tank1_level_pct = fluc(newData.tank1_level_pct, 0.3, 10, 98);
-    newData.tank2_level_pct = fluc(newData.tank2_level_pct, 0.2, 5, 95);
-    newData.tank3_level_pct = fluc(newData.tank3_level_pct, 0.1, 20, 99);
-    newData.flow_rate_lpm = fluc(newData.flow_rate_lpm, 3.5, 300, 600);
-    newData.total_accumulated_m3 = +(newData.total_accumulated_m3 + (newData.flow_rate_lpm / 60000)).toFixed(2);
-    if (Array.isArray(newData.series_flow)) {
-      newData.series_flow = [...newData.series_flow.slice(1), newData.flow_rate_lpm];
-    }
-  } else if (dataset.id === 'ds-energy-grid') {
-    newData.solar_power_kw = fluc(newData.solar_power_kw, 12.0, 200, 2000);
-    newData.total_load_kw = fluc(newData.total_load_kw, 8.0, 1000, 2500);
-    newData.battery_soc_pct = fluc(newData.battery_soc_pct, 0.05, 10, 100);
-    if (Array.isArray(newData.series_solar)) {
-      newData.series_solar = [...newData.series_solar.slice(1), newData.solar_power_kw];
-    }
-    if (Array.isArray(newData.series_load)) {
-      newData.series_load = [...newData.series_load.slice(1), newData.total_load_kw];
-    }
-  }
+    // 2. Increment energy slightly
+    dev.energies?.forEach(dd => {
+      dd.value = Number((dd.value + Math.random() * 0.2).toFixed(1));
+    });
+  });
+
+  const synced = syncFlatDataFromDevices(devices);
 
   return {
     ...dataset,
-    data: newData
+    devices,
+    data: synced.data,
+    fields: synced.fields
+  };
+}
+
+// Global Simulated Tele-control Dispatcher (模拟遥控下发)
+export function executeSimulatedTeleControl(
+  dataset: DatasetItem,
+  deviceId: string,
+  controlPointId: number | string,
+  targetValue: number
+): { success: boolean; message: string; updatedDataset: DatasetItem } {
+  const device = dataset.devices.find(d => d.deviceId === deviceId);
+  if (!device) {
+    return { success: false, message: `未找到装置: ${deviceId}`, updatedDataset: dataset };
+  }
+
+  const control = device.teleControls.find(c => String(c.pointId) === String(controlPointId));
+  if (!control) {
+    return { success: false, message: `未找到遥控点号: ${controlPointId}`, updatedDataset: dataset };
+  }
+
+  control.lastExecutedValue = targetValue;
+  control.lastExecutedTime = new Date().toLocaleTimeString();
+
+  // Find option label
+  const matchedOpt = control.options?.find(o => o.value === targetValue);
+  const actionLabel = matchedOpt?.label || `状态 (${targetValue})`;
+
+  // If linked to a tele-signal (遥信) point, update that point directly
+  if (control.targetPointId !== undefined) {
+    const yx = device.teleSignals.find(s => String(s.pointId) === String(control.targetPointId));
+    if (yx) {
+      yx.value = targetValue;
+      if (yx.enumMapping && yx.enumMapping[targetValue]) {
+        yx.statusText = `${yx.enumMapping[targetValue]} (${targetValue})`;
+      } else if (targetValue === 0) {
+        yx.statusText = '分闸 (0)';
+      } else if (targetValue === 1) {
+        yx.statusText = '合闸 (1)';
+      } else if (targetValue === 2) {
+        yx.statusText = '故障 (2)';
+      } else if (targetValue === 3) {
+        yx.statusText = '试验位 (3)';
+      } else if (targetValue === 4) {
+        yx.statusText = '工作位 (4)';
+      } else {
+        yx.statusText = `状态 (${targetValue})`;
+      }
+    }
+  }
+
+  const synced = syncFlatDataFromDevices(dataset.devices);
+
+  return {
+    success: true,
+    message: `[遥控下发成功] 装置 ${device.deviceName} (${deviceId}) 遥控点 [${control.name}] 执行下发: ${actionLabel}`,
+    updatedDataset: {
+      ...dataset,
+      data: synced.data,
+      fields: synced.fields
+    }
+  };
+}
+
+// Global Simulated Tele-regulation Dispatcher (模拟遥调下发)
+export function executeSimulatedTeleRegulation(
+  dataset: DatasetItem,
+  deviceId: string,
+  regulationPointId: number | string,
+  targetValue: number
+): { success: boolean; message: string; updatedDataset: DatasetItem } {
+  const device = dataset.devices.find(d => d.deviceId === deviceId);
+  if (!device) {
+    return { success: false, message: `未找到装置: ${deviceId}`, updatedDataset: dataset };
+  }
+
+  const yt = device.teleRegulations.find(r => String(r.pointId) === String(regulationPointId));
+  if (!yt) {
+    return { success: false, message: `未找到遥调点号: ${regulationPointId}`, updatedDataset: dataset };
+  }
+
+  yt.value = targetValue;
+  yt.lastExecutedTime = new Date().toLocaleTimeString();
+
+  const synced = syncFlatDataFromDevices(dataset.devices);
+
+  return {
+    success: true,
+    message: `[遥调下发成功] 装置 ${device.deviceName} (${deviceId}) 遥调点 [${yt.name}] 定值设定为: ${targetValue} ${yt.unit}`,
+    updatedDataset: {
+      ...dataset,
+      data: synced.data,
+      fields: synced.fields
+    }
   };
 }

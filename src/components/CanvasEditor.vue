@@ -54,6 +54,9 @@ const emit = defineEmits<{
   (e: 'ungroup', comp: ScreenComponent): void;
   (e: 'align', type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v'): void;
   (e: 'finish:draw'): void;
+  (e: 'undo'): void;
+  (e: 'redo'): void;
+  (e: 'open:control-modal', deviceId?: string): void;
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -689,6 +692,20 @@ const handleKeyDown = (e: KeyboardEvent) => {
   const isCtrlOrMeta = e.ctrlKey || e.metaKey;
   const key = e.key.toLowerCase();
 
+  // Undo (Ctrl+Z)
+  if (isCtrlOrMeta && !e.shiftKey && key === 'z') {
+    e.preventDefault();
+    emit('undo');
+    return;
+  }
+
+  // Redo (Ctrl+Y or Ctrl+Shift+Z)
+  if ((isCtrlOrMeta && key === 'y') || (isCtrlOrMeta && e.shiftKey && key === 'z')) {
+    e.preventDefault();
+    emit('redo');
+    return;
+  }
+
   // Select all (Ctrl+A)
   if (isCtrlOrMeta && key === 'a') {
     e.preventDefault();
@@ -1113,6 +1130,17 @@ onBeforeUnmount(() => {
         <div class="h-[1px] bg-slate-800 my-1" />
 
         <div class="py-0.5 space-y-0.5">
+          <button
+            @click="emit('open:control-modal', primarySelected?.data?.mapping?.deviceId); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 hover:bg-amber-500/20 rounded-md hover:text-amber-200 cursor-pointer text-amber-300 font-bold flex items-center justify-between group transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <Radio class="w-3.5 h-3.5 text-amber-400" />
+              <span>执行遥控遥调操作 (YK / YT)</span>
+            </div>
+            <span class="text-[10px] text-amber-400/80 font-mono">SCADA控制</span>
+          </button>
+
           <button
             @click="emit('save:symbol', selectedComponents); closeContextMenu();"
             class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-500/20 rounded-md hover:text-emerald-200 cursor-pointer text-emerald-400 font-bold flex items-center gap-2 transition-colors"

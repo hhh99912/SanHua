@@ -1,12 +1,11 @@
-import { ScreenItem, DatasetItem } from '../types';
-import { INITIAL_DATASETS } from './presetDatasets';
+import { ScreenItem } from '../types';
 
 export const PRESET_MULTI_SCREENS: ScreenItem[] = [
   // Screen 1: 10kV配电室一次系统接线图
   {
     id: 'screen-10kv-main',
     name: '10kV配电室一次系统接线图',
-    description: '10kV I段与II段单母线分段接线系统，含进线柜、PT柜、母联柜与馈线出线柜',
+    description: '10kV I段与II段单母线分段接线系统，含进线柜、主变柜、母联备自投柜与馈线出线柜',
     screen: {
       id: 'screen-10kv-main',
       name: '10kV配电室一次系统接线图',
@@ -21,7 +20,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       updatedAt: new Date().toISOString()
     },
     components: [
-      // 1. Navigation Bar
+      // 1. Global Navigation Bar
       {
         id: 'comp-nav-bar',
         name: '多大屏全局导航条',
@@ -39,9 +38,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           strokeWidth: 1,
           borderRadius: 10
         },
-        data: {
-          mapping: {}
-        },
+        data: { mapping: {} },
         customProps: {
           screens: [
             { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
@@ -56,27 +53,22 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       {
         id: 'comp-main-title',
         name: '大屏主标题',
-        type: 'metric-title',
-        category: 'metrics',
+        type: 'draw-text',
+        category: 'basic',
         x: 600,
         y: 84,
         width: 720,
-        height: 54,
+        height: 50,
         rotation: 0,
         zIndex: 2,
         style: {
-          fill: 'transparent',
+          text: '智能变电站 10kV 一次系统接线总览图',
           fontSize: 26,
-          fontWeight: '700',
-          textColor: '#e2f1ff',
-          textAlign: 'center',
-          letterSpacing: 4
+          fontWeight: 'bold',
+          textColor: '#00f2ff',
+          textAlign: 'center'
         },
-        data: {
-          mapping: {
-            titleKey: '智能变电站 10kV 一次系统接线总览图'
-          }
-        }
+        data: { mapping: {} }
       },
 
       // 3. 10kV I段主母线
@@ -94,20 +86,19 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         style: {
           stroke: '#ef4444',
           voltageLevel: '10kV',
-          feederName: '10kV I段工作母线 (10.35kV / 50.00Hz)'
+          feederName: '10kV I段工作母线 (10.25kV / 50.02Hz)'
         },
         customProps: {
           name: '10kV I段母线',
-          voltage: '10.35 kV',
-          frequency: '50.00 Hz',
+          voltage: '10.25 kV',
+          frequency: '50.02 Hz',
           isEnergized: true
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '10kV I段母线',
-            voltageKey: 'voltage_kv',
-            frequencyKey: 'frequency_hz'
+            voltageKey: 'DEV-101_YC_1',
+            frequencyKey: 'DEV-101_YC_10'
           }
         }
       },
@@ -127,28 +118,27 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         style: {
           stroke: '#ef4444',
           voltageLevel: '10kV',
-          feederName: '10kV II段工作母线 (10.32kV / 50.01Hz)'
+          feederName: '10kV II段工作母线 (10.26kV / 50.02Hz)'
         },
         customProps: {
           name: '10kV II段母线',
-          voltage: '10.32 kV',
-          frequency: '50.01 Hz',
+          voltage: '10.26 kV',
+          frequency: '50.02 Hz',
           isEnergized: true
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '10kV II段母线',
-            voltageKey: 'voltage_kv',
-            frequencyKey: 'frequency_hz'
+            voltageKey: 'DEV-103_YC_3',
+            frequencyKey: 'DEV-101_YC_10'
           }
         }
       },
 
-      // 5. 101 进线断路器 (I段进线)
+      // 5. 101 进线断路器 (I段进线, 0: 分闸, 1: 合闸, 2: 故障)
       {
         id: 'comp-breaker-101',
-        name: '101 进线断路器柜',
+        name: '101 进线断路器 QF (0/1/2)',
         type: 'elec-breaker',
         category: 'electrical',
         x: 120,
@@ -164,16 +154,15 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           feederName: '101 进线断路器'
         },
         customProps: {
-          state: 'closed',
+          state: 1, // 1: 合闸, 0: 分闸, 2: 故障
           feederName: '101 进线柜',
-          current: '142.5'
+          current: '428.6 A'
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '101 进线开关',
-            stateKey: 'circuit_breaker_101_state',
-            currentKey: 'current_a'
+            stateKey: 'DEV-101_YX_1',
+            currentKey: 'DEV-101_YC_4'
           },
           action: {
             type: 'jump-screen',
@@ -204,146 +193,68 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           name: '101 进线测控'
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '101 测控表',
-            voltageKey: 'voltage_kv',
-            currentKey: 'current_a'
+            voltageKey: 'DEV-101_YC_1',
+            currentKey: 'DEV-101_YC_4',
+            powerKey: 'DEV-101_YC_7'
           }
         }
       },
 
-      // 7. 201 抽出式手车出线柜
+      // 7. 101 状态指示灯 (0/1/2)
       {
-        id: 'comp-handcart-201',
-        name: '201 馈线手车开关柜',
-        type: 'elec-handcart',
-        category: 'electrical',
-        x: 320,
-        y: 340,
-        width: 190,
-        height: 160,
-        rotation: 0,
-        zIndex: 4,
-        style: {
-          fill: 'rgba(6, 14, 28, 0.92)',
-          stroke: '#00f2ff',
-          voltageLevel: '10kV',
-          feederName: '201 车间动力馈线'
-        },
-        customProps: {
-          position: 'working',
-          feederName: '201 动力出线'
-        },
-        data: {
-          mapping: {
-            titleKey: '201 馈线'
-          }
-        }
-      },
-
-      // 8. 202 出线断路器
-      {
-        id: 'comp-breaker-202',
-        name: '202 低压变出线断路器',
-        type: 'elec-breaker',
-        category: 'electrical',
-        x: 540,
-        y: 340,
-        width: 170,
-        height: 160,
-        rotation: 0,
-        zIndex: 4,
-        style: {
-          fill: 'rgba(6, 14, 28, 0.92)',
-          stroke: '#00f2ff',
-          voltageLevel: '10kV',
-          feederName: '202 站用变断路器'
-        },
-        customProps: {
-          state: 'closed',
-          feederName: '202 站用变',
-          current: '68.2'
-        },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: '202 站用变',
-            currentKey: 'current_a'
-          },
-          action: {
-            type: 'jump-screen',
-            targetScreenId: 'screen-low-voltage-04kv',
-            label: '跳转至0.4kV低压配电大屏'
-          }
-        }
-      },
-
-      // 9. 100 母联断路器 (I段与II段联络)
-      {
-        id: 'comp-breaker-tie',
-        name: '100 母联分段断路器',
-        type: 'elec-breaker',
-        category: 'electrical',
-        x: 910,
-        y: 220,
-        width: 100,
-        height: 130,
+        id: 'comp-ind-101',
+        name: '101 回路运行状态指示灯',
+        type: 'ctrl-indicator',
+        category: 'basic',
+        x: 310,
+        y: 350,
+        width: 140,
+        height: 40,
         rotation: 0,
         zIndex: 5,
         style: {
-          fill: 'rgba(6, 14, 28, 0.92)',
-          stroke: '#eab308',
-          voltageLevel: '10kV',
-          feederName: '100 母联'
-        },
-        customProps: {
-          state: 'open',
-          feederName: '100 母联开关'
+          indicatorShape: 'circle',
+          indicatorState: 'normal',
+          indicatorLabel: '101 合闸运行'
         },
         data: {
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '100 母联开关'
+            statusKey: 'DEV-101_YX_1'
           }
         }
       },
 
-      // 10. 10kV TV 电压互感器
+      // 8. 遥控合分闸测试按钮
       {
-        id: 'comp-pt-1',
-        name: '10kV I段 TV电压互感器',
-        type: 'elec-pt',
-        category: 'electrical',
-        x: 740,
-        y: 340,
-        width: 140,
-        height: 120,
+        id: 'comp-btn-101-control',
+        name: '101 遥控操作按钮',
+        type: 'ctrl-button',
+        category: 'basic',
+        x: 310,
+        y: 410,
+        width: 130,
+        height: 42,
         rotation: 0,
-        zIndex: 4,
+        zIndex: 5,
         style: {
-          stroke: '#a855f7',
-          feederName: '10kV I段 TV柜'
+          buttonText: '101 遥控下发',
+          buttonColorTheme: 'cyan',
+          buttonVariant: 'solid',
+          borderRadius: 8
         },
-        customProps: {
-          name: '10kV I段 TV',
-          ratio: '10/0.1kV 0.5级'
-        },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: 'I段 TV',
-            voltageKey: 'voltage_kv'
-          }
-        }
+        data: { mapping: {} }
       },
 
-      // 11. 102 进线断路器 (II段进线)
+      // 9. 100 母联断路器 (0/1/2)
       {
-        id: 'comp-breaker-102',
-        name: '102 进线断路器柜',
+        id: 'comp-breaker-100',
+        name: '100 母联断路器 QF (0/1/2)',
         type: 'elec-breaker',
         category: 'electrical',
-        x: 1040,
+        x: 910,
         y: 340,
         width: 170,
         height: 160,
@@ -353,155 +264,74 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           fill: 'rgba(6, 14, 28, 0.92)',
           stroke: '#00f2ff',
           voltageLevel: '10kV',
-          feederName: '102 进线断路器'
+          feederName: '100 母联备自投'
         },
         customProps: {
-          state: 'closed',
-          feederName: '102 进线柜',
-          current: '138.4'
+          state: 0, // 0: 分闸备用
+          feederName: '100 母联柜'
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '102 进线开关'
+            stateKey: 'DEV-103_YX_1',
+            currentKey: 'DEV-103_YC_1'
           }
         }
       },
 
-      // 12. #1 主变压器 (TM-01)
+      // 10. 基础矢量图元展示: 矩形底板
       {
-        id: 'comp-transformer-1',
-        name: '#1 主变压器 (110/10.5kV)',
-        type: 'elec-transformer',
-        category: 'electrical',
-        x: 1240,
-        y: 340,
-        width: 280,
-        height: 200,
+        id: 'comp-draw-rect-plate',
+        name: '变电一次监控区域底板',
+        type: 'draw-rect',
+        category: 'basic',
+        x: 80,
+        y: 190,
+        width: 1760,
+        height: 600,
         rotation: 0,
-        zIndex: 4,
+        zIndex: 1,
         style: {
-          stroke: '#00f2ff',
-          feederName: '#1 主变压器 (110/10.5kV)'
-        },
-        customProps: {
-          name: '#1 主变压器',
-          capacity: 'SFZ11-31500kVA',
-          oilTemp: 48.5,
-          loadRate: 74.2,
-          hvCurrent: 162.8
-        },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: '#1 主变压器',
-            temperatureKey: 'ambient_temperature_c',
-            valueKey: 'furnace_heat_percent',
-            currentKey: 'current_a'
-          },
-          action: {
-            type: 'jump-screen',
-            targetScreenId: 'screen-transformer-detail',
-            label: '查看主变运行参数大屏'
-          }
-        }
-      },
-
-      // 13. 电力遥测折线趋势
-      {
-        id: 'comp-power-chart',
-        name: '全站负荷功率趋势',
-        type: 'chart-line',
-        category: 'charts',
-        x: 1040,
-        y: 560,
-        width: 780,
-        height: 280,
-        rotation: 0,
-        zIndex: 4,
-        style: {
-          fill: 'rgba(6, 14, 28, 0.9)',
+          fill: '#00f2ff',
+          fillOpacity: 0.03,
           stroke: '#00f2ff',
           strokeWidth: 1,
           borderRadius: 12
         },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: '10kV母线全站负荷功率波动曲线 (MW)',
-            categoriesKey: 'series_time',
-            seriesKey: 'series_power',
-            unitKey: 'kW'
-          }
-        }
+        data: { mapping: {} }
       },
 
-      // 14. 浮点数据显示 (母线实时频率)
+      // 11. 基础多边形图元: 状态星标
       {
-        id: 'comp-float-freq',
-        name: '母线实时频率读数',
-        type: 'metric-float',
-        category: 'metrics',
-        x: 480,
-        y: 530,
-        width: 240,
-        height: 120,
+        id: 'comp-draw-star-mark',
+        name: '重点监控节点星标',
+        type: 'draw-star',
+        category: 'basic',
+        x: 80,
+        y: 140,
+        width: 36,
+        height: 36,
         rotation: 0,
-        zIndex: 4,
+        zIndex: 5,
         style: {
-          fill: 'rgba(6, 14, 28, 0.92)',
-          stroke: '#00f2ff',
-          decimals: 2,
-          suffix: ' Hz'
-        },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: '母线实时电网频率',
-            valueKey: 'frequency_hz',
-            unitKey: 'Hz'
-          }
-        }
-      },
-
-      // 15. 浮点数据显示 (母线实时电压)
-      {
-        id: 'comp-float-volt',
-        name: '母线线电压读数',
-        type: 'metric-float',
-        category: 'metrics',
-        x: 740,
-        y: 530,
-        width: 240,
-        height: 120,
-        rotation: 0,
-        zIndex: 4,
-        style: {
-          fill: 'rgba(6, 14, 28, 0.92)',
+          fill: '#f59e0b',
+          fillOpacity: 0.4,
           stroke: '#f59e0b',
-          decimals: 2,
-          suffix: ' kV'
+          strokeWidth: 2
         },
-        data: {
-          datasetId: 'ds-factory-telemetry',
-          mapping: {
-            titleKey: '10kV母线线电压 Uab',
-            valueKey: 'voltage_kv',
-            unitKey: 'kV'
-          }
-        }
+        data: { mapping: {} }
       }
     ]
   },
 
-  // Screen 2: #1主变压器及高低压测控大屏
+  // Screen 2: #1 主变压器测控大屏
   {
     id: 'screen-transformer-detail',
-    name: '主变压器及进线测控大屏',
-    description: '110kV/10.5kV SFZ11-31500kVA 电力主变压器高低压侧测控、冷却器与油温监测',
+    name: '#1主变压器及测控大屏',
+    description: '110kV/10kV #1主变压器绕组温度、高低压侧负荷、油温及瓦斯信号',
     screen: {
       id: 'screen-transformer-detail',
-      name: '主变压器及进线测控大屏',
+      name: '#1主变压器及测控大屏',
       width: 1920,
       height: 1080,
       backgroundColor: '#040914',
@@ -515,7 +345,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-2',
-        name: '大屏导航条',
+        name: '多大屏全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -530,119 +360,97 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           strokeWidth: 1,
           borderRadius: 10
         },
+        data: { mapping: {} },
+        customProps: {
+          screens: [
+            { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
+          ]
+        }
+      },
+      {
+        id: 'comp-tf-main',
+        name: '#1 主变压器双绕组',
+        type: 'elec-transformer',
+        category: 'electrical',
+        x: 200,
+        y: 250,
+        width: 180,
+        height: 220,
+        rotation: 0,
+        zIndex: 3,
+        style: {
+          stroke: '#00f2ff',
+          strokeWidth: 3,
+          voltageLevel: '10kV'
+        },
         data: { mapping: {} }
       },
       {
-        id: 'comp-tf-title',
-        name: '主变标题',
-        type: 'metric-title',
+        id: 'comp-tf-temp-metric',
+        name: '主变顶层油温遥测',
+        type: 'metric-float',
         category: 'metrics',
-        x: 600,
-        y: 84,
-        width: 720,
-        height: 54,
+        x: 460,
+        y: 250,
+        width: 220,
+        height: 90,
         rotation: 0,
-        zIndex: 2,
+        zIndex: 4,
         style: {
-          fill: 'transparent',
+          decimals: 1,
+          suffix: ' ℃',
           fontSize: 26,
-          fontWeight: '700',
           textColor: '#00f2ff',
-          textAlign: 'center',
-          letterSpacing: 4
-        },
-        data: {
-          mapping: {
-            titleKey: '#1 主变压器 (110kV/10.5kV) 综合测控中心'
-          }
-        }
-      },
-      {
-        id: 'comp-tf-large',
-        name: '#1 主变压器本体',
-        type: 'elec-transformer',
-        category: 'electrical',
-        x: 100,
-        y: 180,
-        width: 440,
-        height: 300,
-        rotation: 0,
-        zIndex: 4,
-        style: {
           stroke: '#00f2ff',
-          feederName: '#1 主变压器 (SFZ11-31500kVA)'
-        },
-        customProps: {
-          name: '#1 主变压器',
-          capacity: '31500 kVA (ONAN/ONAF)',
-          oilTemp: 48.5,
-          loadRate: 72.4,
-          hvCurrent: 162.8
+          fill: 'rgba(0, 242, 255, 0.1)'
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '#1 主变压器',
-            temperatureKey: 'ambient_temperature_c',
-            valueKey: 'furnace_heat_percent',
-            currentKey: 'current_a'
+            valueKey: 'DEV-102_YC_3'
           }
         }
       },
       {
-        id: 'comp-tf-meter',
-        name: '高压侧保护测控表',
-        type: 'elec-multimeter',
-        category: 'electrical',
-        x: 580,
-        y: 180,
-        width: 380,
-        height: 220,
+        id: 'comp-tf-load-metric',
+        name: '主变实时负荷率',
+        type: 'metric-float',
+        category: 'metrics',
+        x: 460,
+        y: 360,
+        width: 220,
+        height: 90,
         rotation: 0,
         zIndex: 4,
         style: {
-          stroke: '#ef4444',
-          feederName: '110kV 高压侧进线测控'
+          decimals: 1,
+          suffix: ' %',
+          fontSize: 26,
+          textColor: '#00e5a3',
+          stroke: '#00e5a3',
+          fill: 'rgba(0, 229, 163, 0.1)'
         },
         data: {
-          datasetId: 'ds-factory-telemetry',
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '110kV 进线测控',
-            voltageKey: 'voltage_kv',
-            currentKey: 'current_a'
+            valueKey: 'DEV-102_YC_5'
           }
-        }
-      },
-      {
-        id: 'comp-alarm-tf',
-        name: '变压器瓦斯与温度告警列表',
-        type: 'ind-alarm-list',
-        category: 'industrial',
-        x: 1000,
-        y: 180,
-        width: 820,
-        height: 480,
-        rotation: 0,
-        zIndex: 4,
-        style: {
-          stroke: '#f59e0b'
-        },
-        data: {
-          datasetId: 'ds-alarms',
-          mapping: {}
         }
       }
     ]
   },
 
-  // Screen 3: 0.4kV低压配电大屏
+  // Screen 3: 0.4kV 低压综合配电大屏
   {
     id: 'screen-low-voltage-04kv',
-    name: '0.4kV低压配电及无功补偿大屏',
-    description: '0.4kV 低压进线柜、电容补偿柜、动力配电回路与微机电表实时监测',
+    name: '0.4kV低压配电大屏',
+    description: '0.4kV 综合智能配电进线、电容无功自动补偿及动力支路用电',
     screen: {
       id: 'screen-low-voltage-04kv',
-      name: '0.4kV低压配电及无功补偿大屏',
+      name: '0.4kV低压配电大屏',
       width: 1920,
       height: 1080,
       backgroundColor: '#040914',
@@ -656,7 +464,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-3',
-        name: '大屏导航条',
+        name: '多大屏全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -671,72 +479,51 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           strokeWidth: 1,
           borderRadius: 10
         },
-        data: { mapping: {} }
-      },
-      {
-        id: 'comp-lv-title',
-        name: '低压配电标题',
-        type: 'metric-title',
-        category: 'metrics',
-        x: 600,
-        y: 84,
-        width: 720,
-        height: 54,
-        rotation: 0,
-        zIndex: 2,
-        style: {
-          fill: 'transparent',
-          fontSize: 26,
-          fontWeight: '700',
-          textColor: '#00e5a3',
-          textAlign: 'center',
-          letterSpacing: 4
-        },
-        data: {
-          mapping: {
-            titleKey: '0.4kV 低压动力配电及智能电容补偿大屏'
-          }
+        data: { mapping: {} },
+        customProps: {
+          screens: [
+            { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
+          ]
         }
       },
       {
-        id: 'comp-lv-bus',
-        name: '0.4kV I段低压母线',
-        type: 'elec-busbar',
+        id: 'comp-low-meter',
+        name: '201 低压总进线多功能电表',
+        type: 'elec-multimeter',
         category: 'electrical',
-        x: 100,
-        y: 180,
-        width: 1720,
-        height: 64,
+        x: 120,
+        y: 240,
+        width: 320,
+        height: 200,
         rotation: 0,
         zIndex: 3,
         style: {
-          stroke: '#00f2ff',
-          voltageLevel: '0.4kV',
-          feederName: '0.4kV I段低压主母线 (395V / 50.00Hz)'
-        },
-        customProps: {
-          name: '0.4kV I段母线',
-          voltage: '0.40 kV',
-          frequency: '50.00 Hz',
-          isEnergized: true
+          fill: 'rgba(6, 14, 28, 0.92)',
+          stroke: '#00f2ff'
         },
         data: {
+          datasetId: 'ds-scada-station',
           mapping: {
-            titleKey: '0.4kV 母线'
+            voltageKey: 'DEV-201_YC_1',
+            currentKey: 'DEV-201_YC_2',
+            powerKey: 'DEV-201_YC_3'
           }
         }
       }
     ]
   },
 
-  // Screen 4: 全站电力遥测与告警中心
+  // Screen 4: 全站电力遥测与告警
   {
     id: 'screen-telemetry-scada',
-    name: '全站电力遥测与告警指挥中心',
-    description: '全站 SCADA 综合监控、时序趋势图、负荷平衡与电网电能质量分析',
+    name: '全站电力遥测与告警',
+    description: '全站负荷趋势、事件告警滚屏与微电网新能源指标监控',
     screen: {
       id: 'screen-telemetry-scada',
-      name: '全站电力遥测与告警指挥中心',
+      name: '全站电力遥测与告警',
       width: 1920,
       height: 1080,
       backgroundColor: '#040914',
@@ -750,7 +537,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-4',
-        name: '大屏导航条',
+        name: '多大屏全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -765,32 +552,51 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
           strokeWidth: 1,
           borderRadius: 10
         },
-        data: { mapping: {} }
+        data: { mapping: {} },
+        customProps: {
+          screens: [
+            { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
+          ]
+        }
       },
       {
-        id: 'comp-scada-title',
-        name: '全站遥测标题',
-        type: 'metric-title',
-        category: 'metrics',
-        x: 600,
-        y: 84,
-        width: 720,
-        height: 54,
+        id: 'comp-chart-load-line',
+        name: '24小时总用电负荷趋势',
+        type: 'chart-line',
+        category: 'charts',
+        x: 100,
+        y: 200,
+        width: 600,
+        height: 360,
         rotation: 0,
-        zIndex: 2,
+        zIndex: 3,
         style: {
-          fill: 'transparent',
-          fontSize: 26,
-          fontWeight: '700',
-          textColor: '#38bdf8',
-          textAlign: 'center',
-          letterSpacing: 4
+          stroke: '#00f2ff'
         },
         data: {
-          mapping: {
-            titleKey: '变电站 SCADA 全站遥测与电网质量监控中心'
-          }
+          datasetId: 'ds-scada-station',
+          mapping: {}
         }
+      },
+      {
+        id: 'comp-alarm-feed-scada',
+        name: '变电站 SOE 事件与跳闸告警列表',
+        type: 'ind-alarm-list',
+        category: 'industrial',
+        x: 740,
+        y: 200,
+        width: 540,
+        height: 360,
+        rotation: 0,
+        zIndex: 3,
+        style: {
+          stroke: '#ef4444',
+          fill: 'rgba(15, 23, 42, 0.85)'
+        },
+        data: { mapping: {} }
       }
     ]
   }

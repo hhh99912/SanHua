@@ -35,7 +35,15 @@ import {
   Minus,
   LayoutDashboard,
   FolderOpen,
-  Box
+  Box,
+  Triangle,
+  Star,
+  Diamond,
+  Heart,
+  MessageSquare,
+  Disc,
+  ArrowLeftRight,
+  CornerDownRight
 } from 'lucide-vue-next';
 import { ComponentCategory, ComponentType, CustomSymbolDef } from '../types';
 import { COMPONENT_DEFINITIONS, ComponentDefinition } from '../data/componentLibrary';
@@ -100,7 +108,17 @@ const iconMap: Record<string, any> = {
   ZapOff,
   Minus,
   LayoutDashboard,
-  Box
+  Box,
+  Triangle,
+  Star,
+  Diamond,
+  Heart,
+  MessageSquare,
+  Disc,
+  ArrowLeftRight,
+  CornerDownRight,
+  Sparkles,
+  Plus
 };
 
 const getIcon = (iconName?: string) => {

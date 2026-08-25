@@ -39,7 +39,18 @@ const emit = defineEmits<{
 const isChart = computed(() => props.component?.category === 'charts' || (typeof props.component?.type === 'string' && props.component.type.startsWith('chart-')));
 const isIndustrial = computed(() => props.component?.category === 'industrial' || (typeof props.component?.type === 'string' && props.component.type.startsWith('ind-')));
 const isElectrical = computed(() => props.component?.category === 'electrical' || (typeof props.component?.type === 'string' && props.component.type.startsWith('elec-')));
-const isDrawing = computed(() => props.component?.category === 'drawing' || ['draw-rect', 'draw-circle', 'draw-polygon', 'draw-star', 'draw-text', 'draw-pen-path', 'draw-svg-icon'].includes(props.component?.type || ''));
+const isDrawing = computed(() => 
+  props.component?.category === 'drawing' || 
+  (props.component?.category === 'basic' && !['ctrl-button', 'ctrl-indicator', 'draw-line', 'draw-arrow', 'draw-polyline'].includes(props.component?.type)) ||
+  [
+    'draw-rect', 'draw-rounded-rect', 'draw-circle', 'draw-ellipse', 
+    'draw-triangle', 'draw-triangle-down', 'draw-triangle-right',
+    'draw-diamond', 'draw-pentagon', 'draw-hexagon', 'draw-polygon', 'draw-octagon',
+    'draw-star', 'draw-star4', 'draw-trapezoid', 'draw-parallelogram', 'draw-cross',
+    'draw-ring', 'draw-sector', 'draw-heart', 'draw-bubble', 'draw-cube', 'draw-cylinder',
+    'draw-arc', 'draw-double-arrow', 'draw-elbow', 'draw-text', 'draw-pen-path', 'draw-svg-icon'
+  ].includes(props.component?.type || '')
+);
 const isDecoration = computed(() => props.component?.category === 'decoration' || (typeof props.component?.type === 'string' && props.component.type.startsWith('deco-')));
 const isMetrics = computed(() => props.component?.category === 'metrics' || (typeof props.component?.type === 'string' && props.component.type.startsWith('metric-')));
 const isCustom = computed(() => props.component?.category === 'custom' || props.component?.type === 'custom-svg' || props.component?.type === 'custom-html');
@@ -49,7 +60,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
 
 <template>
   <div v-if="component" class="w-full h-full relative overflow-hidden pointer-events-none">
-    <!-- 1. Composite & Grouped SCADA Custom Symbol (Nested primitives without SVG) -->
+    <!-- 1. Composite & Grouped SCADA Custom Symbol -->
     <CompositeSymbol
       v-if="isComposite"
       :component="component"
@@ -81,7 +92,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       :datasets="datasets"
     />
 
-    <!-- 5. Status Indicator / Signal LED Light -->
+    <!-- 5. Status Indicator / Signal LED Light (0: 停止/分闸, 1: 运行/合闸, 2: 故障/告警) -->
     <StatusIndicator
       v-else-if="component.type === 'ctrl-indicator'"
       :component="component"
@@ -212,7 +223,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       :component="component"
     />
 
-    <!-- 13. LeaferJS 2D Vector Drawing (Rect, Circle, Polygon, Star, Text) -->
+    <!-- 13. Comprehensive Vector Drawing (All conventional basic primitives) -->
     <CustomLeaferCanvas 
       v-else-if="isDrawing"
       :component="component"

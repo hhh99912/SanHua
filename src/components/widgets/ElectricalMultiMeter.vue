@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
 import { withAlpha } from '../../utils/color';
+import { resolveDataPointValue } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -21,25 +22,58 @@ const meterData = computed(() => {
   let Ia = 142.5, Ib = 141.8, Ic = 143.2;
   let P = 2450.0, Q = 480.0, cosPhi = 0.98, freq = 50.01;
 
+  // 1. Resolve from specific mappings (e.g. voltageKey, currentKey, powerKey)
+  const vKey = data?.mapping?.voltageKey || data?.mapping?.valueKey;
+  const iKey = data?.mapping?.currentKey;
+  const pKey = data?.mapping?.powerKey;
+
+  if (vKey) {
+    const val = resolveDataPointValue(props.datasets, data?.datasetId, vKey);
+    if (val !== undefined && !isNaN(Number(val))) {
+      Uab = Number(val);
+      Ua = Number((Uab / 1.732).toFixed(2));
+      Ub = Number(((Uab / 1.732) * 1.002).toFixed(2));
+      Uc = Number(((Uab / 1.732) * 0.998).toFixed(2));
+    }
+  }
+
+  if (iKey) {
+    const val = resolveDataPointValue(props.datasets, data?.datasetId, iKey);
+    if (val !== undefined && !isNaN(Number(val))) {
+      Ia = Number(val);
+      Ib = Number((Ia * 0.995).toFixed(1));
+      Ic = Number((Ia * 1.005).toFixed(1));
+    }
+  }
+
+  if (pKey) {
+    const val = resolveDataPointValue(props.datasets, data?.datasetId, pKey);
+    if (val !== undefined && !isNaN(Number(val))) {
+      P = Number(val);
+      Q = Number((P * 0.2).toFixed(1));
+    }
+  }
+
+  // 2. Direct device point lookup if raw telemetry available
   if (boundDs && boundDs.data) {
     const d = boundDs.data;
     if (d.Ua !== undefined) Ua = Number(d.Ua);
     if (d.Ub !== undefined) Ub = Number(d.Ub);
     if (d.Uc !== undefined) Uc = Number(d.Uc);
     if (d.Uab !== undefined) Uab = Number(d.Uab);
-    if (d.voltage_kv !== undefined) Uab = Number(d.voltage_kv);
+    if (d.voltage_kv !== undefined && !vKey) Uab = Number(d.voltage_kv);
 
     if (d.Ia !== undefined) Ia = Number(d.Ia);
     if (d.Ib !== undefined) Ib = Number(d.Ib);
     if (d.Ic !== undefined) Ic = Number(d.Ic);
-    if (d.current_a !== undefined) {
+    if (d.current_a !== undefined && !iKey) {
       Ia = Number(d.current_a);
-      Ib = Number(d.current_a) * 0.99;
-      Ic = Number(d.current_a) * 1.01;
+      Ib = Number((Ia * 0.99).toFixed(1));
+      Ic = Number((Ia * 1.01).toFixed(1));
     }
 
-    if (d.active_power_kw !== undefined) P = Number(d.active_power_kw);
-    if (d.power_consumption_kw !== undefined) P = Number(d.power_consumption_kw);
+    if (d.active_power_kw !== undefined && !pKey) P = Number(d.active_power_kw);
+    if (d.power_consumption_kw !== undefined && !pKey) P = Number(d.power_consumption_kw);
     if (d.reactive_power_kvar !== undefined) Q = Number(d.reactive_power_kvar);
     if (d.power_factor !== undefined) cosPhi = Number(d.power_factor);
     if (d.frequency_hz !== undefined) freq = Number(d.frequency_hz);

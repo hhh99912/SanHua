@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveTeleSignalState } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -11,19 +12,13 @@ const props = defineProps<Props>();
 
 const disconnectorState = computed(() => {
   const { data, style, customProps } = props.component;
-  const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
-
   const isGrounding = props.component.type === 'elec-grounding';
-  let isClosed = customProps?.state === 'closed';
-  if (customProps?.state === undefined) isClosed = true;
+  
+  const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey || data?.mapping?.valueKey;
+  const defaultVal = customProps?.state !== undefined ? customProps.state : (isGrounding ? 0 : 1);
 
-  if (boundDs && boundDs.data) {
-    const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey;
-    if (sKey && boundDs.data[sKey] !== undefined) {
-      const val = String(boundDs.data[sKey]).toLowerCase();
-      isClosed = !(val.includes('open') || val.includes('分') || val === '0' || val === 'false');
-    }
-  }
+  const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
+  const isClosed = resolved.isClosed || resolved.numericValue === 1;
 
   const statusColor = isClosed ? (isGrounding ? '#eab308' : '#ef4444') : '#10b981';
 
@@ -31,6 +26,8 @@ const disconnectorState = computed(() => {
     isGrounding,
     isClosed,
     statusColor,
+    statusText: resolved.statusText,
+    numericValue: resolved.numericValue,
     stroke: style.stroke || statusColor,
     strokeWidth: style.strokeWidth || 2.5
   };

@@ -19,8 +19,453 @@ export interface ComponentDefinition {
 
 export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   // ==========================================
-  // 1. Basic Shapes & Interactive Controls (基础图元与控制器)
+  // 1. Basic Conventional Primitives & Controllers (常规基础图元与控制器)
   // ==========================================
+  {
+    type: 'draw-rect',
+    category: 'basic',
+    name: '矩形 / 科技底座',
+    nameEn: 'Rectangle',
+    iconName: 'Square',
+    description: '基础矢量矩形与直角底座，支持描边、半透明背景与渐变填充',
+    defaultWidth: 160,
+    defaultHeight: 100,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.15,
+      stroke: '#00f2ff',
+      strokeWidth: 2,
+      borderRadius: 0
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-rounded-rect',
+    category: 'basic',
+    name: '圆角矩形',
+    nameEn: 'Rounded Rectangle',
+    iconName: 'Square',
+    description: '带圆角半径的矩形底框，适用于科技面板、卡片容器与监控视窗',
+    defaultWidth: 160,
+    defaultHeight: 100,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.15,
+      stroke: '#00f2ff',
+      strokeWidth: 2,
+      borderRadius: 12
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-circle',
+    category: 'basic',
+    name: '正圆形',
+    nameEn: 'Circle',
+    iconName: 'Circle',
+    description: '标准正圆形图元，适合用作测点标记、设备转子、状态点与节点徽章',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#00e5a3',
+      fillOpacity: 0.15,
+      stroke: '#00e5a3',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-ellipse',
+    category: 'basic',
+    name: '椭圆形',
+    nameEn: 'Ellipse',
+    iconName: 'Circle',
+    description: '矢量椭圆形，支持横向或纵向扁平展示，常用于工艺区域圈定与管道法兰',
+    defaultWidth: 160,
+    defaultHeight: 90,
+    defaultStyle: {
+      fill: '#38bdf8',
+      fillOpacity: 0.15,
+      stroke: '#38bdf8',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-triangle',
+    category: 'basic',
+    name: '正三角形 (向上)',
+    nameEn: 'Triangle Up',
+    iconName: 'Triangle',
+    description: '向上正三角形，常用于上升趋势标记、主变绕组角接标识与警示符',
+    defaultWidth: 120,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#f59e0b',
+      fillOpacity: 0.18,
+      stroke: '#f59e0b',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-triangle-down',
+    category: 'basic',
+    name: '倒三角形 (向下)',
+    nameEn: 'Triangle Down',
+    iconName: 'Triangle',
+    description: '向下三角形，常用于变电接地受电引下线、料仓下料口与下降标示',
+    defaultWidth: 120,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#ef4444',
+      fillOpacity: 0.18,
+      stroke: '#ef4444',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-triangle-right',
+    category: 'basic',
+    name: '向右三角形',
+    nameEn: 'Triangle Right',
+    iconName: 'Triangle',
+    description: '向右三角形，常用于物料流向、流程图进入端口与播放指示',
+    defaultWidth: 120,
+    defaultHeight: 100,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.18,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-diamond',
+    category: 'basic',
+    name: '菱形 / 判定框',
+    nameEn: 'Diamond / Rhombus',
+    iconName: 'Diamond',
+    description: '工业流程判定菱形，常用于逻辑决策节点、阀门开度与交直流转换标志',
+    defaultWidth: 130,
+    defaultHeight: 130,
+    defaultStyle: {
+      fill: '#a855f7',
+      fillOpacity: 0.18,
+      stroke: '#a855f7',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-pentagon',
+    category: 'basic',
+    name: '正五边形',
+    nameEn: 'Pentagon',
+    iconName: 'Hexagon',
+    description: '正五边形几何图元，适用于特殊拓扑节点与工艺防护区域',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#10b981',
+      fillOpacity: 0.18,
+      stroke: '#10b981',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-hexagon',
+    category: 'basic',
+    name: '正六边形 / 蜂巢',
+    nameEn: 'Hexagon',
+    iconName: 'Hexagon',
+    description: '正六边形图元，可无缝拼接为蜂巢阵列，常用于多单元数据集成',
+    defaultWidth: 130,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.18,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-octagon',
+    category: 'basic',
+    name: '正八边形',
+    nameEn: 'Octagon',
+    iconName: 'Hexagon',
+    description: '正八边形几何图元，常用于工业停机标牌与安全联锁防护警示',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#ef4444',
+      fillOpacity: 0.18,
+      stroke: '#ef4444',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-star',
+    category: 'basic',
+    name: '五角星',
+    nameEn: '5-Point Star',
+    iconName: 'Star',
+    description: '标准五角星，常用于变电枢纽重点关注、特级负荷与标杆指标',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#f59e0b',
+      fillOpacity: 0.25,
+      stroke: '#f59e0b',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-star4',
+    category: 'basic',
+    name: '四角芒星 / 光芒',
+    nameEn: '4-Point Star',
+    iconName: 'Sparkles',
+    description: '四角芒星图元，常用于高亮告警闪烁点、母线故障放电与科技动效',
+    defaultWidth: 110,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.3,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-trapezoid',
+    category: 'basic',
+    name: '等腰梯形',
+    nameEn: 'Trapezoid',
+    iconName: 'Square',
+    description: '等腰梯形几何图元，适用于变压器箱体、漏斗料斗与通风管口',
+    defaultWidth: 150,
+    defaultHeight: 90,
+    defaultStyle: {
+      fill: '#38bdf8',
+      fillOpacity: 0.18,
+      stroke: '#38bdf8',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-parallelogram',
+    category: 'basic',
+    name: '平行四边形',
+    nameEn: 'Parallelogram',
+    iconName: 'Square',
+    description: '平行四边形图元，常用于流程图输入输出块与倾斜传送带',
+    defaultWidth: 150,
+    defaultHeight: 90,
+    defaultStyle: {
+      fill: '#00e5a3',
+      fillOpacity: 0.18,
+      stroke: '#00e5a3',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-cross',
+    category: 'basic',
+    name: '十字形 / 加号',
+    nameEn: 'Cross / Plus',
+    iconName: 'Plus',
+    description: '十字形几何图元，常用于安全应急标志、消防喷淋与配电交叉点',
+    defaultWidth: 110,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#ef4444',
+      fillOpacity: 0.2,
+      stroke: '#ef4444',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-ring',
+    category: 'basic',
+    name: '同心圆环',
+    nameEn: 'Ring / Donut',
+    iconName: 'Disc',
+    description: '同心圆环图元，适用于中空法兰盘、轴承套圈与雷达同心圆刻度',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.25,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-sector',
+    category: 'basic',
+    name: '扇形 / 饼块',
+    nameEn: 'Sector / Pie Slice',
+    iconName: 'PieChart',
+    description: '扇形圆弧切片，常用于阀门开度角度、风机叶片与仪表扫描扇区',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      fill: '#a855f7',
+      fillOpacity: 0.2,
+      stroke: '#a855f7',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-heart',
+    category: 'basic',
+    name: '心形',
+    nameEn: 'Heart',
+    iconName: 'Heart',
+    description: '心形图元，适用于健康状态监测、生命体征与重点关怀设备',
+    defaultWidth: 110,
+    defaultHeight: 100,
+    defaultStyle: {
+      fill: '#f43f5e',
+      fillOpacity: 0.2,
+      stroke: '#f43f5e',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-bubble',
+    category: 'basic',
+    name: '对话气泡 / 标注框',
+    nameEn: 'Speech Bubble',
+    iconName: 'MessageSquare',
+    description: '带尾巴的说明气泡框，常用于设备提示信息、报警引出说明与操作批注',
+    defaultWidth: 160,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.15,
+      stroke: '#00f2ff',
+      strokeWidth: 2,
+      borderRadius: 8
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-cube',
+    category: 'basic',
+    name: '3D等轴立方体',
+    nameEn: '3D Cube',
+    iconName: 'Box',
+    description: '3D轴测等轴立体箱体，具备顶面、左面、右面三层阴影立体质感',
+    defaultWidth: 120,
+    defaultHeight: 130,
+    defaultStyle: {
+      fill: '#38bdf8',
+      fillOpacity: 0.25,
+      stroke: '#38bdf8',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-cylinder',
+    category: 'basic',
+    name: '圆柱体 / 储罐几何',
+    nameEn: 'Cylinder',
+    iconName: 'Database',
+    description: '立式圆柱体几何造型，适用于工业储气罐、油罐与化学反应釜底图',
+    defaultWidth: 110,
+    defaultHeight: 150,
+    defaultStyle: {
+      fill: '#00e5a3',
+      fillOpacity: 0.2,
+      stroke: '#00e5a3',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-arc',
+    category: 'basic',
+    name: '曲线弧线',
+    nameEn: 'Arc Curve',
+    iconName: 'Minus',
+    description: '二次贝塞尔圆滑弧线，适用于管道弯曲流向、电力相量轨迹与连线',
+    defaultWidth: 160,
+    defaultHeight: 90,
+    defaultStyle: {
+      fill: 'transparent',
+      stroke: '#00f2ff',
+      strokeWidth: 3,
+      lineStyle: 'solid'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-arrow',
+    category: 'basic',
+    name: '单向导向箭头',
+    nameEn: 'Single Arrow',
+    iconName: 'MoveRight',
+    description: '单向实体指示箭头，常用于工艺物流方向、电力潮流流向与管网水流',
+    defaultWidth: 150,
+    defaultHeight: 50,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.25,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-double-arrow',
+    category: 'basic',
+    name: '双向导向箭头',
+    nameEn: 'Double Arrow',
+    iconName: 'ArrowLeftRight',
+    description: '双向指示箭头，常用于双向通信总线、储能双向充放电与联络线',
+    defaultWidth: 160,
+    defaultHeight: 50,
+    defaultStyle: {
+      fill: '#f59e0b',
+      fillOpacity: 0.25,
+      stroke: '#f59e0b',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'draw-elbow',
+    category: 'basic',
+    name: '直角弯头管',
+    nameEn: 'Elbow Pipe',
+    iconName: 'CornerDownRight',
+    description: '90度直角弯头管，适用于工业流体转弯与电气电缆拐弯通道',
+    defaultWidth: 110,
+    defaultHeight: 110,
+    defaultStyle: {
+      fill: '#00f2ff',
+      fillOpacity: 0.2,
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
   {
     type: 'draw-line',
     category: 'basic',
@@ -66,16 +511,33 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     defaultData: { mapping: {} }
   },
   {
+    type: 'draw-text',
+    category: 'basic',
+    name: '静态文本 / 工业标牌',
+    nameEn: 'Text / Nameplate',
+    iconName: 'Type',
+    description: '工业矢量文本标牌与设备铭牌，支持字号、字体、荧光描边与发光效果',
+    defaultWidth: 160,
+    defaultHeight: 40,
+    defaultStyle: {
+      text: '10kV 配电室 #1 主变',
+      fontSize: 16,
+      fontWeight: 'bold',
+      textColor: '#00f2ff'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
     type: 'ctrl-button',
     category: 'basic',
     name: '工业控制按钮',
     nameEn: 'Industrial Control Button',
     iconName: 'ToggleRight',
-    description: '工业级可交互控制按键，支持点动/自锁/急停旋钮、金属边框、指令触发与大屏页面跳转',
+    description: '工业级可交互控制按键，支持遥控分合闸下发、金属边框、指令触发与页面跳转',
     defaultWidth: 140,
     defaultHeight: 46,
     defaultStyle: {
-      buttonText: '设备启动',
+      buttonText: '断路器合闸',
       buttonColorTheme: 'cyan',
       buttonVariant: 'solid',
       borderRadius: 8
@@ -91,505 +553,398 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     type: 'ctrl-indicator',
     category: 'basic',
-    name: '状态指示灯 / 信号灯',
+    name: '状态指示灯 (0/1/2)',
     nameEn: 'LED Status Indicator',
     iconName: 'CircleDot',
-    description: '工业LED状态信号灯，支持正常(绿)、告警(红)、预警(黄)、热备(蓝)及闪烁动画与数据集勾连',
-    defaultWidth: 120,
+    description: '工业LED状态信号灯，支持 0:分闸/停止(绿/灰), 1:合闸/运行(红/绿), 2:故障/告警(黄/红闪烁)',
+    defaultWidth: 130,
     defaultHeight: 36,
     defaultStyle: {
       indicatorShape: 'circle',
       indicatorState: 'normal',
       indicatorBlinkSpeed: 'none',
-      indicatorLabel: '1#回路运行中'
+      indicatorLabel: '1#进线状态'
     },
     defaultData: {
-      datasetId: 'ds-factory-telemetry',
+      datasetId: 'ds-scada-station',
       mapping: {
-        statusKey: 'device_status'
+        statusKey: 'DEV_101_YX_1'
       }
     }
-  },
-  {
-    type: 'draw-rect',
-    category: 'basic',
-    name: '矩形 / 科技底座',
-    nameEn: 'Vector Rectangle',
-    iconName: 'Square',
-    description: '基础矢量矩形与圆角卡片底座，支持边框、渐变与半透明填充',
-    defaultWidth: 200,
-    defaultHeight: 140,
-    defaultStyle: {
-      fill: 'rgba(0, 242, 255, 0.12)',
-      stroke: '#00f2ff',
-      strokeWidth: 2,
-      borderRadius: 8
-    },
-    defaultData: { mapping: {} }
-  },
-  {
-    type: 'draw-circle',
-    category: 'basic',
-    name: '圆形 / 环形节点',
-    nameEn: 'Vector Circle',
-    iconName: 'Circle',
-    description: '基础矢量圆形与同心环，适用于电机转盘、法兰盘或雷达扫描定位',
-    defaultWidth: 140,
-    defaultHeight: 140,
-    defaultStyle: {
-      fill: 'rgba(0, 229, 163, 0.15)',
-      stroke: '#00e5a3',
-      strokeWidth: 2
-    },
-    defaultData: { mapping: {} }
-  },
-  {
-    type: 'draw-polygon',
-    category: 'basic',
-    name: '多边形 / 蜂巢网格',
-    nameEn: 'Hexagon Polygon',
-    iconName: 'Hexagon',
-    description: '正六边形或自定义多边形工控装饰基座',
-    defaultWidth: 140,
-    defaultHeight: 140,
-    defaultStyle: {
-      fill: 'rgba(59, 130, 246, 0.15)',
-      stroke: '#3b82f6',
-      strokeWidth: 2
-    },
-    defaultData: { mapping: {} }
-  },
-  {
-    type: 'draw-text',
-    category: 'basic',
-    name: '文本标签 / 标牌',
-    nameEn: 'Vector Text Label',
-    iconName: 'Type',
-    description: '发光工业文本标注与间隔铭牌',
-    defaultWidth: 200,
-    defaultHeight: 46,
-    defaultStyle: {
-      fill: 'transparent',
-      fontSize: 18,
-      textColor: '#00f2ff',
-      fontWeight: 'bold',
-      letterSpacing: 2
-    },
-    defaultData: {
-      mapping: {
-        titleKey: '10kV 配电室 #1段'
-      }
-    }
-  },
-  {
-    type: 'draw-arrow',
-    category: 'basic',
-    name: '潮流指示箭头',
-    nameEn: 'Power Flow Arrow',
-    iconName: 'MoveRight',
-    description: '指示电力潮流流向与工艺流向的导向箭头',
-    defaultWidth: 160,
-    defaultHeight: 36,
-    defaultStyle: {
-      stroke: '#00f2ff',
-      strokeWidth: 3,
-      fill: '#00f2ff'
-    },
-    defaultData: { mapping: {} }
   },
 
   // ==========================================
-  // 2. Metrics & Data Displays
+  // 2. Electrical Power System Primary Components (电力一次系统图元)
+  // ==========================================
+  {
+    type: 'elec-breaker',
+    category: 'electrical',
+    name: '高压真空断路器 QF (0/1/2)',
+    nameEn: 'HV Vacuum Circuit Breaker',
+    iconName: 'Zap',
+    description: '国标/IEC标准高压真空断路器，支持 0:分闸(断开/绿), 1:合闸(闭合/红), 2:故障(跳闸/黄)',
+    defaultWidth: 70,
+    defaultHeight: 90,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2.5,
+      breakerColorClosed: '#ef4444',
+      breakerColorOpen: '#10b981'
+    },
+    defaultCustomProps: {
+      state: 1 // 1: 合闸, 0: 分闸, 2: 故障
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        stateKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'elec-handcart',
+    category: 'electrical',
+    name: '开关柜抽出式手车 (0/1/2)',
+    nameEn: 'Switchgear Withdrawable Handcart',
+    iconName: 'Layers',
+    description: 'KYN28高压开关柜可抽出式断路器手车，支持 0:试验位置, 1:工作位置, 2:检修隔离',
+    defaultWidth: 80,
+    defaultHeight: 90,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultCustomProps: {
+      position: 1 // 1: 工作位置, 0: 试验位置, 2: 检修
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        stateKey: 'DEV_101_YX_2'
+      }
+    }
+  },
+  {
+    type: 'elec-disconnector',
+    category: 'electrical',
+    name: '隔离开关 / 刀闸 QS (0/1/2)',
+    nameEn: 'Isolator Switch / Disconnector',
+    iconName: 'ZapOff',
+    description: '电力隔离开关，支持 0:分闸(隔离), 1:合闸(导通), 2:故障',
+    defaultWidth: 60,
+    defaultHeight: 70,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2.5
+    },
+    defaultCustomProps: {
+      state: 1
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-grounding',
+    category: 'electrical',
+    name: '接地刀闸 QE (0/1/2)',
+    nameEn: 'Grounding Disconnector Switch',
+    iconName: 'Minus',
+    description: '高压出线/母线快速接地刀闸，支持 0:分闸, 1:合闸(接地导通), 2:故障',
+    defaultWidth: 60,
+    defaultHeight: 70,
+    defaultStyle: {
+      stroke: '#eab308',
+      strokeWidth: 2.5
+    },
+    defaultCustomProps: {
+      state: 0
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-transformer',
+    category: 'electrical',
+    name: '电力主变压器 TM',
+    nameEn: 'Power Transformer',
+    iconName: 'Activity',
+    description: '双绕组/三绕组电力变压器，双圆相交标准电力符号，带油温与瓦斯信号',
+    defaultWidth: 100,
+    defaultHeight: 130,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2.5,
+      voltageLevel: '10kV'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-ct',
+    category: 'electrical',
+    name: '电流互感器 TA / CT',
+    nameEn: 'Current Transformer',
+    iconName: 'Circle',
+    description: '高精度测量/保护用电流互感器，圆形同心电磁感应标准一次符号',
+    defaultWidth: 50,
+    defaultHeight: 60,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-pt',
+    category: 'electrical',
+    name: '电压互感器 TV / PT',
+    nameEn: 'Voltage Transformer',
+    iconName: 'Circle',
+    description: '母线三相电压测量用电磁式电压互感器，带一次熔断器符号',
+    defaultWidth: 50,
+    defaultHeight: 70,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-arrester',
+    category: 'electrical',
+    name: '氧化锌避雷器 F',
+    nameEn: 'Lightning Surge Arrester',
+    iconName: 'Zap',
+    description: '高压母线与线路防雷过电压保护用金属氧化物避雷器',
+    defaultWidth: 50,
+    defaultHeight: 70,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 2
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-busbar',
+    category: 'electrical',
+    name: '高低压母线段 Busbar',
+    nameEn: 'Power Distribution Busbar',
+    iconName: 'Minus',
+    description: '变电站高低压铜铝主母线段，支持电压等级色彩定制与能量粒子流',
+    defaultWidth: 320,
+    defaultHeight: 16,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 6,
+      voltageLevel: '10kV'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'elec-multimeter',
+    category: 'electrical',
+    name: '多功能电力测控电表',
+    nameEn: 'Multifunctional Power Meter',
+    iconName: 'Cpu',
+    description: '微机三相交流多功能数显电表，实时展示Ua/Ub/Uc、Ia/Ib/Ic、P、Q、CosΦ与kWh',
+    defaultWidth: 160,
+    defaultHeight: 180,
+    defaultStyle: {
+      stroke: '#00f2ff',
+      strokeWidth: 1.5,
+      borderRadius: 6
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        voltageKey: 'DEV_101_YC_1',
+        currentKey: 'DEV_101_YC_4',
+        powerKey: 'DEV_101_YC_7'
+      }
+    }
+  },
+
+  // ==========================================
+  // 3. Metrics & Live Telemetry (指标/遥测)
   // ==========================================
   {
     type: 'metric-float',
     category: 'metrics',
-    name: '浮点数数据显示 / 遥测值',
-    nameEn: 'Float Metric Display',
+    name: '浮点数遥测监控卡',
+    nameEn: 'Float Metric Card',
     iconName: 'Binary',
-    description: '基础轻量浮点数数据显示器，默认0.00，支持关联浮点数、小数位与单位',
-    defaultWidth: 220,
-    defaultHeight: 110,
+    description: '高精度工业浮点数遥测卡片，支持小数位数、单位后缀与实时波动',
+    defaultWidth: 180,
+    defaultHeight: 80,
     defaultStyle: {
-      fill: 'rgba(6, 15, 28, 0.85)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 8,
-      fontSize: 34,
-      textColor: '#00f2ff',
       decimals: 2,
-      prefix: '',
-      suffix: ' ℃'
+      suffix: ' kV',
+      fontSize: 24,
+      textColor: '#00f2ff',
+      stroke: '#00f2ff',
+      fill: 'rgba(0, 242, 255, 0.1)'
     },
     defaultData: {
-      datasetId: 'ds-factory-telemetry',
+      datasetId: 'ds-scada-station',
       mapping: {
-        titleKey: '主轴轴承实时温度',
-        valueKey: 'temperature',
-        unitKey: '℃'
+        valueKey: 'DEV_101_YC_1'
       }
-    },
-    defaultCustomProps: {
-      value: 0.0,
-      decimals: 2,
-      subText: 'NORMAL'
     }
   },
   {
     type: 'metric-flipper',
     category: 'metrics',
-    name: 'LED数码翻牌器',
-    nameEn: 'LED Digital Flipper',
+    name: '翻牌式数字计数器',
+    nameEn: 'Digital Flipper Counter',
     iconName: 'Binary',
-    description: '高对比度数码管发光大字，支持千分位与动态翻动过渡',
-    defaultWidth: 260,
-    defaultHeight: 110,
+    description: '工业电子LED数字数码管翻牌器，适用于累计发电量、运行时长与报警数',
+    defaultWidth: 220,
+    defaultHeight: 70,
     defaultStyle: {
-      fill: 'rgba(10, 22, 38, 0.9)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 8,
-      fontSize: 38,
-      fontWeight: 'bold',
-      fontFamily: 'monospace',
       textColor: '#00f2ff',
-      glowColor: 'rgba(0, 242, 255, 0.6)',
-      glowBlur: 14
+      fontSize: 28
     },
     defaultData: {
-      datasetId: 'ds-factory-telemetry',
+      datasetId: 'ds-scada-station',
       mapping: {
-        titleKey: '今日累计产量 (PCS)',
-        valueKey: 'daily_yield_units',
-        unitKey: '件'
-      }
-    }
-  },
-  {
-    type: 'metric-card',
-    category: 'metrics',
-    name: '工业KPI指标卡',
-    nameEn: 'Industrial KPI Card',
-    iconName: 'TrendingUp',
-    description: '核心指标卡片，集成环比增减箭头与警戒阈值灯',
-    defaultWidth: 240,
-    defaultHeight: 120,
-    defaultStyle: {
-      fill: 'rgba(14, 25, 44, 0.85)',
-      stroke: '#3b82f6',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'cyber-cyan'
-    },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '综合稼动率 OEE',
-        valueKey: 'oee_efficiency_pct',
-        unitKey: '%'
-      }
-    }
-  },
-  {
-    type: 'metric-title',
-    category: 'metrics',
-    name: '大屏科幻主标题',
-    nameEn: 'Sci-Fi Title Banner',
-    iconName: 'Heading',
-    description: '中央发光工业大屏标题，带副标题及系统实时时钟',
-    defaultWidth: 720,
-    defaultHeight: 80,
-    defaultStyle: {
-      fill: 'transparent',
-      fontSize: 28,
-      fontWeight: 'bold',
-      textColor: '#e2f1ff',
-      textAlign: 'center',
-      letterSpacing: 4
-    },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '智能配电与数字孪生控制中心',
-        valueKey: 'factory_name'
+        valueKey: 'DEV_101_DD_1'
       }
     }
   },
 
   // ==========================================
-  // 5. Industrial & SCADA
+  // 4. Industrial SCADA & Media (工控/SCADA)
   // ==========================================
   {
     type: 'ind-tank',
     category: 'industrial',
-    name: '反应釜立体储罐',
-    nameEn: 'Industrial Vessel Tank',
+    name: '流体储罐与液位计',
+    nameEn: 'Fluid Storage Tank',
     iconName: 'Database',
-    description: '带动态波浪波纹与液位百分比的工业储罐',
-    defaultWidth: 200,
-    defaultHeight: 260,
+    description: '工业反应釜与液体储罐，支持波浪动效、百分比液位高度与颜色预警',
+    defaultWidth: 140,
+    defaultHeight: 180,
     defaultStyle: {
-      fill: 'rgba(10, 20, 35, 0.9)',
       stroke: '#00f2ff',
-      strokeWidth: 2,
-      borderRadius: 12,
-      themePreset: 'cyber-cyan'
+      fill: '#00f2ff'
     },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '1#反应釜储液罐',
-        valueKey: 'tank_level_percent',
-        unitKey: '%'
-      }
-    }
+    defaultData: { mapping: {} }
   },
   {
     type: 'ind-pipe',
     category: 'industrial',
-    name: '流体微粒输送管道',
-    nameEn: 'Liquid Pipe Flow',
+    name: '介质工艺管道与流动',
+    nameEn: 'Industrial Medium Pipe',
     iconName: 'Workflow',
-    description: '透明流体管道，带流动微粒发光动画与流速监测',
-    defaultWidth: 320,
-    defaultHeight: 45,
+    description: '工业流体管道，支持流速、流动方向与介质状态颜色',
+    defaultWidth: 220,
+    defaultHeight: 24,
     defaultStyle: {
       stroke: '#00f2ff',
-      strokeWidth: 16
+      strokeWidth: 6
     },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '进料主管线',
-        valueKey: 'flow_rate_lpm',
-        unitKey: 'L/min'
-      }
-    }
+    defaultData: { mapping: {} }
   },
   {
     type: 'ind-alarm-list',
     category: 'industrial',
-    name: '实时告警事件流',
-    nameEn: 'SCADA Alarm Log',
+    name: '实时告警事件滚屏',
+    nameEn: 'Realtime SCADA Alarm Feed',
     iconName: 'AlertTriangle',
-    description: '滚动显示工控节点报警等级、发生时间与处理状态',
-    defaultWidth: 460,
-    defaultHeight: 280,
-    defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.9)',
-      stroke: '#ef4444',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'crimson-alert'
-    },
-    defaultData: {
-      datasetId: 'ds-industrial-alarms',
-      mapping: {
-        titleKey: '工控系统实时事件',
-        seriesKey: 'alarms'
-      }
-    }
-  },
-  {
-    type: 'ind-matrix',
-    category: 'industrial',
-    name: '设备集群工况矩阵',
-    nameEn: 'Equipment Status Matrix',
-    iconName: 'Cpu',
-    description: '车间多台机床/AGV运行、待机、故障状态灯蜂窝矩阵',
+    description: '变电站与生产线实时SOE事件、事故跳闸与越限告警滚屏列表',
     defaultWidth: 320,
-    defaultHeight: 220,
+    defaultHeight: 200,
     defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.85)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 8
+      stroke: '#ef4444',
+      fill: 'rgba(15, 23, 42, 0.85)'
     },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '数控机床集群 (12台)'
-      }
-    }
+    defaultData: { mapping: {} }
   },
 
   // ==========================================
-  // 6. Charts & Visualizations
+  // 5. Visual Charts (可视化图表)
   // ==========================================
   {
     type: 'chart-line',
     category: 'charts',
-    name: '实时遥测折线图',
-    nameEn: 'Telemetry Spline Chart',
+    name: '实时负荷折线趋势图',
+    nameEn: 'Live Load Trend Line Chart',
     iconName: 'LineChart',
-    description: '工业级平滑渐变折线图，支持双Y轴与报警阈值线',
-    defaultWidth: 460,
-    defaultHeight: 260,
+    description: 'ECharts驱动的24小时有功/无功负荷实时曲线，支持平滑拟合与渐变面积',
+    defaultWidth: 340,
+    defaultHeight: 220,
     defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.85)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'cyber-cyan'
+      stroke: '#00f2ff'
     },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '功率与温度趋势',
-        categoriesKey: 'series_time',
-        seriesKey: 'series_power',
-        unitKey: 'kW',
-        thresholdMax: 860
-      }
-    }
+    defaultData: { mapping: {} }
   },
   {
     type: 'chart-bar',
     category: 'charts',
-    name: '工序产出柱状图',
-    nameEn: 'Process Output Bar',
+    name: '能耗分布柱状图',
+    nameEn: 'Energy Bar Chart',
     iconName: 'BarChart3',
-    description: '金属质感立体柱状图，高亮显示超出指标工序',
-    defaultWidth: 460,
-    defaultHeight: 260,
+    description: '各回路分项用电量与峰平谷对比柱状图，支持立体柱体与多系列堆叠',
+    defaultWidth: 340,
+    defaultHeight: 220,
     defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.85)',
-      stroke: '#00e5a3',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'tech-emerald'
+      stroke: '#00e5a3'
     },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '各工序产出分布',
-        categoriesKey: 'series_categories',
-        seriesKey: 'series_line_output',
-        unitKey: '件'
-      }
-    }
+    defaultData: { mapping: {} }
   },
   {
     type: 'chart-pie',
     category: 'charts',
-    name: '能源配比环形图',
-    nameEn: 'Energy Ring Donut',
+    name: '负荷占比环形饼图',
+    nameEn: 'Load Proportion Pie Chart',
     iconName: 'PieChart',
-    description: '环形带状能耗占比，带中央数值与动态旋转效果',
-    defaultWidth: 320,
-    defaultHeight: 260,
-    defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.85)',
-      stroke: '#f59e0b',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'industrial-amber'
-    },
-    defaultData: {
-      datasetId: 'ds-energy-grid',
-      mapping: {
-        titleKey: '能源供应占比',
-        categoriesKey: 'series_tank_names',
-        seriesKey: 'series_tank_compare',
-        unitKey: '%'
-      }
-    }
+    description: '高精环形与玫瑰饼图，展示变压器负载率、动力照明空调能耗配比',
+    defaultWidth: 300,
+    defaultHeight: 220,
+    defaultStyle: {},
+    defaultData: { mapping: {} }
   },
   {
     type: 'chart-gauge',
     category: 'charts',
-    name: '工控仪表盘',
-    nameEn: 'Scada Dial Gauge',
+    name: '功率因数 / 频率仪表盘',
+    nameEn: 'Power Factor Gauge',
     iconName: 'Gauge',
-    description: '高精度工业转速/压力刻度表盘，带安全绿黄红危险区间',
-    defaultWidth: 300,
-    defaultHeight: 240,
-    defaultStyle: {
-      fill: 'rgba(13, 27, 42, 0.85)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 8,
-      themePreset: 'cyber-cyan'
-    },
-    defaultData: {
-      datasetId: 'ds-factory-telemetry',
-      mapping: {
-        titleKey: '主轴运转速度',
-        valueKey: 'spindle_speed_rpm',
-        unitKey: 'RPM',
-        thresholdMax: 4000,
-        thresholdMin: 0
-      }
-    }
+    description: '汽车仪表级指针仪表盘，刻度发光，精确监控电网频率与CosΦ',
+    defaultWidth: 240,
+    defaultHeight: 200,
+    defaultStyle: {},
+    defaultData: { mapping: {} }
   },
 
   // ==========================================
-  // 7. Decorations & Borders
+  // 6. Cyber Decorations & Borders (科技边框)
   // ==========================================
   {
     type: 'deco-border-neon',
     category: 'decoration',
-    name: '科技荧光边框',
-    nameEn: 'Neon Tech Border',
+    name: '霓虹科技发光边框',
+    nameEn: 'Cyber Neon Border',
     iconName: 'Frame',
-    description: '四角带有亮角与光芒的 DataV 科技感外框容器',
-    defaultWidth: 480,
-    defaultHeight: 300,
+    description: '赛博朋克发光外边框，带四角切角与动态脉冲粒子流光',
+    defaultWidth: 340,
+    defaultHeight: 220,
     defaultStyle: {
-      fill: 'rgba(8, 16, 30, 0.65)',
       stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 4,
-      themePreset: 'cyber-cyan'
+      borderRadius: 12
     },
-    defaultData: {
-      mapping: {
-        titleKey: '遥测监控区域'
-      }
-    }
+    defaultData: { mapping: {} }
   },
   {
-    type: 'deco-border-industrial',
+    type: 'deco-tech-plate',
     category: 'decoration',
-    name: '重工斜切角机甲框',
-    nameEn: 'Mecha Chamfer Border',
+    name: '工业机甲装甲面板',
+    nameEn: 'Industrial Armor Plate',
     iconName: 'SquareCode',
-    description: '机械切角与螺栓装饰点缀的重工业框架',
-    defaultWidth: 480,
-    defaultHeight: 300,
+    description: '带螺栓铆钉与倾斜切角的机甲底板，适用于重工业SCADA控制大屏',
+    defaultWidth: 340,
+    defaultHeight: 220,
     defaultStyle: {
-      fill: 'rgba(15, 23, 38, 0.75)',
-      stroke: '#f59e0b',
-      strokeWidth: 2,
-      themePreset: 'industrial-amber'
+      stroke: '#38bdf8',
+      fill: 'rgba(15, 23, 42, 0.7)'
     },
-    defaultData: {
-      mapping: {
-        titleKey: '动力机组监控'
-      }
-    }
-  },
-  {
-    type: 'nav-tabs',
-    category: 'custom',
-    name: '大屏多页面切换导航条',
-    nameEn: 'Multi-Screen Navigation Tabs',
-    iconName: 'LayoutDashboard',
-    description: '可置于大屏顶部或底部的页面跳转导航栏，支持在运行态一键切换不同大屏',
-    defaultWidth: 600,
-    defaultHeight: 52,
-    defaultStyle: {
-      fill: 'rgba(6, 14, 28, 0.92)',
-      stroke: '#00f2ff',
-      strokeWidth: 1,
-      borderRadius: 10
-    },
-    defaultData: {
-      mapping: {}
-    }
+    defaultData: { mapping: {} }
   }
 ];
-
-export function getComponentDefinition(type: ComponentType): ComponentDefinition | undefined {
-  return COMPONENT_DEFINITIONS.find(c => c.type === type);
-}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveTeleSignalState } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -11,27 +12,21 @@ const props = defineProps<Props>();
 
 const handcartState = computed(() => {
   const { data, style, customProps } = props.component;
-  const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
+  const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey || data?.mapping?.valueKey;
+  const defaultVal = customProps?.position !== undefined ? customProps.position : 1;
 
-  // Position: 'working' (工作位置) | 'test' (试验位置) | 'isolated' (检修位置)
-  let position: 'working' | 'test' | 'isolated' = customProps?.position || 'working';
+  const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
 
-  if (boundDs && boundDs.data) {
-    const pKey = data?.mapping?.stateKey || data?.mapping?.statusKey;
-    if (pKey && boundDs.data[pKey] !== undefined) {
-      const val = String(boundDs.data[pKey]).toLowerCase();
-      if (val.includes('test') || val.includes('试')) position = 'test';
-      else if (val.includes('iso') || val.includes('隔') || val.includes('检')) position = 'isolated';
-      else position = 'working';
-    }
-  }
-
-  const isWorking = position === 'working';
-  const posColor = isWorking ? '#ef4444' : '#10b981';
+  const isWorking = resolved.isWorking || resolved.numericValue === 1 || resolved.numericValue === 4;
+  const isTest = resolved.isTest || resolved.numericValue === 0 || resolved.numericValue === 3;
+  const posColor = isWorking ? '#ef4444' : (isTest ? '#3b82f6' : '#10b981');
 
   return {
     isWorking,
+    isTest,
     posColor,
+    statusText: resolved.statusText,
+    numericValue: resolved.numericValue,
     stroke: style.stroke || posColor,
     strokeWidth: style.strokeWidth || 2
   };
