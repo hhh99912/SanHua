@@ -34,6 +34,7 @@ import {
   BarChart2,
   FileCode,
   CheckCircle2,
+  ShieldCheck,
   Info
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
@@ -58,6 +59,8 @@ const emit = defineEmits<{
   (e: 'align:component', type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v'): void;
   (e: 'save:symbol', comps: ScreenComponent[]): void;
   (e: 'delete', ids: string[]): void;
+  (e: 'open:batch:points'): void;
+  (e: 'open:control', deviceId: string): void;
 }>();
 
 const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry');
@@ -66,7 +69,6 @@ const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry')
 const dataBindingSource = ref<'scada' | 'static'>('scada');
 const selectedDeviceId = ref<string>('DEV-101');
 const selectedTeleCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
-const selectedTargetField = ref<string>('valueKey');
 const pointSearchQuery = ref<string>('');
 const staticJsonInput = ref<string>('');
 const staticJsonMsg = ref<string>('');
@@ -145,7 +147,7 @@ const isElectricalSwitch = computed(() => {
   return ['elec-breaker', 'elec-disconnector', 'elec-grounding', 'elec-handcart', 'ctrl-indicator'].includes(props.component.type);
 });
 
-// Point binding action
+// Direct Smart Point Binding Action (智能测点关联，无需用户配置繁琐的内部属性目标)
 const handleBindPointToComponent = (point: any) => {
   if (!props.component) return;
   const dev = selectedDevice.value;
@@ -177,18 +179,49 @@ const handleBindPointToComponent = (point: any) => {
     deviceId: dev.deviceId,
     pointCategory: pointCat,
     pointId: point.pointId,
-    deviceName: dev.deviceName
+    deviceName: dev.deviceName,
+    pointName: point.name,
+    valueKey: pointKey
   };
 
-  // If electrical switch or YX, map stateKey / valueKey
+  // 1. 遥信/开关类图元自动映射状态键
   if (isElectricalSwitch.value || cat === 'yx') {
     mappingUpdates.stateKey = pointKey;
-    mappingUpdates.valueKey = pointKey;
     mappingUpdates.statusKey = pointKey;
-  } else if (selectedTargetField.value) {
-    mappingUpdates[selectedTargetField.value] = pointKey;
-  } else {
     mappingUpdates.valueKey = pointKey;
+  }
+
+  // 2. 遥控/遥调类图元自动绑定操作动作与闭环校验测点
+  let newAction = props.component.data?.action;
+  if (cat === 'yk') {
+    // 寻找默认关联遥信点
+    const defaultYxId = point.targetPointId !== undefined ? point.targetPointId : (dev.teleSignals?.[0]?.pointId ?? 1);
+    newAction = {
+      type: 'tele-control',
+      deviceId: dev.deviceId,
+      pointId: point.pointId,
+      targetPointId: defaultYxId,
+      verifyType: 'yx',
+      autoSyncState: true
+    };
+    mappingUpdates.stateKey = `${dev.deviceId}_YX_${defaultYxId}`;
+    mappingUpdates.statusKey = `${dev.deviceId}_YX_${defaultYxId}`;
+    mappingUpdates.ykPointId = point.pointId;
+    mappingUpdates.targetYxPointId = defaultYxId;
+  } else if (cat === 'yt') {
+    // 寻找默认关联遥测点
+    const defaultYcId = point.targetYcPointId !== undefined ? point.targetYcPointId : (dev.telemetries?.[0]?.pointId ?? 1);
+    newAction = {
+      type: 'tele-regulation',
+      deviceId: dev.deviceId,
+      pointId: point.pointId,
+      targetPointId: defaultYcId,
+      verifyType: 'yc',
+      autoSyncState: true
+    };
+    mappingUpdates.valueKey = `${dev.deviceId}_YC_${defaultYcId}`;
+    mappingUpdates.ytPointId = point.pointId;
+    mappingUpdates.targetYcPointId = defaultYcId;
   }
 
   if (point.unit) {
@@ -201,7 +234,54 @@ const handleBindPointToComponent = (point: any) => {
     mapping: {
       ...props.component.data.mapping,
       ...mappingUpdates
-    }
+    },
+    action: newAction
+  });
+};
+
+// Set Verification Point for YK / YT
+const handleSetVerificationPoint = (verifyPointId: number | string) => {
+  if (!props.component || !props.component.data?.action) return;
+  const action = props.component.data.action;
+  const devId = action.deviceId || props.component.data.mapping?.deviceId || selectedDevice.value?.deviceId || 'DEV-101';
+  
+  if (action.type === 'tele-control') {
+    updateComponentData({
+      mapping: {
+        ...props.component.data.mapping,
+        targetYxPointId: verifyPointId,
+        stateKey: `${devId}_YX_${verifyPointId}`,
+        statusKey: `${devId}_YX_${verifyPointId}`
+      },
+      action: {
+        ...action,
+        targetPointId: verifyPointId,
+        verifyType: 'yx'
+      }
+    });
+  } else if (action.type === 'tele-regulation') {
+    updateComponentData({
+      mapping: {
+        ...props.component.data.mapping,
+        targetYcPointId: verifyPointId,
+        valueKey: `${devId}_YC_${verifyPointId}`
+      },
+      action: {
+        ...action,
+        targetPointId: verifyPointId,
+        verifyType: 'yc'
+      }
+    });
+  }
+};
+
+// Quick Unbind Point
+const handleUnbindPoint = () => {
+  if (!props.component) return;
+  updateComponentData({
+    useStatic: false,
+    mapping: {},
+    action: undefined
   });
 };
 
@@ -642,7 +722,7 @@ const toggleBatchLock = () => {
 
         <!-- TAB 2: STYLE & PALETTE -->
         <div v-if="activeTab === 'style'" class="space-y-4">
-          <!-- Electrical Component Dedicated Controls -->
+          <!-- 1. Electrical Component Switch Status -->
           <div v-if="component && ['elec-breaker', 'elec-disconnector', 'elec-grounding'].includes(component.type)" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Zap class="w-4 h-4 text-amber-400" />
@@ -664,105 +744,83 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- Line & Polyline Controls (Independent Free Color & Styles) -->
-          <div v-if="component.type === 'draw-line' || component.type === 'draw-polyline' || component.type === 'draw-arrow' || component.type === 'elec-busbar'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
-            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-              <Workflow class="w-4 h-4 text-cyan-400" />
-              <span>线条/走线样式自由配置</span>
-            </div>
-
-            <!-- Line Color Quick Presets -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">线条预设配色</label>
-              <div class="grid grid-cols-8 gap-1.5">
-                <button
-                  v-for="c in ['#00f2ff', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#f97316', '#38bdf8', '#ffffff']"
-                  :key="c"
-                  @click="updateComponentStyle({ stroke: c, voltageLevel: undefined })"
-                  class="w-6 h-6 rounded-md border transition-transform hover:scale-110 cursor-pointer shadow-xs"
-                  :style="{ backgroundColor: c, borderColor: (component.style.stroke || '#00f2ff') === c ? '#ffffff' : 'transparent' }"
-                />
-              </div>
-            </div>
-
-            <!-- Custom Stroke Color -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">线条自定义颜色</label>
-              <div class="flex items-center gap-2">
-                <input
-                  type="color"
-                  :value="component.style.stroke || '#00f2ff'"
-                  @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value, voltageLevel: undefined })"
-                  class="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
-                />
-                <input
-                  type="text"
-                  :value="component.style.stroke || '#00f2ff'"
-                  @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value, voltageLevel: undefined })"
-                  class="flex-1 bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-                />
-              </div>
-            </div>
-
-            <!-- Line Style -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">线条类型</label>
-              <select
-                :value="component.style.lineStyle || 'solid'"
-                @change="updateComponentStyle({ lineStyle: ($event.target as HTMLSelectElement).value })"
-                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden cursor-pointer"
-              >
-                <option value="solid">实线 (Solid)</option>
-                <option value="dashed">虚线 (Dashed)</option>
-                <option value="dotted">点线 (Dotted)</option>
-              </select>
-            </div>
-
-            <!-- Stroke Width -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">线宽粗细: {{ component.style.strokeWidth || 3 }}px</label>
-              <input
-                type="range"
-                min="1"
-                max="24"
-                step="1"
-                :value="component.style.strokeWidth || 3"
-                @input="updateComponentStyle({ strokeWidth: Number(($event.target as HTMLInputElement).value) })"
-                class="w-full accent-cyan-400 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          <!-- Text & Button Specific Typography Controls -->
-          <div v-if="component.type === 'draw-text' || component.type === 'ctrl-button'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
+          <!-- 2. Typography & Text Styling (适用于所有文本、按钮、标签组件) -->
+          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Type class="w-4 h-4 text-cyan-400" />
-              <span>文字与字号设置</span>
+              <span>文本与排版样式 (Typography)</span>
             </div>
 
             <!-- Text Content -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">展示文本</label>
+            <div v-if="component.type === 'draw-text' || component.type === 'ctrl-button' || component.type === 'metric-header'">
+              <label class="text-xs font-semibold text-slate-200 block mb-1">展示文本内容</label>
               <input
                 type="text"
                 :value="component.type === 'ctrl-button' ? (component.style.buttonText || component.name) : (component.style.text || component.name)"
                 @input="component.type === 'ctrl-button' ? updateComponentStyle({ buttonText: ($event.target as HTMLInputElement).value }) : (updateComponentProps({ name: ($event.target as HTMLInputElement).value }), updateComponentStyle({ text: ($event.target as HTMLInputElement).value }))"
-                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 outline-hidden text-xs font-bold"
+                class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 outline-hidden text-xs font-bold"
               />
             </div>
 
-            <!-- Font Size -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">字号大小: {{ component.style.fontSize || 16 }}px</label>
-              <input
-                type="range"
-                min="10"
-                max="72"
-                step="1"
-                :value="component.style.fontSize || 16"
-                @input="updateComponentStyle({ fontSize: Number(($event.target as HTMLInputElement).value) })"
-                class="w-full accent-cyan-400 cursor-pointer"
-              />
+            <!-- Font Size & Font Weight -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">字号: {{ component.style.fontSize || 14 }}px</label>
+                <input
+                  type="range"
+                  min="10"
+                  max="96"
+                  step="1"
+                  :value="component.style.fontSize || 14"
+                  @input="updateComponentStyle({ fontSize: Number(($event.target as HTMLInputElement).value) })"
+                  class="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">字重 (Weight)</label>
+                <select
+                  :value="component.style.fontWeight || 'normal'"
+                  @change="updateComponentStyle({ fontWeight: ($event.target as HTMLSelectElement).value as any })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="300">细体 (Light 300)</option>
+                  <option value="normal">常规 (Regular 400)</option>
+                  <option value="600">半粗 (SemiBold 600)</option>
+                  <option value="bold">粗体 (Bold 700)</option>
+                  <option value="900">极粗 (Black 900)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Font Family & Text Align -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">字体系列</label>
+                <select
+                  :value="component.style.fontFamily || 'monospace'"
+                  @change="updateComponentStyle({ fontFamily: ($event.target as HTMLSelectElement).value })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="Chakra Petch, monospace">Chakra Petch (工业科技)</option>
+                  <option value="JetBrains Mono, monospace">JetBrains Mono (等宽)</option>
+                  <option value="Noto Sans SC, sans-serif">Noto Sans (标准黑体)</option>
+                  <option value="system-ui, sans-serif">系统无衬线 (System UI)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">对齐方式</label>
+                <select
+                  :value="component.style.textAlign || 'left'"
+                  @change="updateComponentStyle({ textAlign: ($event.target as HTMLSelectElement).value as any })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="left">居左对齐</option>
+                  <option value="center">居中对齐</option>
+                  <option value="right">居右对齐</option>
+                </select>
+              </div>
             </div>
 
             <!-- Text Color -->
@@ -773,65 +831,179 @@ const toggleBatchLock = () => {
                   type="color"
                   :value="component.style.textColor || component.style.stroke || '#00f2ff'"
                   @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value })"
-                  class="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                  class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
                 />
                 <input
                   type="text"
                   :value="component.style.textColor || component.style.stroke || '#00f2ff'"
                   @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value })"
-                  class="flex-1 bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
+                  class="flex-1 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1 text-slate-100 font-semibold text-xs outline-hidden"
                 />
               </div>
             </div>
           </div>
 
-          <!-- Stroke / Border Color (For shapes/rect/circle) -->
-          <div v-if="!['draw-line', 'draw-polyline', 'draw-arrow'].includes(component.type)">
-            <label class="text-xs font-semibold text-slate-200 block mb-1">线条 / 轮廓色</label>
-            <div class="flex items-center gap-2">
+          <!-- 3. Line & Stroke Styling (线条与描边) -->
+          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <Workflow class="w-4 h-4 text-cyan-400" />
+              <span>线条与描边属性 (Line & Stroke)</span>
+            </div>
+
+            <!-- Line Width Slider & Input -->
+            <div>
+              <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-semibold text-slate-200">线宽粗细</label>
+                <span class="text-xs font-mono font-bold text-cyan-400">{{ component.style.strokeWidth ?? (component.type.startsWith('draw-line') ? 3 : 2) }}px</span>
+              </div>
               <input
-                type="color"
-                :value="component.style.stroke || '#00f2ff'"
-                @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value })"
-                class="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
+                type="range"
+                min="1"
+                max="32"
+                step="1"
+                :value="component.style.strokeWidth ?? (component.type.startsWith('draw-line') ? 3 : 2)"
+                @input="updateComponentStyle({ strokeWidth: Number(($event.target as HTMLInputElement).value) })"
+                class="w-full accent-cyan-400 cursor-pointer"
               />
-              <input
-                type="text"
-                :value="component.style.stroke || '#00f2ff'"
-                @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value })"
-                class="flex-1 bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-              />
+            </div>
+
+            <!-- Stroke Color -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">描边 / 线条颜色</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="component.style.stroke || '#00f2ff'"
+                  @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value, voltageLevel: undefined })"
+                  class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  :value="component.style.stroke || '#00f2ff'"
+                  @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value, voltageLevel: undefined })"
+                  class="flex-1 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1 text-slate-100 font-semibold text-xs outline-hidden"
+                />
+              </div>
+            </div>
+
+            <!-- Line Style (Solid, Dashed, Dotted) -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">线条虚实样式</label>
+                <select
+                  :value="component.style.lineStyle || 'solid'"
+                  @change="updateComponentStyle({ lineStyle: ($event.target as HTMLSelectElement).value as any })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="solid">实线 (Solid)</option>
+                  <option value="dashed">虚线 (Dashed)</option>
+                  <option value="dotted">点线 (Dotted)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">走线转角模式</label>
+                <select
+                  :value="component.style.lineType || 'direct'"
+                  @change="updateComponentStyle({ lineType: ($event.target as HTMLSelectElement).value as any })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="direct">直线 (Direct)</option>
+                  <option value="orthogonal-h">水平直角折线</option>
+                  <option value="orthogonal-v">垂直直角折线</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Arrow Endings for Lines -->
+            <div v-if="['draw-line', 'draw-polyline', 'draw-arrow'].includes(component.type)" class="grid grid-cols-2 gap-2">
+              <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="Boolean(component.style.startArrow)"
+                  @change="updateComponentStyle({ startArrow: ($event.target as HTMLInputElement).checked })"
+                  class="rounded accent-cyan-400"
+                />
+                <span>始端箭头</span>
+              </label>
+
+              <label class="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="Boolean(component.style.endArrow ?? (component.type === 'draw-arrow'))"
+                  @change="updateComponentStyle({ endArrow: ($event.target as HTMLInputElement).checked })"
+                  class="rounded accent-cyan-400"
+                />
+                <span>末端箭头</span>
+              </label>
             </div>
           </div>
 
-          <!-- Fill Color Input -->
-          <div v-if="!['draw-line', 'draw-polyline', 'draw-arrow', 'elec-busbar'].includes(component.type)">
-            <label class="text-xs font-semibold text-slate-200 block mb-1">填充背景色</label>
-            <div class="flex items-center gap-2">
-              <input
-                type="color"
-                :value="component.style.fill || '#00f2ff'"
-                @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value })"
-                class="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
-              />
-              <input
-                type="text"
-                :value="component.style.fill || 'transparent'"
-                @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value })"
-                class="flex-1 bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-              />
+          <!-- 4. Fill, Background & Roundness (填充与容器样式) -->
+          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <Palette class="w-4 h-4 text-cyan-400" />
+              <span>填充、背景与圆角 (Fill & Container)</span>
+            </div>
+
+            <!-- Fill Color Input -->
+            <div v-if="!['draw-line', 'draw-polyline', 'draw-arrow', 'elec-busbar'].includes(component.type)">
+              <label class="text-xs font-semibold text-slate-200 block mb-1">填充背景色</label>
+              <div class="flex items-center gap-2">
+                <input
+                  type="color"
+                  :value="component.style.fill || '#00f2ff'"
+                  @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value })"
+                  class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                />
+                <input
+                  type="text"
+                  :value="component.style.fill || 'transparent'"
+                  @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value })"
+                  class="flex-1 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1 text-slate-100 font-semibold text-xs outline-hidden"
+                />
+              </div>
+            </div>
+
+            <!-- Border Radius & Opacity -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">圆角: {{ component.style.borderRadius || 0 }}px</label>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  step="1"
+                  :value="component.style.borderRadius || 0"
+                  @input="updateComponentStyle({ borderRadius: Number(($event.target as HTMLInputElement).value) })"
+                  class="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">透明度: {{ Math.round((component.style.opacity ?? 1) * 100) }}%</label>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  :value="component.style.opacity ?? 1"
+                  @input="updateComponentStyle({ opacity: Number(($event.target as HTMLInputElement).value) })"
+                  class="w-full accent-cyan-400 cursor-pointer"
+                />
+              </div>
             </div>
           </div>
 
-          <!-- SPECIFIC CONTROLS: Electrical Primary Switchgear Status (0: 分闸, 1: 合闸, 2: 故障) -->
+          <!-- 5. Electrical Switch Enum Quick Controls -->
           <div v-if="['elec-breaker', 'elec-disconnector', 'elec-grounding', 'elec-handcart', 'ctrl-indicator'].includes(component.type)" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
             <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
               <span class="flex items-center gap-1.5">
                 <Zap class="w-4 h-4 text-amber-400" />
-                <span>设备开关状态 (枚举值: 0 / 1 / 2)</span>
+                <span>设备开关状态 (枚举: 0分 / 1合 / 2警)</span>
               </span>
               <span class="font-mono text-cyan-400 font-bold">
-                当前: {{ component.customProps?.state ?? component.customProps?.position ?? (component.style.indicatorState === 'alarm' ? 2 : (component.style.indicatorState === 'normal' ? 1 : 0)) }}
+                {{ component.customProps?.state ?? component.customProps?.position ?? (component.style.indicatorState === 'alarm' ? 2 : (component.style.indicatorState === 'normal' ? 1 : 0)) }}
               </span>
             </div>
 
@@ -868,34 +1040,7 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- SPECIFIC CONTROLS: Metric Float -->
-          <div v-if="component.type === 'metric-float'" class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
-            <div class="text-xs font-bold text-cyan-300">浮点数数据显示设置</div>
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">小数位数 (Decimals)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="6"
-                  :value="component.style.decimals ?? 2"
-                  @input="updateComponentStyle({ decimals: Number(($event.target as HTMLInputElement).value) })"
-                  class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-                />
-              </div>
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">后缀单位 (Suffix)</label>
-                <input
-                  type="text"
-                  :value="component.style.suffix || ''"
-                  @input="updateComponentStyle({ suffix: ($event.target as HTMLInputElement).value })"
-                  placeholder="如: kV, A, MW, ℃"
-                  class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-                />
-              </div>
-            </div>
-          </div>
-          <!-- Streamer & Dynamic Glow Effect (流光动效) -->
+          <!-- 6. Streamer & Dynamic Glow Effect (流光动效) -->
           <div class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
             <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
               <div class="flex items-center gap-1.5">
@@ -1116,7 +1261,7 @@ const toggleBatchLock = () => {
             <!-- Step 3: Select Telemetry Category (YC / YX / DD / YK / YT) -->
             <div>
               <label class="text-xs font-semibold text-slate-200 block mb-1">
-                3. 选择四遥数据分类
+                3. 选择四遥分类 (直连测点)
               </label>
               <div class="grid grid-cols-5 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
                 <button
@@ -1157,32 +1302,22 @@ const toggleBatchLock = () => {
               </div>
             </div>
 
-            <!-- Target Field Selector (Optional for non-switches) -->
-            <div v-if="!isElectricalSwitch">
-              <label class="text-xs font-semibold text-slate-200 block mb-1">
-                4. 绑定组件属性目标
-              </label>
-              <select
-                v-model="selectedTargetField"
-                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
-              >
-                <option value="valueKey">主测量值 / 状态 (valueKey)</option>
-                <option value="stateKey">开关状态枚举 (stateKey)</option>
-                <option value="voltageKey">电压数据 (voltageKey)</option>
-                <option value="currentKey">电流数据 (currentKey)</option>
-                <option value="powerKey">功率数据 (powerKey)</option>
-                <option value="temperatureKey">温度数据 (temperatureKey)</option>
-                <option value="seriesKey">图表时序系列 (seriesKey)</option>
-              </select>
-            </div>
-
-            <!-- Step 5: Point List & Search -->
+            <!-- Step 4: Point List & Search (智能直接关联) -->
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-semibold text-slate-200">
-                  5. 在条目列表中点击绑定点
+                  4. 点击测点即时智能绑定
                 </label>
-                <span class="text-[10px] text-cyan-400 font-mono">共 {{ filteredPoints.length }} 个点</span>
+                <div class="flex items-center gap-2">
+                  <button
+                    v-if="component.data.mapping?.pointId || component.data.mapping?.valueKey"
+                    @click="handleUnbindPoint"
+                    class="text-[10px] text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                  >
+                    解除绑定
+                  </button>
+                  <span class="text-[10px] text-cyan-400 font-mono">共 {{ filteredPoints.length }} 个</span>
+                </div>
               </div>
 
               <!-- Search Input -->
@@ -1233,7 +1368,7 @@ const toggleBatchLock = () => {
                       v-else-if="selectedTeleCategory === 'yk'"
                       class="text-[10px] text-amber-300 font-mono"
                     >
-                      {{ pt.options?.length || 2 }} 个选项
+                      {{ pt.options?.length || 2 }} 档控制
                     </span>
                     <span
                       v-else-if="selectedTeleCategory === 'yt'"
@@ -1245,8 +1380,73 @@ const toggleBatchLock = () => {
                 </div>
 
                 <div v-if="filteredPoints.length === 0" class="p-4 text-center text-xs text-slate-500">
-                  未找到符合条件的点位
+                  未找到符合条件的测点
                 </div>
+              </div>
+
+              <!-- STEP 2: Closed-Loop Verification Point (遥控->遥信校验 / 遥调->遥测校验) -->
+              <div v-if="component.data.action?.type === 'tele-control' || component.data.action?.type === 'tele-regulation' || selectedTeleCategory === 'yk' || selectedTeleCategory === 'yt'" class="p-3 rounded-xl bg-purple-950/30 border border-purple-500/50 space-y-2.5">
+                <div class="flex items-center justify-between text-xs font-bold text-purple-300">
+                  <span class="flex items-center gap-1.5">
+                    <ShieldCheck class="w-4 h-4 text-purple-400" />
+                    <span>指定闭环校验点 (Step 2 校验)</span>
+                  </span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 border border-purple-400/40 font-mono">
+                    {{ (component.data.action?.type === 'tele-control' || selectedTeleCategory === 'yk') ? '遥控 ➔ 校验遥信 (YX)' : '遥调 ➔ 校验遥测 (YC)' }}
+                  </span>
+                </div>
+
+                <div class="text-[11px] text-slate-300 leading-relaxed">
+                  选择下发指令后用于状态校验反馈的测点。遥控将校验对应遥信变位，遥调将校验遥测数值更新：
+                </div>
+
+                <!-- Select corresponding YX for YK -->
+                <div v-if="component.data.action?.type === 'tele-control' || selectedTeleCategory === 'yk'">
+                  <label class="text-[11px] font-semibold text-purple-300 block mb-1">对应校验遥信点 (YX)</label>
+                  <select
+                    :value="component.data.action?.targetPointId ?? component.data.mapping?.targetYxPointId ?? selectedDevice?.teleSignals?.[0]?.pointId ?? ''"
+                    @change="handleSetVerificationPoint(Number(($event.target as HTMLSelectElement).value))"
+                    class="w-full bg-[#060b17] border border-purple-500/40 focus:border-purple-300 rounded-lg px-2.5 py-1.5 text-purple-200 font-mono font-bold text-xs outline-hidden cursor-pointer"
+                  >
+                    <option v-for="yx in selectedDevice?.teleSignals || []" :key="yx.pointId" :value="yx.pointId">
+                      [YX_{{ yx.pointId }}] {{ yx.name }} (当前值: {{ yx.value }} - {{ yx.statusText || (yx.value === 1 ? '合闸' : '分闸') }})
+                    </option>
+                  </select>
+                </div>
+
+                <!-- Select corresponding YC for YT -->
+                <div v-if="component.data.action?.type === 'tele-regulation' || selectedTeleCategory === 'yt'">
+                  <label class="text-[11px] font-semibold text-purple-300 block mb-1">对应校验遥测点 (YC)</label>
+                  <select
+                    :value="component.data.action?.targetPointId ?? component.data.mapping?.targetYcPointId ?? selectedDevice?.telemetries?.[0]?.pointId ?? ''"
+                    @change="handleSetVerificationPoint(Number(($event.target as HTMLSelectElement).value))"
+                    class="w-full bg-[#060b17] border border-purple-500/40 focus:border-purple-300 rounded-lg px-2.5 py-1.5 text-purple-200 font-mono font-bold text-xs outline-hidden cursor-pointer"
+                  >
+                    <option v-for="yc in selectedDevice?.telemetries || []" :key="yc.pointId" :value="yc.pointId">
+                      [YC_{{ yc.pointId }}] {{ yc.name }} (当前值: {{ yc.value }} {{ yc.unit || '' }})
+                    </option>
+                  </select>
+                </div>
+
+                <!-- Quick Test Button -->
+                <button
+                  @click="emit('open:control', selectedDevice?.deviceId || component.data.action?.deviceId || 'DEV-101')"
+                  class="w-full py-1.5 px-2.5 rounded-lg bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-500/50 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-xs"
+                >
+                  <Zap class="w-3.5 h-3.5 text-purple-400" />
+                  <span>立即在控制台预演下发并校验</span>
+                </button>
+              </div>
+
+              <!-- Quick shortcut to bulk points manager -->
+              <div class="pt-2">
+                <button
+                  @click="emit('open:batch:points')"
+                  class="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
+                >
+                  <Sparkles class="w-3.5 h-3.5 text-cyan-400" />
+                  <span>打开批量遥测/遥信关联与大屏生成</span>
+                </button>
               </div>
             </div>
 

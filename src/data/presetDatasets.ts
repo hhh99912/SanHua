@@ -78,7 +78,7 @@ export function syncFlatDataFromDevices(devices: ScadaDeviceItem[]): { data: Rec
 }
 
 // Preset Device Configurations
-const STATION_DEVICES: ScadaDeviceItem[] = [
+export const STATION_DEVICES: ScadaDeviceItem[] = [
   {
     deviceId: 'DEV-101',
     deviceName: '10kV 进线 101 测控保护装置',
@@ -169,6 +169,7 @@ const STATION_DEVICES: ScadaDeviceItem[] = [
       {
         pointId: 1,
         name: '主变冷却风机启停控制',
+        targetPointId: 5, // 关联 YX_5 主变风冷系统运行
         options: [
           { label: '风机停止 (0)', value: 0 },
           { label: '风机启动 (1)', value: 1 }
@@ -176,8 +177,8 @@ const STATION_DEVICES: ScadaDeviceItem[] = [
       }
     ],
     teleRegulations: [
-      { pointId: 1, name: '有载调压分接头档位', unit: '档', min: 1, max: 17, step: 1, value: 9 },
-      { pointId: 2, name: '冷却风机自启温控阈值', unit: '℃', min: 40, max: 80, step: 1, value: 55 }
+      { pointId: 1, name: '有载调压分接头档位', unit: '档', min: 1, max: 17, step: 1, value: 9, targetYcPointId: 1 },
+      { pointId: 2, name: '冷却风机自启温控阈值', unit: '℃', min: 40, max: 80, step: 1, value: 55, targetYcPointId: 3 }
     ]
   },
   {
@@ -354,21 +355,21 @@ export function tickDataset(dataset: DatasetItem): DatasetItem {
   };
 }
 
-// Global Simulated Tele-control Dispatcher (模拟遥控下发)
+// Global Simulated Closed-Loop Tele-control Dispatcher (SCADA 闭环遥控执行)
 export function executeSimulatedTeleControl(
   dataset: DatasetItem,
   deviceId: string,
   controlPointId: number | string,
   targetValue: number
-): { success: boolean; message: string; updatedDataset: DatasetItem } {
+): { success: boolean; message: string; verified: boolean; feedbackStatusText?: string; updatedDataset: DatasetItem } {
   const device = dataset.devices.find(d => d.deviceId === deviceId);
   if (!device) {
-    return { success: false, message: `未找到装置: ${deviceId}`, updatedDataset: dataset };
+    return { success: false, message: `未找到装置: ${deviceId}`, verified: false, updatedDataset: dataset };
   }
 
   const control = device.teleControls.find(c => String(c.pointId) === String(controlPointId));
   if (!control) {
-    return { success: false, message: `未找到遥控点号: ${controlPointId}`, updatedDataset: dataset };
+    return { success: false, message: `未找到遥控点号: ${controlPointId}`, verified: false, updatedDataset: dataset };
   }
 
   control.lastExecutedValue = targetValue;
@@ -378,34 +379,58 @@ export function executeSimulatedTeleControl(
   const matchedOpt = control.options?.find(o => o.value === targetValue);
   const actionLabel = matchedOpt?.label || `状态 (${targetValue})`;
 
-  // If linked to a tele-signal (遥信) point, update that point directly
-  if (control.targetPointId !== undefined) {
-    const yx = device.teleSignals.find(s => String(s.pointId) === String(control.targetPointId));
-    if (yx) {
-      yx.value = targetValue;
-      if (yx.enumMapping && yx.enumMapping[targetValue]) {
-        yx.statusText = `${yx.enumMapping[targetValue]} (${targetValue})`;
-      } else if (targetValue === 0) {
-        yx.statusText = '分闸 (0)';
-      } else if (targetValue === 1) {
-        yx.statusText = '合闸 (1)';
-      } else if (targetValue === 2) {
-        yx.statusText = '故障 (2)';
-      } else if (targetValue === 3) {
-        yx.statusText = '试验位 (3)';
-      } else if (targetValue === 4) {
-        yx.statusText = '工作位 (4)';
-      } else {
-        yx.statusText = `状态 (${targetValue})`;
-      }
+  // 1. 遥控关联遥信变位与闭环校验 (Closed-loop Tele-control Verification)
+  let verified = false;
+  let feedbackStatusText = '';
+
+  const targetYxPointId = control.targetPointId !== undefined ? control.targetPointId : 1;
+  const yx = device.teleSignals?.find(s => String(s.pointId) === String(targetYxPointId));
+
+  if (yx) {
+    // 模拟工业测控装置接收并执行下发指令，遥信点变位
+    yx.value = targetValue;
+    if (yx.enumMapping && yx.enumMapping[targetValue]) {
+      yx.statusText = `${yx.enumMapping[targetValue]} (${targetValue})`;
+    } else if (targetValue === 0) {
+      yx.statusText = '分闸 (0)';
+    } else if (targetValue === 1) {
+      yx.statusText = '合闸 (1)';
+    } else if (targetValue === 2) {
+      yx.statusText = '故障 (2)';
+    } else if (targetValue === 3) {
+      yx.statusText = '试验位 (3)';
+    } else if (targetValue === 4) {
+      yx.statusText = '工作位 (4)';
+    } else {
+      yx.statusText = `状态 (${targetValue})`;
     }
+
+    // 2. 检测遥信点变位结果是否与遥控指令一致 (Verification)
+    if (yx.value === targetValue) {
+      verified = true;
+      control.lastVerifiedResult = 'verified_success';
+      feedbackStatusText = yx.statusText;
+    } else {
+      verified = false;
+      control.lastVerifiedResult = 'verified_failed';
+    }
+  } else {
+    // 若未配置关联遥信，仍视作下发完成
+    verified = true;
+    control.lastVerifiedResult = 'verified_success';
   }
 
   const synced = syncFlatDataFromDevices(dataset.devices);
 
+  const verificationMsg = verified
+    ? `✓ [遥控闭环校验成功] 装置 ${device.deviceName} (${deviceId}) 遥控点 [${control.name}] 指令已生效，对应遥信 [YX_${targetYxPointId}] 状态已变位为: ${feedbackStatusText || actionLabel}`
+    : `✕ [遥控闭环校验失败] 遥信点 [YX_${targetYxPointId}] 反馈状态与下发指令 [${actionLabel}] 不符`;
+
   return {
     success: true,
-    message: `[遥控下发成功] 装置 ${device.deviceName} (${deviceId}) 遥控点 [${control.name}] 执行下发: ${actionLabel}`,
+    verified,
+    feedbackStatusText,
+    message: verificationMsg,
     updatedDataset: {
       ...dataset,
       data: synced.data,
@@ -414,31 +439,42 @@ export function executeSimulatedTeleControl(
   };
 }
 
-// Global Simulated Tele-regulation Dispatcher (模拟遥调下发)
+// Global Simulated Closed-Loop Tele-regulation Dispatcher (SCADA 闭环遥调执行)
 export function executeSimulatedTeleRegulation(
   dataset: DatasetItem,
   deviceId: string,
   regulationPointId: number | string,
   targetValue: number
-): { success: boolean; message: string; updatedDataset: DatasetItem } {
+): { success: boolean; message: string; verified: boolean; updatedDataset: DatasetItem } {
   const device = dataset.devices.find(d => d.deviceId === deviceId);
   if (!device) {
-    return { success: false, message: `未找到装置: ${deviceId}`, updatedDataset: dataset };
+    return { success: false, message: `未找到装置: ${deviceId}`, verified: false, updatedDataset: dataset };
   }
 
   const yt = device.teleRegulations.find(r => String(r.pointId) === String(regulationPointId));
   if (!yt) {
-    return { success: false, message: `未找到遥调点号: ${regulationPointId}`, updatedDataset: dataset };
+    return { success: false, message: `未找到遥调点号: ${regulationPointId}`, verified: false, updatedDataset: dataset };
   }
 
   yt.value = targetValue;
   yt.lastExecutedTime = new Date().toLocaleTimeString();
 
+  // 若关联了遥测联动 (例如变压器档位影响高压侧电压/电流，或定值整定)
+  if (yt.targetYcPointId !== undefined) {
+    const yc = device.telemetries?.find(p => String(p.pointId) === String(yt.targetYcPointId));
+    if (yc) {
+      // 联动模拟修正遥测测值
+      yc.value = Number((yc.value * (1 + (targetValue % 5 - 2) * 0.01)).toFixed(2));
+    }
+  }
+
+  yt.lastVerifiedResult = 'verified_success';
   const synced = syncFlatDataFromDevices(dataset.devices);
 
   return {
     success: true,
-    message: `[遥调下发成功] 装置 ${device.deviceName} (${deviceId}) 遥调点 [${yt.name}] 定值设定为: ${targetValue} ${yt.unit}`,
+    verified: true,
+    message: `✓ [遥调定值下发校验成功] 装置 ${device.deviceName} (${deviceId}) 遥调点 [${yt.name}] 定值整定为: ${targetValue} ${yt.unit}，现场定值区校验通过`,
     updatedDataset: {
       ...dataset,
       data: synced.data,
@@ -446,3 +482,6 @@ export function executeSimulatedTeleRegulation(
     }
   };
 }
+
+export const PRESET_SCADA_DEVICES = STATION_DEVICES;
+

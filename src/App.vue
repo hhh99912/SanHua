@@ -25,6 +25,10 @@ import JsonExportImportModal from './components/JsonExportImportModal.vue';
 import PreviewScreen from './components/PreviewScreen.vue';
 import DesktopPlatformModal from './components/DesktopPlatformModal.vue';
 import ScadaControlModal from './components/ScadaControlModal.vue';
+import ScadaBatchPointModal from './components/ScadaBatchPointModal.vue';
+import LoginModal from './components/LoginModal.vue';
+import ScadaPvLogin from './components/ScadaPvLogin.vue';
+import { currentUser, canEditCanvas, isLoggedIn, logoutUser } from './utils/auth';
 import { Sparkles, Layers, Box, Zap } from 'lucide-vue-next';
 
 // 1. Initial State: Load Multi-Screen Electrical Project
@@ -54,10 +58,13 @@ const showDatasetsModal = ref(false);
 const showControlModal = ref(false);
 const controlInitialDeviceId = ref<string | undefined>(undefined);
 const showJsonModal = ref(false);
-const showPreviewModal = ref(false);
+const showPreviewModal = ref(true); // Automatically enter Big Screen Dashboard on startup
 const showSymbolModal = ref(false);
 const showSaveSymbolModal = ref(false);
 const showPlatformModal = ref(false);
+const showBatchPointModal = ref(false);
+const showLoginModal = ref(false);
+const loginNotice = ref('');
 const componentsToSave = ref<ScreenComponent[]>([]);
 
 // Synchronize current components & screen configuration back to screens array
@@ -465,26 +472,6 @@ const handleDeleteBatch = (ids: string[]) => {
   handleDelete(ids);
 };
 
-const handleUngroup = (comp: ScreenComponent) => {
-  if (!comp.children || comp.children.length === 0) return;
-  const maxZ = components.value.reduce((max, c) => Math.max(max, c.zIndex || 1), 0);
-  
-  const unbundled: ScreenComponent[] = comp.children.map((child, index) => {
-    return {
-      ...JSON.parse(JSON.stringify(child)),
-      id: `comp-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
-      x: comp.x + child.x,
-      y: comp.y + child.y,
-      zIndex: maxZ + index + 1
-    };
-  });
-
-  components.value = components.value.filter(c => c.id !== comp.id);
-  components.value.push(...unbundled);
-  selectedIds.value = unbundled.map(u => u.id);
-  recordHistory();
-};
-
 const handleClearCanvas = () => {
   if (window.confirm('确定要清空当前大屏中的所有组件吗？')) {
     components.value = [];
@@ -635,6 +622,113 @@ const handleAlignComponent = (type: 'left' | 'center' | 'right' | 'top' | 'middl
   recordHistory();
 };
 
+// Group Components (组合多选图元为复合组件)
+const handleGroup = (targets?: ScreenComponent[]) => {
+  const compsToGroup = targets && targets.length > 0
+    ? targets
+    : components.value.filter(c => selectedIds.value.includes(c.id) && !c.locked);
+  if (compsToGroup.length < 2) return;
+
+  const minX = Math.min(...compsToGroup.map(c => c.x));
+  const minY = Math.min(...compsToGroup.map(c => c.y));
+  const maxX = Math.max(...compsToGroup.map(c => c.x + c.width));
+  const maxY = Math.max(...compsToGroup.map(c => c.y + c.height));
+  const groupW = Math.max(10, maxX - minX);
+  const groupH = Math.max(10, maxY - minY);
+  const maxZ = Math.max(...compsToGroup.map(c => c.zIndex || 1));
+
+  const relativeChildren: ScreenComponent[] = compsToGroup.map(c => ({
+    ...JSON.parse(JSON.stringify(c)),
+    x: c.x - minX,
+    y: c.y - minY
+  }));
+
+  const groupComp: ScreenComponent = {
+    id: `comp-group-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    name: `组合图元 (${compsToGroup.length}项)`,
+    type: 'composite-symbol',
+    category: 'custom',
+    x: minX,
+    y: minY,
+    width: groupW,
+    height: groupH,
+    rotation: 0,
+    zIndex: maxZ,
+    locked: false,
+    visible: true,
+    children: relativeChildren,
+    style: {},
+    data: { mapping: {} }
+  };
+
+  const toRemoveIds = new Set(compsToGroup.map(c => c.id));
+  const remaining = components.value.filter(c => !toRemoveIds.has(c.id));
+  components.value = [...remaining, groupComp];
+  selectedIds.value = [groupComp.id];
+  recordHistory();
+};
+
+// Ungroup Component (解散组合复合组件为散装图元)
+const handleUngroup = (groupTarget?: ScreenComponent) => {
+  const target = groupTarget || components.value.find(c => selectedIds.value.includes(c.id));
+  if (!target || !target.children || target.children.length === 0) return;
+
+  const baseMinX = Math.min(...target.children.map(c => c.x));
+  const baseMinY = Math.min(...target.children.map(c => c.y));
+  const baseMaxX = Math.max(...target.children.map(c => c.x + c.width));
+  const baseMaxY = Math.max(...target.children.map(c => c.y + c.height));
+  const baseW = Math.max(1, baseMaxX - baseMinX);
+  const baseH = Math.max(1, baseMaxY - baseMinY);
+
+  const scaleX = target.width / baseW;
+  const scaleY = target.height / baseH;
+
+  const unpackedChildren: ScreenComponent[] = target.children.map((c, idx) => ({
+    ...JSON.parse(JSON.stringify(c)),
+    id: `comp-ungrouped-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+    x: Math.round(target.x + c.x * scaleX),
+    y: Math.round(target.y + c.y * scaleY),
+    width: Math.max(10, Math.round(c.width * scaleX)),
+    height: Math.max(6, Math.round(c.height * scaleY)),
+    zIndex: (target.zIndex || 1) + idx
+  }));
+
+  const remaining = components.value.filter(c => c.id !== target.id);
+  components.value = [...remaining, ...unpackedChildren];
+  selectedIds.value = unpackedChildren.map(c => c.id);
+  recordHistory();
+};
+
+// Batch Point Generation & Binding Handlers (批量生成与批量绑定生效)
+const handleBatchGenerateComps = (newComps: ScreenComponent[]) => {
+  if (!newComps || newComps.length === 0) return;
+  components.value.push(...newComps);
+  selectedIds.value = newComps.map(c => c.id);
+  recordHistory();
+};
+
+const handleBatchBindPoints = (bindings: Array<{ compId: string; point: any; category: string; deviceId: string; datasetId?: string }>) => {
+  if (!bindings || bindings.length === 0) return;
+  bindings.forEach(b => {
+    const comp = components.value.find(c => c.id === b.compId);
+    if (comp) {
+      const pointKey = `${b.deviceId}_${b.category.toUpperCase()}_${b.point.pointId}`;
+      if (!comp.data) comp.data = { mapping: {} };
+      comp.data.datasetId = b.datasetId || 'ds-substation-scada';
+      comp.data.mapping = {
+        ...comp.data.mapping,
+        deviceId: b.deviceId,
+        pointCategory: b.category === 'yc' ? 'telemetry' : (b.category === 'yx' ? 'teleSignal' : 'energy'),
+        pointId: b.point.pointId,
+        valueKey: pointKey,
+        stateKey: pointKey,
+        statusKey: pointKey
+      };
+    }
+  });
+  recordHistory();
+};
+
 // Save as Custom Symbol Flow
 const handleOpenSaveSymbolModal = (comps: ScreenComponent[]) => {
   if (comps.length === 0) return;
@@ -738,6 +832,18 @@ onMounted(() => {
   window.addEventListener('scada:open:control', handleGlobalScadaControlEvent);
 });
 
+// Login and Logout Handlers
+const handleLoginSuccess = () => {
+  isLoggedIn.value = true;
+  showPreviewModal.value = true; // Enter Big Screen Dashboard directly on successful login
+  fitToScreen();
+};
+
+const handleLogout = () => {
+  logoutUser();
+  showPreviewModal.value = false;
+};
+
 onBeforeUnmount(() => {
   if (simulationTimer) clearInterval(simulationTimer);
   window.removeEventListener('resize', fitToScreen);
@@ -747,7 +853,14 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="h-screen w-screen flex flex-col bg-[#040810] text-slate-200 overflow-hidden font-sans select-none">
+  <!-- 1. LeaferJS Industrial Photovoltaic SCADA Login Interface (Startup view) -->
+  <ScadaPvLogin
+    v-if="!isLoggedIn"
+    @login:success="handleLoginSuccess"
+  />
+
+  <!-- 2. SCADA Master Studio Workspace (After login) -->
+  <div v-else class="h-screen w-screen flex flex-col bg-[#040810] text-slate-200 overflow-hidden font-sans select-none">
     <!-- Top Navigation & Global Controls -->
     <Navbar
       :screen="screen"
@@ -766,6 +879,7 @@ onBeforeUnmount(() => {
       @open:json="showJsonModal = true"
       @open:symbols="showSymbolModal = true"
       @open:platform="showPlatformModal = true"
+      @open:login="showLoginModal = true"
       @load:template="handleSwitchScreen"
       @clear:canvas="handleClearCanvas"
       @fit:screen="fitToScreen"
@@ -851,6 +965,7 @@ onBeforeUnmount(() => {
           @move:up="handleMoveUp"
           @move:down="handleMoveDown"
           @align="handleAlignComponent"
+          @group="handleGroup"
           @ungroup="handleUngroup"
           @save:symbol="handleOpenSaveSymbolModal"
           @undo="handleUndo"
@@ -881,8 +996,12 @@ onBeforeUnmount(() => {
         @update:components="handleUpdateComponents"
         @update:screen="screen = $event; recordHistory();"
         @align:component="handleAlignComponent"
+        @group="handleGroup"
+        @ungroup="handleUngroup"
         @save:symbol="handleOpenSaveSymbolModal"
         @delete="handleDeleteBatch"
+        @open:batch:points="showBatchPointModal = true"
+        @open:control="(devId) => { controlInitialDeviceId = devId; showControlModal = true; }"
       />
     </div>
 
@@ -903,6 +1022,16 @@ onBeforeUnmount(() => {
       @execute:control="handleExecuteControl"
       @execute:regulation="handleExecuteRegulation"
       @update:datasets="datasets = $event; recordHistory();"
+    />
+
+    <!-- 1.8. SCADA Batch Point Generation & Binding Modal -->
+    <ScadaBatchPointModal
+      :visible="showBatchPointModal"
+      :datasets="datasets"
+      :selectedComponents="selectedComponents"
+      @close="showBatchPointModal = false"
+      @batch:generate="handleBatchGenerateComps"
+      @batch:bind="handleBatchBindPoints"
     />
 
     <!-- 2. JSON Schema Export & Import Modal -->
@@ -945,12 +1074,22 @@ onBeforeUnmount(() => {
       @close="showPreviewModal = false"
       @toggle:streaming="isStreaming = !isStreaming"
       @switch:screen="handleSwitchScreen"
+      @logout="handleLogout"
     />
 
     <!-- 6. Multi-Platform Compatibility & Packaging Studio Modal -->
     <DesktopPlatformModal
       :visible="showPlatformModal"
       @close="showPlatformModal = false"
+    />
+
+    <!-- 7. SCADA User Auth & Login Modal -->
+    <LoginModal
+      v-if="showLoginModal"
+      :notice="loginNotice"
+      @close="showLoginModal = false; loginNotice = '';"
+      @success="showLoginModal = false; loginNotice = '';"
+      @logout="handleLogout"
     />
   </div>
 </template>

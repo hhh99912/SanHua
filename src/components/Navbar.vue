@@ -28,6 +28,8 @@ import {
 import { ScreenConfig } from '../types';
 import { templates } from '../data/templates';
 import { detectPlatform, isElectron } from '../utils/platform';
+import { currentUser } from '../utils/auth';
+import { UserCheck, ShieldCheck } from 'lucide-vue-next';
 
 interface Props {
   screen: ScreenConfig;
@@ -53,6 +55,7 @@ const emit = defineEmits<{
   (e: 'open:json'): void;
   (e: 'open:symbols'): void;
   (e: 'open:platform'): void;
+  (e: 'open:login'): void;
   (e: 'load:template', templateId: string): void;
   (e: 'clear:canvas'): void;
   (e: 'fit:screen'): void;
@@ -359,6 +362,23 @@ const handleSelectTemplate = (id: string) => {
         title="清空画布"
       >
         <Trash2 class="w-4 h-4" />
+      </button>
+
+      <!-- User Auth Status / Switcher -->
+      <button
+        @click="emit('open:login')"
+        class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-xs font-mono text-slate-200 transition-all cursor-pointer"
+        :title="`当前登录: ${currentUser.name} (${currentUser.roleName}) - 点击切换`"
+      >
+        <ShieldCheck v-if="currentUser.role === 'system_admin'" class="w-3.5 h-3.5 text-cyan-400" />
+        <UserCheck v-else class="w-3.5 h-3.5 text-emerald-400" />
+        <span class="max-w-[80px] truncate">{{ currentUser.name }}</span>
+        <span 
+          class="text-[9px] px-1 py-0.2 rounded font-bold"
+          :class="currentUser.role === 'system_admin' ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40' : 'bg-emerald-950 text-emerald-300 border border-emerald-500/40'"
+        >
+          {{ currentUser.role === 'system_admin' ? '系统用户' : '普通用户' }}
+        </span>
       </button>
 
       <!-- Big Screen Full Preview -->

@@ -51,6 +51,7 @@ const emit = defineEmits<{
   (e: 'move:up', id: string | string[]): void;
   (e: 'move:down', id: string | string[]): void;
   (e: 'save:symbol', comps: ScreenComponent[]): void;
+  (e: 'group', comps?: ScreenComponent[]): void;
   (e: 'ungroup', comp: ScreenComponent): void;
   (e: 'align', type: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom' | 'distribute-h' | 'distribute-v'): void;
   (e: 'finish:draw'): void;
@@ -160,6 +161,17 @@ const primarySelected = computed(() => {
     return props.components.find(c => c.id === props.selectedIds[0]) || null;
   }
   return null;
+});
+
+const primarySelectedHasControl = computed(() => {
+  if (!primarySelected.value) return false;
+  const c = primarySelected.value;
+  const actionType = c.data?.action?.type;
+  if (actionType === 'tele-control' || actionType === 'tele-regulation') return true;
+  const mapping = c.data?.mapping;
+  if (mapping?.pointCategory === 'teleControl' || mapping?.pointCategory === 'teleRegulation') return true;
+  if (mapping?.ykPointId || mapping?.ytPointId || (c.data as any)?.control?.pointId) return true;
+  return false;
 });
 
 const handleMouseMoveWorkspace = (e: MouseEvent) => {
@@ -796,6 +808,24 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
+  // Group (Ctrl+G)
+  if (isCtrlOrMeta && !e.shiftKey && key === 'g') {
+    if (props.selectedIds.length >= 2) {
+      e.preventDefault();
+      emit('group', selectedComponents.value);
+      return;
+    }
+  }
+
+  // Ungroup (Ctrl+Shift+G or Ctrl+U)
+  if ((isCtrlOrMeta && e.shiftKey && key === 'g') || (isCtrlOrMeta && key === 'u')) {
+    if (props.selectedIds.length === 1 && (primarySelected.value?.children?.length || primarySelected.value?.type === 'composite-symbol')) {
+      e.preventDefault();
+      emit('ungroup', primarySelected.value!);
+      return;
+    }
+  }
+
   // Layer shortcuts (Ctrl+Shift+] / Ctrl+] / Ctrl+Shift+[ / Ctrl+[)
   if (isCtrlOrMeta && (key === ']' || key === '}')) {
     e.preventDefault();
@@ -887,6 +917,15 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="w-[1px] h-4 bg-slate-700 mx-1" />
+
+      <!-- Group selection (Ctrl+G) -->
+      <button 
+        @click="emit('group', selectedComponents)"
+        class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+        title="组合选中图元为群组 (Ctrl+G)"
+      >
+        <span>🧩 组合</span>
+      </button>
 
       <!-- Save as custom symbol -->
       <button 
@@ -1130,7 +1169,9 @@ onBeforeUnmount(() => {
         <div class="h-[1px] bg-slate-800 my-1" />
 
         <div class="py-0.5 space-y-0.5">
+          <!-- SCADA YK/YT Execution: Only visible when bound to tele-control or tele-regulation -->
           <button
+            v-if="primarySelectedHasControl"
             @click="emit('open:control-modal', primarySelected?.data?.mapping?.deviceId); closeContextMenu();"
             class="w-full text-left px-2.5 py-1.5 hover:bg-amber-500/20 rounded-md hover:text-amber-200 cursor-pointer text-amber-300 font-bold flex items-center justify-between group transition-colors"
           >
@@ -1141,20 +1182,36 @@ onBeforeUnmount(() => {
             <span class="text-[10px] text-amber-400/80 font-mono">SCADA控制</span>
           </button>
 
+          <!-- Group components (Ctrl+G) -->
+          <button
+            v-if="selectedIds.length >= 2"
+            @click="emit('group', selectedComponents); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 hover:bg-cyan-500/20 rounded-md hover:text-cyan-200 cursor-pointer text-cyan-300 font-bold flex items-center justify-between transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <span>🧩 组合为群组</span>
+            </div>
+            <span class="text-[10px] text-cyan-400/80 font-mono">Ctrl+G</span>
+          </button>
+
+          <!-- Ungroup component (Ctrl+U) -->
+          <button
+            v-if="selectedIds.length === 1 && (primarySelected?.children?.length || primarySelected?.type === 'composite-symbol')"
+            @click="emit('ungroup', primarySelected!); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 hover:bg-amber-500/20 rounded-md hover:text-amber-200 cursor-pointer text-amber-300 font-bold flex items-center justify-between transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <span>🔓 取消组合为散装图元</span>
+            </div>
+            <span class="text-[10px] text-amber-400/80 font-mono">Ctrl+U</span>
+          </button>
+
           <button
             @click="emit('save:symbol', selectedComponents); closeContextMenu();"
             class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-500/20 rounded-md hover:text-emerald-200 cursor-pointer text-emerald-400 font-bold flex items-center gap-2 transition-colors"
           >
             <BookmarkPlus class="w-3.5 h-3.5" />
             <span>封装为自定义图元</span>
-          </button>
-
-          <button
-            v-if="selectedIds.length === 1 && primarySelected?.children?.length"
-            @click="emit('ungroup', primarySelected!); closeContextMenu();"
-            class="w-full text-left px-2.5 py-1.5 hover:bg-amber-500/20 rounded-md hover:text-amber-200 cursor-pointer text-amber-300 font-bold flex items-center gap-2 transition-colors"
-          >
-            <span>🔓 解散组合为散装图元</span>
           </button>
 
           <button

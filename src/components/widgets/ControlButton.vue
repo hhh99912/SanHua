@@ -26,6 +26,7 @@ const emit = defineEmits<{
 const isHovered = ref(false);
 const isPressed = ref(false);
 const justTriggered = ref(false);
+const pointerDownPos = ref<{ x: number; y: number } | null>(null);
 
 const style = computed(() => props.component.style || {});
 const buttonText = computed(() => style.value.buttonText || props.component.name || '控制按钮');
@@ -49,7 +50,63 @@ const isJumpAction = computed(() => {
   return action.value?.type === 'jump-screen' || action.value?.type === 'switch-screen';
 });
 
-// Color Themes configuration
+const handlePointerDown = (e: MouseEvent) => {
+  pointerDownPos.value = { x: e.clientX, y: e.clientY };
+  isPressed.value = true;
+};
+
+const handlePointerUp = () => {
+  isPressed.value = false;
+};
+
+const handleClick = (e: MouseEvent) => {
+  // Prevent button trigger if mouse was moved / dragged (threshold 5px)
+  if (pointerDownPos.value) {
+    const dist = Math.hypot(e.clientX - pointerDownPos.value.x, e.clientY - pointerDownPos.value.y);
+    if (dist > 5) {
+      pointerDownPos.value = null;
+      return;
+    }
+  }
+  pointerDownPos.value = null;
+
+  e.stopPropagation();
+  isPressed.value = true;
+  justTriggered.value = true;
+  setTimeout(() => {
+    isPressed.value = false;
+  }, 150);
+  setTimeout(() => {
+    justTriggered.value = false;
+  }, 1200);
+
+  if (action.value) {
+    if (isJumpAction.value && action.value.targetScreenId) {
+      emit('jump:screen', action.value.targetScreenId);
+      window.dispatchEvent(new CustomEvent('datav:jump:screen', { detail: action.value.targetScreenId }));
+    } else if (action.value.type === 'tele-control') {
+      const devId = action.value.deviceId || props.component.data?.mapping?.deviceId;
+      const ptId = action.value.pointId || props.component.data?.mapping?.pointId;
+      window.dispatchEvent(new CustomEvent('scada:open:control', { detail: { deviceId: devId, pointId: ptId, type: 'control' } }));
+    } else if (action.value.type === 'tele-regulation') {
+      const devId = action.value.deviceId || props.component.data?.mapping?.deviceId;
+      const ptId = action.value.pointId || props.component.data?.mapping?.pointId;
+      window.dispatchEvent(new CustomEvent('scada:open:control', { detail: { deviceId: devId, pointId: ptId, type: 'regulation' } }));
+    } else if (action.value.type === 'dispatch-command') {
+      window.dispatchEvent(new CustomEvent('datav:command', { 
+        detail: { 
+          componentId: props.component.id, 
+          command: action.value.commandValue || 'TRIGGER' 
+        } 
+      }));
+    }
+  } else {
+    // Default SCADA behavior: open control modal for bound device
+    const deviceId = props.component.data?.mapping?.deviceId;
+    const pointId = props.component.data?.mapping?.pointId;
+    window.dispatchEvent(new CustomEvent('scada:open:control', { detail: { deviceId, pointId } }));
+  }
+};
 const themeClasses = computed(() => {
   switch (colorTheme.value) {
     case 'emerald':
@@ -115,36 +172,6 @@ const themeClasses = computed(() => {
       };
   }
 });
-
-const handleClick = (e: MouseEvent) => {
-  e.stopPropagation();
-  isPressed.value = true;
-  justTriggered.value = true;
-  setTimeout(() => {
-    isPressed.value = false;
-  }, 150);
-  setTimeout(() => {
-    justTriggered.value = false;
-  }, 1200);
-
-  if (action.value) {
-    if (isJumpAction.value && action.value.targetScreenId) {
-      emit('jump:screen', action.value.targetScreenId);
-      window.dispatchEvent(new CustomEvent('datav:jump:screen', { detail: action.value.targetScreenId }));
-    } else if (action.value.type === 'dispatch-command') {
-      window.dispatchEvent(new CustomEvent('datav:command', { 
-        detail: { 
-          componentId: props.component.id, 
-          command: action.value.commandValue || 'TRIGGER' 
-        } 
-      }));
-    }
-  } else {
-    // Default SCADA behavior: open control modal for bound device
-    const deviceId = props.component.data?.mapping?.deviceId;
-    window.dispatchEvent(new CustomEvent('scada:open:control', { detail: { deviceId } }));
-  }
-};
 </script>
 
 <template>
@@ -152,8 +179,8 @@ const handleClick = (e: MouseEvent) => {
     class="w-full h-full flex items-center justify-center select-none font-mono transition-transform duration-100 cursor-pointer pointer-events-auto"
     @mouseenter="isHovered = true"
     @mouseleave="isHovered = false; isPressed = false"
-    @mousedown="isPressed = true"
-    @mouseup="isPressed = false"
+    @mousedown="handlePointerDown"
+    @mouseup="handlePointerUp"
     @click="handleClick"
     :style="{
       opacity: style.opacity ?? 1,

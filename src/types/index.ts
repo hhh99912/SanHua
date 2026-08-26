@@ -225,18 +225,19 @@ export interface DeviceEnergyPoint {
   description?: string;
 }
 
-// 4. 遥控 (YK / Tele-control): 挂在装置下，支持在主界面与右键菜单中执行
+// 4. 遥控 (YK / Tele-control): 挂在装置下，一个遥控点关联一个遥信点 (targetPointId)
 export interface DeviceTeleControlPoint {
   pointId: number | string; // 点号 (Point ID)
   name: string;             // 遥控名称 (如 '断路器合分遥控')
-  targetPointId?: number | string; // 关联下发的遥信点号
-  options: Array<{ label: string; value: number }>; // e.g. [{ label: '分闸 (0)', value: 0 }, { label: '合闸 (1)', value: 1 }]
+  targetPointId?: number | string; // 关键：关联闭环校验的遥信点号 (如 1)
+  options: Array<{ label: string; value: number }>; // e.g. [{ label: '分闸指令 (0)', value: 0 }, { label: '合闸指令 (1)', value: 1 }]
   lastExecutedValue?: number;
   lastExecutedTime?: string;
+  lastVerifiedResult?: 'verified_success' | 'verified_failed' | 'timeout';
   description?: string;
 }
 
-// 5. 遥调 (YT / Tele-regulation): 挂在装置下，支持在主界面与右键菜单中执行
+// 5. 遥调 (YT / Tele-regulation): 挂在装置下，一个遥调点可关联一个反馈遥测点 (targetYcPointId)
 export interface DeviceTeleRegulationPoint {
   pointId: number | string; // 点号 (Point ID)
   name: string;             // 遥调名称 (如 '变压器有载分接头档位 / 电压基准调节')
@@ -245,7 +246,10 @@ export interface DeviceTeleRegulationPoint {
   max: number;
   step: number;
   value: number;            // 当前定值/设定值
+  targetYcPointId?: number | string; // 关联反馈闭环校验的遥测点号
+  tolerance?: number;       // 校验容差
   lastExecutedTime?: string;
+  lastVerifiedResult?: 'verified_success' | 'verified_failed' | 'timeout';
   description?: string;
 }
 
@@ -432,4 +436,16 @@ export interface HistorySnapshot {
   components: ScreenComponent[];
   datasets: DatasetItem[];
   selectedIds: string[];
+}
+
+export type UserRole = 'system_admin' | 'viewer';
+
+export interface UserProfile {
+  id: string;
+  username: string;
+  name: string;
+  role: UserRole;
+  roleName: string;
+  description: string;
+  permissions: string[];
 }
