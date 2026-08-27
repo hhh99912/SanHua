@@ -5,10 +5,10 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
   {
     id: 'user-admin',
     username: 'admin',
-    passwordHash: 'admin888',
+    passwordHash: '123456',
     name: '系统管理员',
     role: 'system_admin',
-    roleName: '系统用户 (全权限)',
+    roleName: '系统管理员 (全权限)',
     description: '具备大屏监控、画布编辑、图元工坊、测点管理等所有权限',
     permissions: ['view_preview', 'edit_canvas', 'custom_symbol', 'scada_control', 'batch_points', 'export_schema', 'history_curves']
   },
@@ -16,10 +16,30 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
     id: 'user-operator',
     username: 'operator',
     passwordHash: '123456',
-    name: '值班监控员',
+    name: '普通用户',
     role: 'viewer',
     roleName: '普通用户 (仅大屏)',
-    description: '仅具备大屏实时监视、遥控置数与历史曲线调阅权限，禁止进入编辑模式',
+    description: '具备大屏实时监视、遥控置数与历史曲线调阅权限',
+    permissions: ['view_preview', 'scada_control', 'history_curves']
+  },
+  {
+    id: 'user-engineer',
+    username: 'engineer',
+    passwordHash: '123456',
+    name: '运维工程师',
+    role: 'viewer',
+    roleName: '运维工程师',
+    description: '具备大屏监控、告警巡检与历史曲线调阅权限',
+    permissions: ['view_preview', 'scada_control', 'history_curves']
+  },
+  {
+    id: 'user-dispatcher',
+    username: 'dispatcher',
+    passwordHash: '123456',
+    name: '调度值班员',
+    role: 'viewer',
+    roleName: '调度值班员',
+    description: '具备大屏实时监视、遥测遥信监视与置数权限',
     permissions: ['view_preview', 'scada_control', 'history_curves']
   }
 ];

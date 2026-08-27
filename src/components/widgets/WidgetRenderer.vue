@@ -29,9 +29,12 @@ import CompositeSymbol from './CompositeSymbol.vue';
 interface Props {
   component: ScreenComponent;
   datasets?: DatasetItem[];
+  previewMode?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  previewMode: false
+});
 const emit = defineEmits<{
   (e: 'jump:screen', screenId: string): void;
 }>();
@@ -65,6 +68,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       v-if="isComposite"
       :component="component"
       :datasets="datasets"
+      :preview-mode="previewMode"
       @jump:screen="emit('jump:screen', $event)"
       class="pointer-events-auto"
     />
@@ -74,6 +78,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       v-else-if="component.type === 'ctrl-button'"
       :component="component"
       :datasets="datasets"
+      :preview-mode="previewMode"
       @jump:screen="emit('jump:screen', $event)"
       class="pointer-events-auto"
     />
@@ -179,6 +184,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       v-else-if="isNav"
       :component="component"
       :datasets="datasets"
+      :preview-mode="previewMode"
       @jump:screen="emit('jump:screen', $event)"
       class="pointer-events-auto"
     />

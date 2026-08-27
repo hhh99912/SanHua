@@ -6,9 +6,12 @@ import WidgetRenderer from './WidgetRenderer.vue';
 interface Props {
   component: ScreenComponent;
   datasets?: DatasetItem[];
+  previewMode?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  previewMode: false
+});
 
 const emit = defineEmits<{
   (e: 'jump:screen', screenId: string): void;
@@ -105,6 +108,7 @@ const scaleY = computed(() => props.component.height / (baseBounds.value.height 
             data: child.data?.datasetId ? child.data : (component.data?.datasetId ? component.data : child.data)
           }"
           :datasets="datasets"
+          :preview-mode="previewMode"
           @jump:screen="emit('jump:screen', $event)"
         />
       </div>

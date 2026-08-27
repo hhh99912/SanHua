@@ -1,9 +1,901 @@
 import { CustomSymbolDef, ScreenComponent } from '../types';
 
-const STORAGE_KEY = 'datav_custom_symbols_v3';
+const STORAGE_KEY = 'datav_custom_symbols_v4';
 
 export const PRESET_CUSTOM_SYMBOLS: CustomSymbolDef[] = [
-  // 1. 真空断路器 QF (三态多状态图元)
+  // 1. 真空断路器手车 (KYN28高压手车 QF，多态多位置标准图元)
+  {
+    id: 'symbol-elec-handcart-breaker',
+    name: 'KYN28 抽出式断路器手车 QF (4态)',
+    category: 'electrical',
+    iconName: 'Zap',
+    description: '标准高压开关柜抽出式真空断路器手车，含动静插头触头与手车导向标，支持工作位置合闸/工作位置分闸/试验位置/检修隔离4态',
+    defaultWidth: 100,
+    defaultHeight: 140,
+    type: 'composite-symbol',
+    defaultStyle: {
+      fill: 'transparent',
+      stroke: '#00f2ff',
+      strokeWidth: 2,
+      borderRadius: 6
+    },
+    states: [
+      {
+        id: '1',
+        name: '工作位置 (合闸/带电)',
+        matchValue: 'work_closed',
+        children: [
+          // 上静触头插座（母线侧）
+          {
+            id: 'hc-static-top',
+            name: '上静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(239, 68, 68, 0.4)', stroke: '#ef4444', strokeWidth: 2, borderRadius: 2 }
+          },
+          // 上动触头插头（咬合）
+          {
+            id: 'hc-plug-top',
+            name: '上动触头插头',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 12,
+            width: 6,
+            height: 20,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#ef4444', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 20 }] }
+          },
+          // 手车活动底盘框
+          {
+            id: 'hc-chassis',
+            name: '手车推入底盘',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 20,
+            y: 28,
+            width: 60,
+            height: 76,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.75)', stroke: '#ef4444', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          // 断路器灭弧室主体
+          {
+            id: 'hc-brk-box',
+            name: '真空灭弧室',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 32,
+            y: 42,
+            width: 36,
+            height: 44,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(239, 68, 68, 0.25)', stroke: '#ef4444', strokeWidth: 2.5, borderRadius: 4 }
+          },
+          // 合闸交叉符号
+          {
+            id: 'hc-brk-text',
+            name: '合闸符号',
+            type: 'draw-text',
+            category: 'basic',
+            x: 36,
+            y: 52,
+            width: 28,
+            height: 24,
+            rotation: 0,
+            zIndex: 4,
+            style: { fill: 'transparent', fontSize: 16, textColor: '#ef4444', fontWeight: 'bold' }
+          },
+          // 手车导向箭头 (表示在工作位置)
+          {
+            id: 'hc-tag-work',
+            name: '工作位置标牌',
+            type: 'draw-text',
+            category: 'basic',
+            x: 22,
+            y: 30,
+            width: 56,
+            height: 12,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'transparent', fontSize: 9, textColor: '#ef4444', fontWeight: 'bold' }
+          },
+          // 下动触头插头（咬合）
+          {
+            id: 'hc-plug-bot',
+            name: '下动触头插头',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 100,
+            width: 6,
+            height: 20,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#ef4444', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 20 }] }
+          },
+          // 下静触头插座（出线侧）
+          {
+            id: 'hc-static-bot',
+            name: '下静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 118,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(239, 68, 68, 0.4)', stroke: '#ef4444', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      },
+      {
+        id: '2',
+        name: '工作位置 (分闸/备用)',
+        matchValue: 'work_open',
+        children: [
+          {
+            id: 'hc-static-top-2',
+            name: '上静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(16, 185, 129, 0.3)', stroke: '#10b981', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'hc-plug-top-2',
+            name: '上动触头插头',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 12,
+            width: 6,
+            height: 20,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#10b981', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 20 }] }
+          },
+          {
+            id: 'hc-chassis-2',
+            name: '手车推入底盘',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 20,
+            y: 28,
+            width: 60,
+            height: 76,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.75)', stroke: '#10b981', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          {
+            id: 'hc-brk-box-2',
+            name: '真空灭弧室',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 32,
+            y: 42,
+            width: 36,
+            height: 44,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(16, 185, 129, 0.15)', stroke: '#10b981', strokeWidth: 2, borderRadius: 4 }
+          },
+          {
+            id: 'hc-brk-text-2',
+            name: '分闸符号',
+            type: 'draw-text',
+            category: 'basic',
+            x: 36,
+            y: 52,
+            width: 28,
+            height: 24,
+            rotation: 0,
+            zIndex: 4,
+            style: { fill: 'transparent', fontSize: 16, textColor: '#10b981', fontWeight: 'bold' }
+          },
+          {
+            id: 'hc-tag-work-2',
+            name: '工作位置标牌',
+            type: 'draw-text',
+            category: 'basic',
+            x: 22,
+            y: 30,
+            width: 56,
+            height: 12,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'transparent', fontSize: 9, textColor: '#10b981', fontWeight: 'bold' }
+          },
+          {
+            id: 'hc-plug-bot-2',
+            name: '下动触头插头',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 100,
+            width: 6,
+            height: 20,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#10b981', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 20 }] }
+          },
+          {
+            id: 'hc-static-bot-2',
+            name: '下静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 118,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(16, 185, 129, 0.3)', stroke: '#10b981', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      },
+      {
+        id: '3',
+        name: '试验位置 (触头脱离)',
+        matchValue: 'test',
+        children: [
+          // 上静触头（带电/黄）
+          {
+            id: 'hc-static-top-3',
+            name: '上静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(234, 179, 8, 0.2)', stroke: '#eab308', strokeWidth: 2, borderRadius: 2 }
+          },
+          // 上动触头（拉开有明显断开间隙 12px）
+          {
+            id: 'hc-plug-top-3',
+            name: '上动触头插头(脱离)',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 22,
+            width: 6,
+            height: 14,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#eab308', strokeWidth: 2.5 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 14 }] }
+          },
+          // 手车底盘向左退回
+          {
+            id: 'hc-chassis-3',
+            name: '试验位置手车',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 20,
+            y: 34,
+            width: 60,
+            height: 70,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.85)', stroke: '#eab308', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          {
+            id: 'hc-brk-box-3',
+            name: '真空灭弧室',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 32,
+            y: 46,
+            width: 36,
+            height: 44,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(234, 179, 8, 0.15)', stroke: '#eab308', strokeWidth: 2, borderRadius: 4 }
+          },
+          {
+            id: 'hc-tag-test',
+            name: '试验位置标牌',
+            type: 'draw-text',
+            category: 'basic',
+            x: 22,
+            y: 35,
+            width: 56,
+            height: 12,
+            rotation: 0,
+            zIndex: 4,
+            style: { fill: 'transparent', fontSize: 9, textColor: '#eab308', fontWeight: 'bold' }
+          },
+          {
+            id: 'hc-plug-bot-3',
+            name: '下动触头插头(脱离)',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 98,
+            width: 6,
+            height: 14,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#eab308', strokeWidth: 2.5 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 14 }] }
+          },
+          {
+            id: 'hc-static-bot-3',
+            name: '下静触头插座',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 118,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(234, 179, 8, 0.2)', stroke: '#eab308', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      },
+      {
+        id: '4',
+        name: '检修位置 (手车抽出柜外)',
+        matchValue: 'isolated',
+        children: [
+          {
+            id: 'hc-static-top-4',
+            name: '上静触头插座(遮蔽)',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(100, 116, 139, 0.3)', stroke: '#64748b', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'hc-tag-iso',
+            name: '检修标牌',
+            type: 'draw-text',
+            category: 'basic',
+            x: 20,
+            y: 55,
+            width: 60,
+            height: 24,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'transparent', fontSize: 13, textColor: '#94a3b8', fontWeight: 'bold' }
+          },
+          {
+            id: 'hc-static-bot-4',
+            name: '下静触头插座(遮蔽)',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 118,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(100, 116, 139, 0.3)', stroke: '#64748b', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['手车', '断路器手车', 'KYN28', 'QF', '高压开关', '电力一次'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 2. 隔离手车 / 联络手车
+  {
+    id: 'symbol-elec-handcart-isolation',
+    name: '高压隔离/联络手车 (双态)',
+    category: 'electrical',
+    iconName: 'Layers',
+    description: '标准母线分段与母联柜高压隔离手车，具备直通铜排与抽出动静插头',
+    defaultWidth: 90,
+    defaultHeight: 130,
+    type: 'composite-symbol',
+    defaultStyle: { fill: 'transparent', stroke: '#00f2ff', strokeWidth: 2 },
+    states: [
+      {
+        id: '1',
+        name: '工作位置 (导通)',
+        matchValue: 'work',
+        children: [
+          {
+            id: 'iso-hc-top',
+            name: '上静触头',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 39,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(239, 68, 68, 0.4)', stroke: '#ef4444', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'iso-hc-chassis',
+            name: '隔离手车小车框',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 20,
+            y: 20,
+            width: 50,
+            height: 80,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.75)', stroke: '#ef4444', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          {
+            id: 'iso-hc-busbar',
+            name: '直通短路母排',
+            type: 'draw-line',
+            category: 'basic',
+            x: 42,
+            y: 12,
+            width: 6,
+            height: 98,
+            rotation: 0,
+            zIndex: 2,
+            style: { stroke: '#ef4444', strokeWidth: 4 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 98 }] }
+          },
+          {
+            id: 'iso-hc-bot',
+            name: '下静触头',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 39,
+            y: 112,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(239, 68, 68, 0.4)', stroke: '#ef4444', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      },
+      {
+        id: '2',
+        name: '试验/检修位置 (隔离断开)',
+        matchValue: 'test',
+        children: [
+          {
+            id: 'iso-hc-top-2',
+            name: '上静触头',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 39,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(100, 116, 139, 0.3)', stroke: '#64748b', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'iso-hc-chassis-2',
+            name: '隔离手车小车框',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 20,
+            y: 30,
+            width: 50,
+            height: 70,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.85)', stroke: '#64748b', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          {
+            id: 'iso-hc-bot-2',
+            name: '下静触头',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 39,
+            y: 112,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(100, 116, 139, 0.3)', stroke: '#64748b', strokeWidth: 2, borderRadius: 2 }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['隔离手车', '母联手车', '电力一次'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 3. 电压互感器与避雷器手车 PT & Arrester Handcart
+  {
+    id: 'symbol-elec-handcart-pt',
+    name: 'PT / 避雷器抽出式手车',
+    category: 'electrical',
+    iconName: 'Activity',
+    description: '母线电压互感器与避雷器一体式手车，带高压熔断器FU与一次绕组接地',
+    defaultWidth: 100,
+    defaultHeight: 140,
+    type: 'composite-symbol',
+    defaultStyle: { fill: 'transparent', stroke: '#38bdf8', strokeWidth: 2 },
+    states: [
+      {
+        id: '1',
+        name: '工作运行中',
+        matchValue: 'work',
+        children: [
+          {
+            id: 'pt-hc-top',
+            name: '进线触头',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 44,
+            y: 4,
+            width: 12,
+            height: 10,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(56, 189, 248, 0.4)', stroke: '#38bdf8', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'pt-hc-chassis',
+            name: 'PT手车底盘',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 18,
+            y: 20,
+            width: 64,
+            height: 96,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(15, 23, 42, 0.8)', stroke: '#38bdf8', strokeWidth: 1.5, strokeDasharray: '4,3', borderRadius: 4 }
+          },
+          {
+            id: 'pt-fuse-box',
+            name: '高压熔断器FU',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 40,
+            y: 26,
+            width: 20,
+            height: 28,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'rgba(56, 189, 248, 0.2)', stroke: '#38bdf8', strokeWidth: 2, borderRadius: 2 }
+          },
+          {
+            id: 'pt-coil-primary',
+            name: 'PT一次线圈',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 34,
+            y: 58,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'rgba(56, 189, 248, 0.2)', stroke: '#38bdf8', strokeWidth: 2 }
+          },
+          {
+            id: 'pt-coil-sec',
+            name: 'PT二次线圈',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 34,
+            y: 78,
+            width: 32,
+            height: 32,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(0, 229, 163, 0.2)', stroke: '#00e5a3', strokeWidth: 2 }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['PT手车', '互感器', '避雷器', '电力系统'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 4. 三绕组高压电力主变压器 TM (Three-Winding Transformer)
+  {
+    id: 'symbol-elec-transformer-3w',
+    name: '三绕组主变压器 TM (高/中/低压)',
+    category: 'electrical',
+    iconName: 'Cpu',
+    description: '标准大型三绕组电力变压器，三个正交相交线圈配星形/角形接线符号Y/Y/Δ',
+    defaultWidth: 100,
+    defaultHeight: 160,
+    type: 'composite-symbol',
+    defaultStyle: { fill: 'transparent', stroke: '#3b82f6', strokeWidth: 2 },
+    states: [
+      {
+        id: '1',
+        name: '正常运行 (带电)',
+        matchValue: 'running',
+        children: [
+          {
+            id: 'tm3-top-wire',
+            name: '高压进线',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 4,
+            width: 6,
+            height: 20,
+            rotation: 0,
+            zIndex: 1,
+            style: { stroke: '#ef4444', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 20 }] }
+          },
+          {
+            id: 'tm3-coil-1',
+            name: '高压侧绕组(Y)',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 28,
+            y: 20,
+            width: 44,
+            height: 44,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'rgba(239, 68, 68, 0.15)', stroke: '#ef4444', strokeWidth: 2.5 }
+          },
+          {
+            id: 'tm3-coil-2',
+            name: '中压侧绕组(Y)',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 28,
+            y: 56,
+            width: 44,
+            height: 44,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(234, 179, 8, 0.15)', stroke: '#eab308', strokeWidth: 2.5 }
+          },
+          {
+            id: 'tm3-coil-3',
+            name: '低压侧绕组(Δ)',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 28,
+            y: 92,
+            width: 44,
+            height: 44,
+            rotation: 0,
+            zIndex: 4,
+            style: { fill: 'rgba(0, 242, 255, 0.15)', stroke: '#00f2ff', strokeWidth: 2.5 }
+          },
+          {
+            id: 'tm3-bot-wire',
+            name: '低压出线',
+            type: 'draw-line',
+            category: 'basic',
+            x: 47,
+            y: 134,
+            width: 6,
+            height: 22,
+            rotation: 0,
+            zIndex: 1,
+            style: { stroke: '#00f2ff', strokeWidth: 3 },
+            customProps: { points: [{ xRatio: 0.5, yRatio: 0, x: 3, y: 0 }, { xRatio: 0.5, yRatio: 1, x: 3, y: 22 }] }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['三绕组变压器', 'TM', '主变', '变电站'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 5. 光伏逆变升压一体机 (PV Inverter-Transformer)
+  {
+    id: 'symbol-pv-inverter-unit',
+    name: '光伏逆变升压一体机 (DC/AC)',
+    category: 'electrical',
+    iconName: 'Zap',
+    description: '集中式光伏电站逆变升压一体机，集直流输入、DC/AC逆变桥、正弦滤波与箱式升压变',
+    defaultWidth: 160,
+    defaultHeight: 120,
+    type: 'composite-symbol',
+    defaultStyle: { fill: 'rgba(6, 16, 32, 0.9)', stroke: '#00f2ff', strokeWidth: 2, borderRadius: 8 },
+    states: [
+      {
+        id: '1',
+        name: '并网发电运行 (绿)',
+        matchValue: 'running',
+        children: [
+          {
+            id: 'pv-inv-box',
+            name: '逆变器外壳',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 8,
+            y: 14,
+            width: 70,
+            height: 90,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(0, 242, 255, 0.12)', stroke: '#00f2ff', strokeWidth: 2, borderRadius: 6 }
+          },
+          {
+            id: 'pv-inv-txt1',
+            name: 'DC/AC标牌',
+            type: 'draw-text',
+            category: 'basic',
+            x: 12,
+            y: 28,
+            width: 62,
+            height: 18,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'transparent', fontSize: 11, textColor: '#00f2ff', fontWeight: 'bold' }
+          },
+          {
+            id: 'pv-tf-coil1',
+            name: '升压变低压圆',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 95,
+            y: 26,
+            width: 44,
+            height: 44,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'rgba(16, 185, 129, 0.2)', stroke: '#10b981', strokeWidth: 2 }
+          },
+          {
+            id: 'pv-tf-coil2',
+            name: '升压变高压圆',
+            type: 'draw-circle',
+            category: 'basic',
+            x: 95,
+            y: 52,
+            width: 44,
+            height: 44,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: 'rgba(239, 68, 68, 0.2)', stroke: '#ef4444', strokeWidth: 2 }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['光伏', '逆变器', '升压变', '一体机'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 6. 双向储能变流器 (BESS Storage PCS)
+  {
+    id: 'symbol-bess-pcs',
+    name: '双向储能变流器 PCS (充/放/停)',
+    category: 'electrical',
+    iconName: 'Activity',
+    description: '电化学储能电站核心双向变流器 PCS，支持双向能量流向显示、充电/放电/待机状态',
+    defaultWidth: 150,
+    defaultHeight: 110,
+    type: 'composite-symbol',
+    defaultStyle: { fill: 'rgba(6, 16, 32, 0.9)', stroke: '#10b981', strokeWidth: 2, borderRadius: 8 },
+    states: [
+      {
+        id: '1',
+        name: '放电状态 (向电网送电)',
+        matchValue: 'discharge',
+        children: [
+          {
+            id: 'pcs-body',
+            name: 'PCS机柜',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 10,
+            y: 10,
+            width: 130,
+            height: 90,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(16, 185, 129, 0.15)', stroke: '#10b981', strokeWidth: 2, borderRadius: 6 }
+          },
+          {
+            id: 'pcs-txt',
+            name: 'PCS标识',
+            type: 'draw-text',
+            category: 'basic',
+            x: 20,
+            y: 20,
+            width: 110,
+            height: 20,
+            rotation: 0,
+            zIndex: 2,
+            style: { fill: 'transparent', fontSize: 13, textColor: '#10b981', fontWeight: 'bold' }
+          },
+          {
+            id: 'pcs-arrow-right',
+            name: '放电能量流向',
+            type: 'draw-arrow',
+            category: 'basic',
+            x: 25,
+            y: 52,
+            width: 100,
+            height: 28,
+            rotation: 0,
+            zIndex: 3,
+            style: { fill: '#10b981', stroke: '#10b981', strokeWidth: 2 }
+          }
+        ]
+      },
+      {
+        id: '2',
+        name: '充电状态 (吸收电网电能)',
+        matchValue: 'charge',
+        children: [
+          {
+            id: 'pcs-body-2',
+            name: 'PCS机柜',
+            type: 'draw-rect',
+            category: 'basic',
+            x: 10,
+            y: 10,
+            width: 130,
+            height: 90,
+            rotation: 0,
+            zIndex: 1,
+            style: { fill: 'rgba(56, 189, 248, 0.15)', stroke: '#38bdf8', strokeWidth: 2, borderRadius: 6 }
+          },
+          {
+            id: 'pcs-arrow-left',
+            name: '充电能量流向',
+            type: 'draw-arrow',
+            category: 'basic',
+            x: 25,
+            y: 52,
+            width: 100,
+            height: 28,
+            rotation: 180,
+            zIndex: 3,
+            style: { fill: '#38bdf8', stroke: '#38bdf8', strokeWidth: 2 }
+          }
+        ]
+      }
+    ],
+    activeStateId: '1',
+    tags: ['储能', 'PCS', '变流器', '充放电'],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+
+  // 7. 真空断路器 QF (三态多状态图元)
   {
     id: 'symbol-elec-breaker',
     name: '真空断路器 QF (三态)',

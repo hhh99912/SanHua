@@ -156,7 +156,13 @@ const allComponents = computed<ComponentDefinition[]>(() => {
 
 const filteredComponents = computed(() => {
   return allComponents.value.filter(c => {
-    const matchCategory = activeCategory.value === 'all' || c.category === activeCategory.value;
+    let matchCategory = false;
+    if (activeCategory.value === 'all') {
+      matchCategory = true;
+    } else {
+      matchCategory = c.category === activeCategory.value;
+    }
+
     const matchSearch = !searchQuery.value || 
       c.name.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
       c.nameEn.toLowerCase().includes(searchQuery.value.toLowerCase()) ||

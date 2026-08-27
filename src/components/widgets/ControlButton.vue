@@ -16,9 +16,12 @@ import {
 interface Props {
   component: ScreenComponent;
   datasets?: DatasetItem[];
+  previewMode?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  previewMode: false
+});
 const emit = defineEmits<{
   (e: 'jump:screen', screenId: string): void;
 }>();
@@ -60,6 +63,11 @@ const handlePointerUp = () => {
 };
 
 const handleClick = (e: MouseEvent) => {
+  // In editor mode, button click events are disabled
+  if (!props.previewMode) {
+    return;
+  }
+
   // Prevent button trigger if mouse was moved / dragged (threshold 5px)
   if (pointerDownPos.value) {
     const dist = Math.hypot(e.clientX - pointerDownPos.value.x, e.clientY - pointerDownPos.value.y);

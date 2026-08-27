@@ -51,7 +51,14 @@ const selectedIds = ref<string[]>([]);
 const zoom = ref<number>(0.62);
 const isStreaming = ref<boolean>(true);
 const leftSidebarTab = ref<'palette' | 'layers'>('palette');
-const drawTool = ref<'select' | 'draw-line' | 'draw-polyline'>('select');
+const drawTool = ref<'select' | 'draw-polyline'>('select');
+
+// Infinite Canvas & Snapping Controls
+const showGrid = ref<boolean>(true);
+const gridSize = ref<number>(10);
+const snapToGrid = ref<boolean>(true);
+const orthogonalLock = ref<boolean>(true);
+const canvasEditorRef = ref<any>(null);
 
 // Modals
 const showDatasetsModal = ref(false);
@@ -869,9 +876,19 @@ onBeforeUnmount(() => {
       :canUndo="canUndo"
       :canRedo="canRedo"
       :drawTool="drawTool"
+      :selectedIds="selectedIds"
+      :selectedComponents="selectedComponents"
+      :showGrid="showGrid"
+      :gridSize="gridSize"
+      :snapToGrid="snapToGrid"
+      :orthogonalLock="orthogonalLock"
       @update:screen="screen = $event; recordHistory();"
       @update:zoom="zoom = $event"
       @update:drawTool="drawTool = $event"
+      @update:showGrid="showGrid = $event"
+      @update:gridSize="gridSize = $event"
+      @update:snapToGrid="snapToGrid = $event"
+      @update:orthogonalLock="orthogonalLock = $event"
       @toggle:streaming="isStreaming = !isStreaming"
       @open:preview="showPreviewModal = true"
       @open:datasets="showDatasetsModal = true"
@@ -885,6 +902,12 @@ onBeforeUnmount(() => {
       @fit:screen="fitToScreen"
       @undo="handleUndo"
       @redo="handleRedo"
+      @align="handleAlignComponent"
+      @group="handleGroup"
+      @ungroup="handleUngroup"
+      @save:symbol="() => handleOpenSaveSymbolModal(selectedComponents)"
+      @crop:minimal="canvasEditorRef?.cropMinimal?.()"
+      @center:all="canvasEditorRef?.centerAll?.()"
     />
 
     <!-- Main Workspace Studio -->
@@ -943,6 +966,7 @@ onBeforeUnmount(() => {
       <!-- Center Workspace (Canvas + Bottom Screen Manager Bar) -->
       <div class="flex-1 flex flex-col overflow-hidden relative">
         <CanvasEditor
+          ref="canvasEditorRef"
           :screen="screen"
           :components="components"
           :selectedIds="selectedIds"
@@ -950,6 +974,12 @@ onBeforeUnmount(() => {
           :datasets="datasets"
           :drawTool="drawTool"
           :canPaste="clipboard.length > 0"
+          :showGrid="showGrid"
+          :gridSize="gridSize"
+          :snapToGrid="snapToGrid"
+          :orthogonalLock="orthogonalLock"
+          @update:zoom="zoom = $event"
+          @update:screen="screen = $event; recordHistory();"
           @update:drawTool="drawTool = $event"
           @select="selectedIds = $event"
           @update:component="handleUpdateComponent"

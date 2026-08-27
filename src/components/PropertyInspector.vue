@@ -35,7 +35,8 @@ import {
   FileCode,
   CheckCircle2,
   ShieldCheck,
-  Info
+  Info,
+  Type
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
 
@@ -420,7 +421,7 @@ const toggleBatchLock = () => {
           <SlidersHorizontal class="w-3.5 h-3.5 text-cyan-400" />
           <span v-if="selectedComponents.length > 1">多选元件配置 ({{ selectedComponents.length }})</span>
           <span v-else-if="component">组件属性配置</span>
-          <span v-else>大屏全局画布配置</span>
+          <span v-else>属性配置面板</span>
         </div>
 
         <div class="flex items-center gap-1.5">
@@ -1576,60 +1577,16 @@ const toggleBatchLock = () => {
       </div>
     </template>
 
-    <!-- ================= 3. GLOBAL SCREEN INSPECTOR VIEW ================= -->
+    <!-- ================= 3. EMPTY STATE (NO SELECTION) ================= -->
     <template v-else>
-      <div class="flex-1 overflow-y-auto p-4 space-y-4 text-xs custom-scrollbar">
-        <div class="text-xs font-bold text-cyan-300 uppercase tracking-wider">
-          画布全局尺寸与风格
+      <div class="flex-1 flex flex-col items-center justify-center p-6 text-center text-slate-400">
+        <div class="w-12 h-12 rounded-xl bg-slate-900/80 border border-slate-800 flex items-center justify-center mb-3 text-cyan-400/60 shadow-inner">
+          <Sliders class="w-6 h-6" />
         </div>
-
-        <div>
-          <label class="text-xs font-semibold text-slate-200 block mb-1">大屏名称</label>
-          <input
-            :value="screen.name"
-            @input="emit('update:screen', { ...screen, name: ($event.target as HTMLInputElement).value })"
-            class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-          />
-        </div>
-
-        <div class="grid grid-cols-2 gap-2">
-          <div>
-            <label class="text-xs font-semibold text-slate-200 block mb-1">宽度 (px)</label>
-            <input
-              type="number"
-              :value="screen.width"
-              @input="emit('update:screen', { ...screen, width: Number(($event.target as HTMLInputElement).value) })"
-              class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-            />
-          </div>
-          <div>
-            <label class="text-xs font-semibold text-slate-200 block mb-1">高度 (px)</label>
-            <input
-              type="number"
-              :value="screen.height"
-              @input="emit('update:screen', { ...screen, height: Number(($event.target as HTMLInputElement).value) })"
-              class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label class="text-xs font-semibold text-slate-200 block mb-1">画布背景底色</label>
-          <div class="flex items-center gap-2">
-            <input
-              type="color"
-              :value="screen.backgroundColor || '#040810'"
-              @input="emit('update:screen', { ...screen, backgroundColor: ($event.target as HTMLInputElement).value })"
-              class="w-8 h-8 rounded bg-transparent border-0 cursor-pointer"
-            />
-            <input
-              type="text"
-              :value="screen.backgroundColor || '#040810'"
-              @input="emit('update:screen', { ...screen, backgroundColor: ($event.target as HTMLInputElement).value })"
-              class="flex-1 bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 font-semibold text-xs outline-hidden"
-            />
-          </div>
-        </div>
+        <div class="text-xs font-bold text-slate-300 mb-1">未选中图元组件</div>
+        <p class="text-[11px] text-slate-400 leading-relaxed max-w-[200px]">
+          在左侧画布中单击或框选图元，即可在此配置几何参数、电气样式与测点绑定
+        </p>
       </div>
     </template>
   </aside>

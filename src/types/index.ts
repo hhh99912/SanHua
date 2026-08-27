@@ -113,6 +113,7 @@ export interface StyleConfig {
   stroke?: string;
   strokeWidth?: number;
   strokeDash?: number[];
+  strokeDasharray?: string;
   strokeLinecap?: 'round' | 'square' | 'butt';
   strokeLinejoin?: 'round' | 'bevel' | 'miter';
   borderRadius?: number;
@@ -137,6 +138,7 @@ export interface StyleConfig {
   decimals?: number;
   prefix?: string;
   suffix?: string;
+  [key: string]: any;
   
   // Streamer Glow
   streamer?: {

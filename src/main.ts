@@ -2,4 +2,13 @@ import { createApp } from 'vue';
 import App from './App.vue';
 import './index.css';
 
-createApp(App).mount('#app');
+const app = createApp(App);
+
+// Global v-focus directive
+app.directive('focus', {
+  mounted(el) {
+    el.focus();
+  }
+});
+
+app.mount('#app');

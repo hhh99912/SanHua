@@ -1,49 +1,51 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { ScreenComponent, ScreenConfig, DatasetItem } from '../types';
-import Ruler from './Ruler.vue';
-import WidgetRenderer from './widgets/WidgetRenderer.vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { 
-  Lock, Unlock, RotateCw, AlignLeft, AlignCenter, AlignRight, 
-  Layers, BookmarkPlus, Copy, Scissors, Clipboard, Trash2, Shield,
-  CheckSquare, ArrowUp, ArrowDown, ArrowUpToLine, ArrowDownToLine,
-  ChevronUp, ChevronDown, AlignHorizontalSpaceAround, AlignVerticalSpaceAround
+  Copy, Scissors, Clipboard, Trash2, Layers, CheckSquare, 
+  ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown, 
+  Lock, Unlock, BookmarkPlus, RotateCw, Radio,
+  AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
+  AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
+  Crosshair, Crop
 } from 'lucide-vue-next';
-
-// Auto focus directive for inline editing
-const vFocus = {
-  mounted: (el: HTMLElement) => {
-    el.focus();
-    if (el instanceof HTMLInputElement) {
-      el.select();
-    }
-  }
-};
+import { ScreenComponent, ScreenConfig, DatasetConfig } from '../types';
+import WidgetRenderer from './widgets/WidgetRenderer.vue';
+import Ruler from './Ruler.vue';
+import { useCanvasEngine } from '../composables/useCanvasEngine';
 
 interface Props {
   screen: ScreenConfig;
   components: ScreenComponent[];
   selectedIds: string[];
   zoom: number;
-  datasets: DatasetItem[];
-  drawTool?: 'select' | 'draw-line' | 'draw-polyline';
+  datasets: DatasetConfig[];
+  drawTool: 'select' | 'draw-polyline';
   canPaste?: boolean;
+  showGrid?: boolean;
+  gridSize?: number;
+  snapToGrid?: boolean;
+  orthogonalLock?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  selectedIds: () => [],
-  drawTool: 'select',
-  canPaste: false
+  canPaste: false,
+  showGrid: true,
+  gridSize: 10,
+  snapToGrid: true,
+  orthogonalLock: true
 });
 
 const emit = defineEmits<{
+  (e: 'update:drawTool', tool: 'select' | 'draw-polyline'): void;
+  (e: 'update:zoom', zoom: number): void;
+  (e: 'update:screen', screen: ScreenConfig): void;
   (e: 'select', ids: string[]): void;
   (e: 'update:component', comp: ScreenComponent): void;
   (e: 'update:components', comps: ScreenComponent[]): void;
-  (e: 'add:component:at', data: any, x: number, y: number): void;
+  (e: 'add:component:at', def: any, x: number, y: number): void;
   (e: 'copy', comps: ScreenComponent[]): void;
   (e: 'cut', comps: ScreenComponent[]): void;
-  (e: 'paste', pos?: { x: number; y: number }): void;
+  (e: 'paste', position?: { x: number; y: number }): void;
   (e: 'duplicate', comps: ScreenComponent[]): void;
   (e: 'delete', ids: string[]): void;
   (e: 'bring:front', id: string | string[]): void;
@@ -61,8 +63,46 @@ const emit = defineEmits<{
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
+const infinitePlaneRef = ref<HTMLDivElement | null>(null);
 const canvasWrapperRef = ref<HTMLDivElement | null>(null);
-const mousePos = ref({ x: 0, y: 0 });
+const mousePos = ref({ x: 0, y: 0, rawX: 0, rawY: 0 });
+
+// Shared Canvas Engine for Pan/Zoom, Grid Snapping & Crop
+const {
+  panOffset,
+  isPanning,
+  showGrid,
+  gridSize,
+  snapToGrid,
+  orthogonalLock,
+  clientToCanvas,
+  calculateOrthogonalPoint,
+  handleWheelZoom,
+  startPan,
+  updatePan,
+  endPan,
+  centerCanvasInViewport,
+  snapAllToGrid,
+  centerAllInCanvas,
+  cropCanvasToContent
+} = useCanvasEngine({
+  initialZoom: props.zoom || 1,
+  initialGridSize: props.gridSize || 10,
+  initialShowGrid: props.showGrid ?? true,
+  initialSnapToGrid: props.snapToGrid ?? true,
+  initialOrthogonalLock: props.orthogonalLock ?? true
+});
+
+// Sync prop changes into canvas engine
+watch(() => props.zoom, (val) => { if (val !== undefined && val > 0) { /* reactive zoom is passed directly to clientToCanvas */ } });
+watch(() => props.showGrid, (val) => { if (val !== undefined) showGrid.value = val; });
+watch(() => props.gridSize, (val) => { if (val !== undefined) gridSize.value = val; });
+watch(() => props.snapToGrid, (val) => { if (val !== undefined) snapToGrid.value = val; });
+watch(() => props.orthogonalLock, (val) => { if (val !== undefined) orthogonalLock.value = val; });
+
+
+// Space key pan state
+const isSpacePressed = ref(false);
 
 // Multi-selection Box Drag (拉框多选)
 const isSelectingMarquee = ref(false);
@@ -95,30 +135,10 @@ const resizeStart = ref<{ mouseX: number; mouseY: number; x: number; y: number; 
   fontSize: 16
 });
 
-// Inline text editing state (双击直接修改文本/名称)
-const inlineEditing = ref<{
-  compId: string;
-  value: string;
-} | null>(null);
-
 const isRotating = ref(false);
 const rotateStart = ref({ cx: 0, cy: 0, initialAngle: 0, startRotation: 0 });
 
-// Interactive Drawing Tool State (直线与折线连线绘制)
-const lineDrawing = ref<{
-  active: boolean;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-}>({
-  active: false,
-  startX: 0,
-  startY: 0,
-  currentX: 0,
-  currentY: 0
-});
-
+// Interactive Drawing Tool State (折线走线绘制)
 const polylineDrawing = ref<{
   active: boolean;
   points: Array<{ x: number; y: number }>;
@@ -141,13 +161,10 @@ const contextMenu = ref<{ visible: boolean; x: number; y: number; canvasX: numbe
   targetCompId: null
 });
 
-// Calculate Canvas coordinates from Client mouse coordinates
-const getCanvasCoords = (clientX: number, clientY: number) => {
-  if (!canvasWrapperRef.value) return { x: 0, y: 0 };
-  const rect = canvasWrapperRef.value.getBoundingClientRect();
-  const x = Math.round((clientX - rect.left) / props.zoom);
-  const y = Math.round((clientY - rect.top) / props.zoom);
-  return { x: Math.max(0, x), y: Math.max(0, y) };
+// Calculate Canvas coordinates from Client mouse coordinates using the infinite plane element
+const getCanvasCoords = (clientX: number, clientY: number, forceRaw = false) => {
+  const targetElement = infinitePlaneRef.value || containerRef.value;
+  return clientToCanvas(clientX, clientY, targetElement, forceRaw, props.zoom);
 };
 
 // Selected Components Array
@@ -174,30 +191,78 @@ const primarySelectedHasControl = computed(() => {
   return false;
 });
 
+// Wheel Zoom ONLY when Ctrl is pressed (ctrl + 滚轮缩放)
+const onWheelWorkspace = (e: WheelEvent) => {
+  if (e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    handleWheelZoom(e, containerRef.value, (newZoom) => {
+      emit('update:zoom', newZoom);
+    });
+  }
+};
+
+// Auto-fit canvas to screen viewport on initial load
+onMounted(() => {
+  centerCanvasInViewport(props.screen.width, props.screen.height, containerRef.value);
+});
+
+// Precision Operations
+const handleSnapAllToGrid = () => {
+  if (props.components.length === 0) return;
+  const updated = snapAllToGrid(props.components, gridSize.value);
+  emit('update:components', updated);
+};
+
+const handleCenterAllInCanvas = () => {
+  if (props.components.length === 0) return;
+  const updated = centerAllInCanvas(props.components, props.screen.width, props.screen.height);
+  emit('update:components', updated);
+};
+
+// Crop to Minimal Canvas (按图元元素截取最小画布)
+const handleCropCanvasToContent = () => {
+  if (props.components.length === 0) return;
+  const res = cropCanvasToContent(props.components, 30, 100);
+  if (res) {
+    emit('update:screen', {
+      ...props.screen,
+      width: res.newWidth,
+      height: res.newHeight
+    });
+    emit('update:components', res.updatedComponents);
+  }
+};
+
 const handleMouseMoveWorkspace = (e: MouseEvent) => {
+  // 1. Pan Workspace if panning
+  if (isPanning.value) {
+    updatePan(e.clientX, e.clientY);
+    return;
+  }
+
   const coords = getCanvasCoords(e.clientX, e.clientY);
   mousePos.value = coords;
 
-  // 1. Line Drawing Preview
-  if (props.drawTool === 'draw-line' && lineDrawing.value.active) {
-    lineDrawing.value.currentX = coords.x;
-    lineDrawing.value.currentY = coords.y;
-    return;
-  }
-
-  // 2. Polyline Drawing Preview
+  // 2. Polyline Drawing Preview (with optional orthogonal lock)
   if (props.drawTool === 'draw-polyline' && polylineDrawing.value.active) {
-    polylineDrawing.value.currentX = coords.x;
-    polylineDrawing.value.currentY = coords.y;
+    const lastPt = polylineDrawing.value.points[polylineDrawing.value.points.length - 1];
+    if (lastPt && (orthogonalLock.value || e.shiftKey)) {
+      const ortho = calculateOrthogonalPoint(lastPt.x, lastPt.y, coords.x, coords.y);
+      polylineDrawing.value.currentX = ortho.x;
+      polylineDrawing.value.currentY = ortho.y;
+    } else {
+      polylineDrawing.value.currentX = coords.x;
+      polylineDrawing.value.currentY = coords.y;
+    }
     return;
   }
 
-  // 3. Marquee Selection Drag (拉框多选)
+  // 4. Marquee Selection Drag (拉框多选)
   if (isSelectingMarquee.value) {
-    const minX = Math.min(marqueeBox.value.startX, coords.x);
-    const minY = Math.min(marqueeBox.value.startY, coords.y);
-    const w = Math.abs(coords.x - marqueeBox.value.startX);
-    const h = Math.abs(coords.y - marqueeBox.value.startY);
+    const minX = Math.min(marqueeBox.value.startX, coords.rawX);
+    const minY = Math.min(marqueeBox.value.startY, coords.rawY);
+    const w = Math.abs(coords.rawX - marqueeBox.value.startX);
+    const h = Math.abs(coords.rawY - marqueeBox.value.startY);
 
     if (w > 4 || h > 4) {
       hasMovedMarquee.value = true;
@@ -209,7 +274,6 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
     marqueeBox.value.height = h;
 
     if (hasMovedMarquee.value) {
-      // Detect intersected components
       const selected = props.components.filter(c => {
         if (c.visible === false) return false;
         return (
@@ -219,29 +283,39 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
           c.y + c.height > minY
         );
       });
-
       emit('select', selected.map(c => c.id));
     }
     return;
   }
 
-  // 4. Batch Component Dragging
+  // 5. Batch Component Dragging
   if (isDragging.value && props.selectedIds.length > 0) {
-    const dx = (e.clientX - dragStartMouse.value.x) / props.zoom;
-    const dy = (e.clientY - dragStartMouse.value.y) / props.zoom;
+    let dx = (e.clientX - dragStartMouse.value.x) / (props.zoom || 1);
+    let dy = (e.clientY - dragStartMouse.value.y) / (props.zoom || 1);
+
+    if (snapToGrid.value && gridSize.value > 0) {
+      dx = Math.round(dx / gridSize.value) * gridSize.value;
+      dy = Math.round(dy / gridSize.value) * gridSize.value;
+    }
 
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) {
       hasMovedDrag.value = true;
     }
 
     const updatedComps = props.components
-      .filter(c => props.selectedIds.includes(c.id) && !c.locked)
+      .filter(c => props.selectedIds.includes(c.id) && !c.locked && dragStartPositions.value.has(c.id))
       .map(c => {
-        const startPos = dragStartPositions.value.get(c.id) || { x: c.x, y: c.y };
+        const startPos = dragStartPositions.value.get(c.id)!;
+        let newX = Math.round(startPos.x + dx);
+        let newY = Math.round(startPos.y + dy);
+        if (snapToGrid.value && gridSize.value > 0) {
+          newX = Math.round(newX / gridSize.value) * gridSize.value;
+          newY = Math.round(newY / gridSize.value) * gridSize.value;
+        }
         return {
           ...c,
-          x: Math.round(startPos.x + dx),
-          y: Math.round(startPos.y + dy)
+          x: newX,
+          y: newY
         };
       });
 
@@ -251,12 +325,17 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
     return;
   }
 
-  // 5. Component Resizing
+  // 6. Component Resizing
   if (isResizing.value && primarySelected.value && resizeHandle.value && !primarySelected.value.locked) {
-    const dx = (e.clientX - resizeStart.value.mouseX) / props.zoom;
-    const dy = (e.clientY - resizeStart.value.mouseY) / props.zoom;
-    const handle = resizeHandle.value;
+    let dx = (e.clientX - resizeStart.value.mouseX) / (props.zoom || 1);
+    let dy = (e.clientY - resizeStart.value.mouseY) / (props.zoom || 1);
 
+    if (snapToGrid.value && gridSize.value > 0) {
+      dx = Math.round(dx / gridSize.value) * gridSize.value;
+      dy = Math.round(dy / gridSize.value) * gridSize.value;
+    }
+
+    const handle = resizeHandle.value;
     let newX = resizeStart.value.x;
     let newY = resizeStart.value.y;
     let newW = resizeStart.value.width;
@@ -301,21 +380,17 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
     return;
   }
 
-  // 6. Free Rotation Handle Drag (旋转功能)
+  // 7. Free Rotation Handle Drag (旋转功能)
   if (isRotating.value && primarySelected.value && !primarySelected.value.locked) {
-    const curX = coords.x;
-    const curY = coords.y;
+    const curX = coords.rawX;
+    const curY = coords.rawY;
     const cx = rotateStart.value.cx;
     const cy = rotateStart.value.cy;
 
-    // Angle in degrees from center to current mouse
     const rad = Math.atan2(curY - cy, curX - cx);
     let deg = Math.round((rad * 180) / Math.PI + 90);
-    
-    // Normalize to 0~360
     deg = (deg % 360 + 360) % 360;
 
-    // Snap to 15 degrees if Shift is held
     if (e.shiftKey) {
       deg = Math.round(deg / 15) * 15;
     }
@@ -328,6 +403,10 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
 };
 
 const handleMouseUpWorkspace = () => {
+  if (isPanning.value) {
+    endPan();
+  }
+
   if (isSelectingMarquee.value) {
     if (hasMovedMarquee.value) {
       suppressNextCanvasClick.value = true;
@@ -358,24 +437,35 @@ const handleMouseUpWorkspace = () => {
 // Component Drag Start
 const handleStartDrag = (e: MouseEvent, comp: ScreenComponent) => {
   if (e.button !== 0) return;
+  if (isSpacePressed.value || e.ctrlKey || e.metaKey) {
+    // If holding space or ctrl/cmd, initiate infinite canvas pan even when clicking directly on components
+    e.preventDefault();
+    startPan(e.clientX, e.clientY);
+    return;
+  }
   if (props.drawTool !== 'select') return;
   e.stopPropagation();
 
   contextMenu.value.visible = false;
 
-  // If Shift/Ctrl key is pressed, toggle selection
-  if (e.shiftKey || e.ctrlKey || e.metaKey) {
-    if (props.selectedIds.includes(comp.id)) {
-      emit('select', props.selectedIds.filter(id => id !== comp.id));
-    } else {
-      emit('select', [...props.selectedIds, comp.id]);
-    }
-    return;
-  }
+  let activeIds = [...props.selectedIds];
 
-  // If component is already in selected group, don't break multi-selection
-  if (!props.selectedIds.includes(comp.id)) {
-    emit('select', [comp.id]);
+  if (e.shiftKey) {
+    // Toggle selection with Shift
+    if (activeIds.includes(comp.id)) {
+      activeIds = activeIds.filter(id => id !== comp.id);
+    } else {
+      activeIds = [...activeIds, comp.id];
+    }
+    emit('select', activeIds);
+  } else {
+    // Standard click without shift:
+    // If clicking an already selected component, keep current group selected for dragging
+    // If clicking an unselected component, select only this one
+    if (!activeIds.includes(comp.id)) {
+      activeIds = [comp.id];
+      emit('select', activeIds);
+    }
   }
 
   if (comp.locked) return;
@@ -386,11 +476,27 @@ const handleStartDrag = (e: MouseEvent, comp: ScreenComponent) => {
   
   const map = new Map<string, { x: number; y: number }>();
   props.components.forEach(c => {
-    if (props.selectedIds.includes(c.id) || c.id === comp.id) {
+    if (activeIds.includes(c.id) || c.id === comp.id) {
       map.set(c.id, { x: c.x, y: c.y });
     }
   });
   dragStartPositions.value = map;
+};
+
+// Component Click Handler (maintains sustained selection on click)
+const handleCompClick = (e: MouseEvent, comp: ScreenComponent) => {
+  e.stopPropagation();
+  if (isPanning.value || hasMovedDrag.value || hasMovedMarquee.value) {
+    return;
+  }
+  if (e.shiftKey) {
+    // Shift click was already toggled in handleStartDrag
+    return;
+  }
+  // Single click without drag on a multi-selected item isolates that single item
+  if (props.selectedIds.length > 1 && props.selectedIds.includes(comp.id)) {
+    emit('select', [comp.id]);
+  }
 };
 
 // Canvas Background Click & Drawing Tool Handlers
@@ -402,63 +508,7 @@ const handleCanvasClick = (e: MouseEvent) => {
 
   const coords = getCanvasCoords(e.clientX, e.clientY);
 
-  // 1. Straight Line Drawing Mode (单击确定起始点，再次单击确定落点)
-  if (props.drawTool === 'draw-line') {
-    if (!lineDrawing.value.active) {
-      lineDrawing.value.active = true;
-      lineDrawing.value.startX = coords.x;
-      lineDrawing.value.startY = coords.y;
-      lineDrawing.value.currentX = coords.x;
-      lineDrawing.value.currentY = coords.y;
-    } else {
-      // Finish Straight Line (Preserving exact slope and diagonal orientation!)
-      const x1 = lineDrawing.value.startX;
-      const y1 = lineDrawing.value.startY;
-      const x2 = coords.x;
-      const y2 = coords.y;
-
-      const compX = Math.min(x1, x2);
-      const compY = Math.min(y1, y2);
-      const compW = Math.max(12, Math.abs(x2 - x1));
-      const compH = Math.max(12, Math.abs(y2 - y1));
-
-      // Calculate relative points and ratios within bounding box
-      const relX1 = x1 - compX;
-      const relY1 = y1 - compY;
-      const relX2 = x2 - compX;
-      const relY2 = y2 - compY;
-
-      const x1Ratio = compW > 0 ? relX1 / compW : 0;
-      const y1Ratio = compH > 0 ? relY1 / compH : 0;
-      const x2Ratio = compW > 0 ? relX2 / compW : 1;
-      const y2Ratio = compH > 0 ? relY2 / compH : 1;
-
-      emit('add:component:at', {
-        type: 'draw-line',
-        category: 'basic',
-        name: '导线 / 直线',
-        width: compW,
-        height: compH,
-        style: { 
-          stroke: '#00f2ff', 
-          strokeWidth: 3, 
-          lineStyle: 'solid'
-        },
-        customProps: {
-          points: [
-            { xRatio: x1Ratio, yRatio: y1Ratio, x: relX1, y: relY1 },
-            { xRatio: x2Ratio, yRatio: y2Ratio, x: relX2, y: relY2 }
-          ]
-        }
-      }, compX, compY);
-
-      lineDrawing.value.active = false;
-      emit('finish:draw');
-    }
-    return;
-  }
-
-  // 2. Polyline Drawing Mode (单击反复选中拐点，双击结束)
+  // Polyline Drawing Mode (单击添加拐点，双击结束)
   if (props.drawTool === 'draw-polyline') {
     if (!polylineDrawing.value.active) {
       polylineDrawing.value.active = true;
@@ -466,26 +516,29 @@ const handleCanvasClick = (e: MouseEvent) => {
       polylineDrawing.value.currentX = coords.x;
       polylineDrawing.value.currentY = coords.y;
     } else {
-      polylineDrawing.value.points.push({ x: coords.x, y: coords.y });
+      const lastPt = polylineDrawing.value.points[polylineDrawing.value.points.length - 1];
+      let nextX = coords.x;
+      let nextY = coords.y;
+      if (lastPt && (orthogonalLock.value || e.shiftKey)) {
+        const ortho = calculateOrthogonalPoint(lastPt.x, lastPt.y, nextX, nextY);
+        nextX = ortho.x;
+        nextY = ortho.y;
+      }
+      polylineDrawing.value.points.push({ x: nextX, y: nextY });
     }
     return;
   }
 
-  // 3. Regular selection clear ONLY when clicking pure canvas background WITHOUT marquee dragging
+  // Selection clear ONLY when clicking blank canvas background
   const target = e.target as HTMLElement;
-  if (
-    target === containerRef.value ||
-    target === canvasWrapperRef.value ||
-    target.classList.contains('canvas-workspace-bg')
-  ) {
-    if (!isSelectingMarquee.value && !hasMovedMarquee.value) {
-      emit('select', []);
-    }
+  const isInsideComp = target.closest('.cursor-move');
+  if (!isInsideComp && !isSelectingMarquee.value && !hasMovedMarquee.value && !isPanning.value && !hasMovedDrag.value) {
+    emit('select', []);
   }
 };
 
-// Polyline Double Click to Finish
-const handleCanvasDblClick = (e: MouseEvent) => {
+// Polyline Double Click / Enter to Finish
+const handleCanvasDblClick = () => {
   if (props.drawTool === 'draw-polyline' && polylineDrawing.value.active) {
     const pts = polylineDrawing.value.points;
     if (pts.length >= 2) {
@@ -497,7 +550,6 @@ const handleCanvasDblClick = (e: MouseEvent) => {
       const compW = Math.max(12, maxX - minX);
       const compH = Math.max(12, maxY - minY);
 
-      // Relative coordinates & normalized ratios
       const relPoints = pts.map(p => ({
         xRatio: compW > 0 ? (p.x - minX) / compW : 0,
         yRatio: compH > 0 ? (p.y - minY) / compH : 0,
@@ -529,25 +581,29 @@ const handleCanvasDblClick = (e: MouseEvent) => {
   }
 };
 
-// Marquee Selection Mouse Down on Canvas Background
+// Canvas Mouse Down: Supports Pan (Ctrl / Space / Middle Click) OR Marquee Selection
 const handleCanvasMouseDown = (e: MouseEvent) => {
+  // Middle click (button === 1) or Ctrl+Click or Space+Click initiates Pan
+  if (e.button === 1 || (e.button === 0 && (e.ctrlKey || e.metaKey || isSpacePressed.value))) {
+    e.preventDefault();
+    startPan(e.clientX, e.clientY);
+    return;
+  }
+
   if (e.button !== 0) return;
   if (props.drawTool !== 'select') return;
 
   const target = e.target as HTMLElement;
-  if (
-    target === containerRef.value ||
-    target === canvasWrapperRef.value ||
-    target.classList.contains('canvas-workspace-bg')
-  ) {
-    const coords = getCanvasCoords(e.clientX, e.clientY);
+  const isInsideComp = target.closest('.cursor-move');
+  if (!isInsideComp) {
+    const coords = getCanvasCoords(e.clientX, e.clientY, true);
     isSelectingMarquee.value = true;
     hasMovedMarquee.value = false;
     marqueeBox.value = {
-      startX: coords.x,
-      startY: coords.y,
-      x: coords.x,
-      y: coords.y,
+      startX: coords.rawX,
+      startY: coords.rawY,
+      x: coords.rawX,
+      y: coords.rawY,
       width: 0,
       height: 0
     };
@@ -556,6 +612,11 @@ const handleCanvasMouseDown = (e: MouseEvent) => {
 
 // Start Resizing
 const handleStartResize = (e: MouseEvent, handle: string) => {
+  if (isSpacePressed.value || e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    startPan(e.clientX, e.clientY);
+    return;
+  }
   e.stopPropagation();
   e.preventDefault();
   if (!primarySelected.value || primarySelected.value.locked) return;
@@ -574,61 +635,13 @@ const handleStartResize = (e: MouseEvent, handle: string) => {
   };
 };
 
-// Double-click on component to inline edit text/label (双击修改文本标签)
-const handleCompDblClick = (e: MouseEvent, comp: ScreenComponent) => {
-  e.stopPropagation();
-  e.preventDefault();
-  if (comp.locked) return;
-
-  let initVal = comp.name || '';
-  if (comp.type === 'draw-text') {
-    initVal = comp.style?.text || comp.name || '文本标签';
-  } else if (comp.type === 'ctrl-button') {
-    initVal = comp.style?.buttonText || comp.name || '控制按钮';
-  }
-
-  inlineEditing.value = {
-    compId: comp.id,
-    value: initVal
-  };
-};
-
-const commitInlineEdit = () => {
-  if (!inlineEditing.value) return;
-  const { compId, value } = inlineEditing.value;
-  const comp = props.components.find(c => c.id === compId);
-  if (comp) {
-    const trimmed = value.trim() || comp.name;
-    if (comp.type === 'draw-text') {
-      emit('update:component', {
-        ...comp,
-        name: trimmed,
-        style: {
-          ...comp.style,
-          text: trimmed
-        }
-      });
-    } else if (comp.type === 'ctrl-button') {
-      emit('update:component', {
-        ...comp,
-        name: trimmed,
-        style: {
-          ...comp.style,
-          buttonText: trimmed
-        }
-      });
-    } else {
-      emit('update:component', {
-        ...comp,
-        name: trimmed
-      });
-    }
-  }
-  inlineEditing.value = null;
-};
-
 // Start Rotating (自由旋转功能)
 const handleStartRotate = (e: MouseEvent) => {
+  if (isSpacePressed.value || e.ctrlKey || e.metaKey) {
+    e.preventDefault();
+    startPan(e.clientX, e.clientY);
+    return;
+  }
   e.stopPropagation();
   e.preventDefault();
   if (!primarySelected.value || primarySelected.value.locked) return;
@@ -663,8 +676,14 @@ const handleDrop = (e: DragEvent) => {
   try {
     const compDef = JSON.parse(rawData);
     const coords = getCanvasCoords(e.clientX, e.clientY);
-    const x = Math.max(0, coords.x - Math.round((compDef.width || 120) / 2));
-    const y = Math.max(0, coords.y - Math.round((compDef.height || 80) / 2));
+    let x = coords.x - Math.round((compDef.width || 120) / 2);
+    let y = coords.y - Math.round((compDef.height || 80) / 2);
+
+    if (snapToGrid.value && gridSize.value > 0) {
+      x = Math.round(x / gridSize.value) * gridSize.value;
+      y = Math.round(y / gridSize.value) * gridSize.value;
+    }
+
     emit('add:component:at', compDef, x, y);
   } catch (err) {
     console.error('Failed to drop component', err);
@@ -698,6 +717,13 @@ const closeContextMenu = () => {
 
 // Keyboard Shortcuts
 const handleKeyDown = (e: KeyboardEvent) => {
+  if (e.code === 'Space' && !isSpacePressed.value) {
+    const target = e.target as HTMLElement;
+    if (!['INPUT', 'TEXTAREA', 'SELECT'].includes(target?.tagName)) {
+      isSpacePressed.value = true;
+    }
+  }
+
   const target = e.target as HTMLElement;
   if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return;
 
@@ -783,10 +809,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
-  // Arrow key nudges
+  // Arrow key nudges (snapped by grid if shift not held)
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
     e.preventDefault();
-    const step = e.shiftKey ? 10 : 1;
+    const step = e.shiftKey ? 1 : (gridSize.value || 10);
     let dx = 0;
     let dy = 0;
     if (e.key === 'ArrowUp') dy = -step;
@@ -826,7 +852,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
     }
   }
 
-  // Layer shortcuts (Ctrl+Shift+] / Ctrl+] / Ctrl+Shift+[ / Ctrl+[)
+  // Layer shortcuts
   if (isCtrlOrMeta && (key === ']' || key === '}')) {
     e.preventDefault();
     if (e.shiftKey) {
@@ -848,29 +874,63 @@ const handleKeyDown = (e: KeyboardEvent) => {
   }
 };
 
+const handleKeyUp = (e: KeyboardEvent) => {
+  if (e.code === 'Space') {
+    isSpacePressed.value = false;
+  }
+};
+
+const handleWindowBlur = () => {
+  isSpacePressed.value = false;
+  isDragging.value = false;
+  hasMovedDrag.value = false;
+  isPanning.value = false;
+  isSelectingMarquee.value = false;
+  hasMovedMarquee.value = false;
+  isResizing.value = false;
+  isRotating.value = false;
+};
+
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('keyup', handleKeyUp);
+  window.addEventListener('blur', handleWindowBlur);
+  window.addEventListener('mousemove', handleMouseMoveWorkspace);
+  window.addEventListener('mouseup', handleMouseUpWorkspace);
   window.addEventListener('click', closeContextMenu);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
+  window.removeEventListener('keyup', handleKeyUp);
+  window.removeEventListener('blur', handleWindowBlur);
+  window.removeEventListener('mousemove', handleMouseMoveWorkspace);
+  window.removeEventListener('mouseup', handleMouseUpWorkspace);
   window.removeEventListener('click', closeContextMenu);
+});
+
+defineExpose({
+  cropMinimal: handleCropCanvasToContent,
+  snapAllToGrid: handleSnapAllToGrid,
+  centerAll: handleCenterAllInCanvas,
+  centerView: () => centerCanvasInViewport(props.screen.width, props.screen.height, containerRef.value)
 });
 </script>
 
 <template>
   <div 
     ref="containerRef"
-    @mousemove="handleMouseMoveWorkspace"
-    @mouseup="handleMouseUpWorkspace"
+    @wheel.prevent="onWheelWorkspace"
     @mousedown="handleCanvasMouseDown"
     @click="handleCanvasClick"
     @dblclick="handleCanvasDblClick"
     @dragover="handleDragOver"
     @drop="handleDrop"
-    class="flex-1 h-full bg-[#03060d] relative overflow-auto custom-scrollbar select-none flex flex-col"
+    @contextmenu.prevent="handleContextMenu($event, null)"
+    class="flex-1 h-full bg-[#03060f] relative overflow-hidden select-none flex flex-col"
     :class="{
+      'cursor-grab': isSpacePressed && !isPanning,
+      'cursor-grabbing': isPanning,
       'cursor-crosshair': drawTool !== 'select'
     }"
   >
@@ -898,79 +958,64 @@ onBeforeUnmount(() => {
         <button @click="emit('align', 'center')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="水平居中"><AlignCenter class="w-3.5 h-3.5" /></button>
         <button @click="emit('align', 'right')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="右对齐"><AlignRight class="w-3.5 h-3.5" /></button>
         <div class="w-[1px] h-4 bg-slate-700 mx-0.5" />
-        <button @click="emit('align', 'top')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="顶对齐"><AlignVerticalSpaceAround class="w-3.5 h-3.5 rotate-90" /></button>
-        <button @click="emit('align', 'middle')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="垂直居中"><AlignHorizontalSpaceAround class="w-3.5 h-3.5" /></button>
-        <button @click="emit('align', 'bottom')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="底对齐"><AlignVerticalSpaceAround class="w-3.5 h-3.5 -rotate-90" /></button>
-        <div class="w-[1px] h-4 bg-slate-700 mx-0.5" />
-        <button @click="emit('align', 'distribute-h')" class="px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer text-[11px]" title="水平等间距分布">水平均布</button>
-        <button @click="emit('align', 'distribute-v')" class="px-2 py-1 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer text-[11px]" title="垂直等间距分布">垂直均布</button>
+        <button @click="emit('align', 'top')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="顶对齐"><AlignVerticalJustifyStart class="w-3.5 h-3.5" /></button>
+        <button @click="emit('align', 'middle')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="垂直居中"><AlignVerticalJustifyCenter class="w-3.5 h-3.5" /></button>
+        <button @click="emit('align', 'bottom')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="底对齐"><AlignVerticalJustifyEnd class="w-3.5 h-3.5" /></button>
       </div>
 
       <div class="w-[1px] h-4 bg-slate-700 mx-1" />
 
-      <!-- Layer quick buttons -->
-      <div class="flex items-center gap-1">
-        <button @click="emit('bring:front', selectedIds)" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="置于顶层 (Ctrl+Shift+])"><ArrowUpToLine class="w-3.5 h-3.5" /></button>
-        <button @click="emit('move:up', selectedIds)" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="上移一层 (Ctrl+])"><ChevronUp class="w-3.5 h-3.5" /></button>
-        <button @click="emit('move:down', selectedIds)" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="下移一层 (Ctrl+[)"><ChevronDown class="w-3.5 h-3.5" /></button>
-        <button @click="emit('send:back', selectedIds)" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="置于底层 (Ctrl+Shift+[)"><ArrowDownToLine class="w-3.5 h-3.5" /></button>
+      <!-- Group / Symbol Actions -->
+      <div class="flex items-center gap-1.5">
+        <button 
+          @click="emit('group', selectedComponents)"
+          class="px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 cursor-pointer font-bold transition-all shadow-xs"
+          title="将选中的多个图元合并为组合群组 (Ctrl+G)"
+        >
+          🧩 组合为群组
+        </button>
+        <button 
+          @click="emit('save:symbol', selectedComponents)"
+          class="px-2.5 py-1 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 cursor-pointer font-bold transition-all shadow-xs"
+          title="将选中的图元封装保存为自定义图元"
+        >
+          <BookmarkPlus class="w-3 h-3 inline mr-1" />
+          保存为自定义图元
+        </button>
       </div>
-
-      <div class="w-[1px] h-4 bg-slate-700 mx-1" />
-
-      <!-- Group selection (Ctrl+G) -->
-      <button 
-        @click="emit('group', selectedComponents)"
-        class="px-2.5 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-        title="组合选中图元为群组 (Ctrl+G)"
-      >
-        <span>🧩 组合</span>
-      </button>
-
-      <!-- Save as custom symbol -->
-      <button 
-        @click="emit('save:symbol', selectedComponents)"
-        class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-        title="将多选图元封装为自定义图元"
-      >
-        <BookmarkPlus class="w-3.5 h-3.5" />
-        <span>封装图元</span>
-      </button>
     </div>
 
-    <!-- Main Workspace Canvas Area -->
+    <!-- Infinite Canvas Viewport Stage -->
     <div 
-      class="canvas-workspace-bg flex-1 min-h-[1400px] min-w-[2400px] p-24 relative flex items-start justify-start"
+      ref="infinitePlaneRef"
+      class="flex-1 w-full h-full relative overflow-hidden infinite-canvas-plane"
+      :style="{
+        backgroundColor: screen.backgroundColor || '#040810',
+        backgroundImage: showGrid 
+          ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.16)'} 1.5px, transparent 1.5px)` 
+          : 'none',
+        backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
+        backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px`
+      }"
     >
-      <!-- Screen Frame Box -->
+      <!-- Components Transformation Layer (Translates & Scales smoothly) -->
       <div
         ref="canvasWrapperRef"
-        @contextmenu.prevent="handleContextMenu($event, null)"
-        class="relative transition-transform origin-top-left shadow-[0_20px_60px_rgba(0,0,0,0.8)] border border-cyan-500/30 rounded-xs"
+        class="absolute origin-top-left transition-none pointer-events-none w-0 h-0"
         :style="{
-          width: `${screen.width}px`,
-          height: `${screen.height}px`,
-          transform: `scale(${zoom})`,
-          backgroundColor: screen.backgroundColor || '#040810',
-          backgroundImage: screen.backgroundGrid 
-            ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.18)'} 1.5px, transparent 1.5px)` 
-            : 'none',
-          backgroundSize: `${screen.gridSize || 30}px ${screen.gridSize || 30}px`
+          left: `${panOffset.x}px`,
+          top: `${panOffset.y}px`,
+          transform: `scale(${zoom})`
         }"
       >
-        <!-- Resolution Label -->
-        <div class="absolute -top-6 right-0 text-[10px] font-mono text-cyan-400 bg-slate-900/90 px-2 py-0.5 rounded border border-cyan-500/30">
-          {{ screen.width }} × {{ screen.height }} px
-        </div>
-
         <!-- Render All Screen Components in Layer Order -->
         <div
           v-for="comp in components"
           :key="comp.id"
           @mousedown.stop="handleStartDrag($event, comp)"
-          @dblclick="handleCompDblClick($event, comp)"
+          @click.stop="handleCompClick($event, comp)"
           @contextmenu="handleContextMenu($event, comp.id)"
-          class="absolute group cursor-move"
+          class="absolute group cursor-move pointer-events-auto"
           :class="{
             'pointer-events-none opacity-40': comp.visible === false,
             'cursor-not-allowed': comp.locked
@@ -989,25 +1034,8 @@ onBeforeUnmount(() => {
           <WidgetRenderer
             :component="comp"
             :datasets="datasets"
+            :preview-mode="false"
           />
-
-          <!-- Double Click Inline Text Editor Overlay -->
-          <div
-            v-if="inlineEditing?.compId === comp.id"
-            class="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/90 border-2 border-cyan-400 rounded-md p-1 shadow-2xl"
-            @mousedown.stop
-            @dblclick.stop
-          >
-            <input
-              v-model="inlineEditing.value"
-              @keydown.enter="commitInlineEdit"
-              @keydown.esc="inlineEditing = null"
-              @blur="commitInlineEdit"
-              v-focus
-              class="w-full h-full bg-slate-900 text-cyan-200 border border-cyan-500/50 rounded px-2 py-0.5 text-center text-sm font-bold outline-hidden shadow-inner"
-              placeholder="输入文本内容..."
-            />
-          </div>
 
           <!-- Locked Indicator Badge -->
           <div v-if="comp.locked" class="absolute top-1 right-1 p-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-500/40 z-30">
@@ -1057,24 +1085,6 @@ onBeforeUnmount(() => {
             height: `${marqueeBox.height}px`
           }"
         />
-
-        <!-- Interactive Straight Line Drawing Live Preview -->
-        <svg 
-          v-if="drawTool === 'draw-line' && lineDrawing.active" 
-          class="absolute inset-0 pointer-events-none w-full h-full z-50 overflow-visible"
-        >
-          <line
-            :x1="lineDrawing.startX"
-            :y1="lineDrawing.startY"
-            :x2="lineDrawing.currentX"
-            :y2="lineDrawing.currentY"
-            stroke="#00f2ff"
-            stroke-width="3"
-            stroke-dasharray="4 4"
-          />
-          <circle :cx="lineDrawing.startX" :cy="lineDrawing.startY" r="4" fill="#00f2ff" />
-          <circle :cx="lineDrawing.currentX" :cy="lineDrawing.currentY" r="4" fill="#00f2ff" />
-        </svg>
 
         <!-- Interactive Polyline Drawing Live Preview -->
         <svg 
@@ -1169,7 +1179,7 @@ onBeforeUnmount(() => {
         <div class="h-[1px] bg-slate-800 my-1" />
 
         <div class="py-0.5 space-y-0.5">
-          <!-- SCADA YK/YT Execution: Only visible when bound to tele-control or tele-regulation -->
+          <!-- SCADA YK/YT Execution -->
           <button
             v-if="primarySelectedHasControl"
             @click="emit('open:control-modal', primarySelected?.data?.mapping?.deviceId); closeContextMenu();"
@@ -1228,7 +1238,7 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <!-- Layer Ordering (Single & Multi-select) -->
+        <!-- Layer Ordering -->
         <div class="h-[1px] bg-slate-800 my-1" />
         <div class="px-2 py-0.5 text-[10px] text-slate-400 font-bold">图层层级</div>
         <div class="py-0.5 space-y-0.5">
@@ -1333,8 +1343,28 @@ onBeforeUnmount(() => {
             <span class="text-[10px] text-slate-400 font-mono group-hover:text-cyan-300">Ctrl+A</span>
           </button>
 
+          <button
+            @click="centerCanvasInViewport(screen.width, screen.height, containerRef); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 hover:bg-cyan-500/20 rounded-md hover:text-cyan-200 cursor-pointer flex items-center justify-between group font-medium transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <Crosshair class="w-3.5 h-3.5 text-cyan-400" />
+              <span>重置视图居中</span>
+            </div>
+          </button>
+
+          <button
+            @click="handleCropCanvasToContent(); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-500/20 rounded-md text-emerald-300 hover:text-emerald-200 cursor-pointer flex items-center justify-between group font-medium transition-colors"
+          >
+            <div class="flex items-center gap-2">
+              <Crop class="w-3.5 h-3.5 text-emerald-400" />
+              <span>按图元截取最小画布</span>
+            </div>
+          </button>
+
           <div class="px-2.5 py-1 text-[11px] text-slate-400">
-            按住鼠标左键在空白处拖拽可拉框多选
+            按住 Ctrl 或 空格 键拖拽平移无限画布，按住 Ctrl + 滚轮缩放
           </div>
         </div>
       </template>
@@ -1344,12 +1374,13 @@ onBeforeUnmount(() => {
     <div class="h-7 bg-[#060a14] border-t border-cyan-500/20 px-3 flex items-center justify-between text-[11px] font-mono text-slate-400 z-30 select-none">
       <div class="flex items-center gap-4">
         <div class="flex items-center gap-1.5 text-cyan-300">
-          <span class="text-slate-500">坐标:</span>
+          <span class="text-slate-500">光标坐标:</span>
           <span>X: {{ mousePos.x }} px, Y: {{ mousePos.y }} px</span>
+          <span v-if="snapToGrid" class="text-emerald-400 text-[10px]">(已吸附{{ gridSize }}px)</span>
         </div>
         <div class="h-3 w-[1px] bg-slate-800" />
         <div>
-          <span class="text-slate-500">分辨率:</span>
+          <span class="text-slate-500">大屏尺寸:</span>
           <span class="text-slate-300 ml-1">{{ screen.width }} × {{ screen.height }}</span>
         </div>
         <div v-if="selectedIds.length > 0" class="flex items-center gap-2">
@@ -1365,14 +1396,11 @@ onBeforeUnmount(() => {
       </div>
 
       <div class="flex items-center gap-3">
-        <span v-if="drawTool === 'draw-line'" class="text-amber-300 font-bold animate-pulse">
-          ⚡ 直线绘制中: 单击确定起点，再单击确定落点 (ESC取消)
+        <span v-if="drawTool === 'draw-polyline'" class="text-amber-300 font-bold animate-pulse">
+          ⚡ 折线绘制中: 单击添加拐点，双击或回车结束 (ESC取消, {{ orthogonalLock ? '正交已锁定' : '按Shift正交' }})
         </span>
-        <span v-else-if="drawTool === 'draw-polyline'" class="text-amber-300 font-bold animate-pulse">
-          ⚡ 折线绘制中: 单击添加拐点，双击或回车结束 (ESC取消)
-        </span>
-        <span v-else class="text-slate-500">
-          支持 Shift+多选 / 拉框多选 / 旋转柄
+        <span v-else class="text-slate-400">
+          💡 Ctrl/空格+拖拽平移画布 | Ctrl+滚轮缩放 | 点格吸附成图
         </span>
         <div class="h-3 w-[1px] bg-slate-800" />
         <span class="text-cyan-300">缩放: {{ Math.round(zoom * 100) }}%</span>

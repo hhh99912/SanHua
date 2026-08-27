@@ -6,9 +6,12 @@ import { LayoutDashboard, Zap, Activity, Cpu, Database, ChevronRight } from 'luc
 interface Props {
   component: ScreenComponent;
   datasets?: DatasetItem[];
+  previewMode?: boolean;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  previewMode: false
+});
 const emit = defineEmits<{
   (e: 'jump:screen', screenId: string): void;
 }>();
@@ -22,6 +25,12 @@ const navItems = computed(() => {
   ];
   return customItems;
 });
+
+const handleNavClick = (screenId: string) => {
+  if (props.previewMode) {
+    emit('jump:screen', screenId);
+  }
+};
 </script>
 
 <template>
@@ -37,7 +46,7 @@ const navItems = computed(() => {
       <button
         v-for="item in navItems"
         :key="item.id"
-        @click="emit('jump:screen', item.id)"
+        @click="handleNavClick(item.id)"
         class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-800 hover:border-cyan-400 bg-slate-900/80 hover:bg-cyan-950/40 text-slate-300 hover:text-cyan-200 text-xs font-mono font-bold transition-all cursor-pointer whitespace-nowrap shadow-xs"
       >
         <span>{{ item.name }}</span>

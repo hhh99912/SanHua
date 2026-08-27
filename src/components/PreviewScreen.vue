@@ -108,11 +108,60 @@ const handleResize = () => {
   windowHeight.value = window.innerHeight;
 };
 
+// Calculate dynamic content bounding box to ensure ALL parts of ALL components are fully visible
+const contentBounds = computed(() => {
+  const visibleComps = (props.components || []).filter(c => c.visible !== false);
+  if (visibleComps.length === 0) {
+    return {
+      minX: 0,
+      minY: 0,
+      width: props.screen.width || 1920,
+      height: props.screen.height || 1080
+    };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  visibleComps.forEach(c => {
+    minX = Math.min(minX, c.x);
+    minY = Math.min(minY, c.y);
+    maxX = Math.max(maxX, c.x + c.width);
+    maxY = Math.max(maxY, c.y + c.height);
+  });
+
+  if (!isFinite(minX) || !isFinite(minY)) {
+    return {
+      minX: 0,
+      minY: 0,
+      width: props.screen.width || 1920,
+      height: props.screen.height || 1080
+    };
+  }
+
+  // Safe padding so shadows, borders, and rotated corners are never clipped
+  const pad = 40;
+  const boundMinX = minX - pad;
+  const boundMinY = minY - pad;
+  const boundWidth = Math.max(200, (maxX - minX) + pad * 2);
+  const boundHeight = Math.max(150, (maxY - minY) + pad * 2);
+
+  return {
+    minX: boundMinX,
+    minY: boundMinY,
+    width: boundWidth,
+    height: boundHeight
+  };
+});
+
 // Calculate scale factor
 const scaleRatio = computed(() => {
+  const bounds = contentBounds.value;
   if (scaleMode.value === 'original') return { scaleX: 1, scaleY: 1 };
-  const sx = windowWidth.value / props.screen.width;
-  const sy = windowHeight.value / props.screen.height;
+  const sx = windowWidth.value / bounds.width;
+  const sy = windowHeight.value / bounds.height;
 
   if (scaleMode.value === 'fill') {
     return { scaleX: sx, scaleY: sy };
@@ -379,8 +428,8 @@ onBeforeUnmount(() => {
     <div
       class="relative transition-transform duration-100 ease-out origin-center"
       :style="{
-        width: `${screen.width}px`,
-        height: `${screen.height}px`,
+        width: `${contentBounds.width}px`,
+        height: `${contentBounds.height}px`,
         transform: `scale(${scaleRatio.scaleX}, ${scaleRatio.scaleY})`,
         backgroundColor: screen.backgroundColor || '#040810',
         backgroundImage: screen.backgroundGrid 
@@ -400,8 +449,8 @@ onBeforeUnmount(() => {
           'cursor-pointer': comp.data?.action && comp.data.action.type !== 'none'
         }"
         :style="{
-          left: `${comp.x}px`,
-          top: `${comp.y}px`,
+          left: `${comp.x - contentBounds.minX}px`,
+          top: `${comp.y - contentBounds.minY}px`,
           width: `${comp.width}px`,
           height: `${comp.height}px`,
           transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'none',
@@ -415,6 +464,7 @@ onBeforeUnmount(() => {
         <WidgetRenderer
           :component="comp"
           :datasets="datasets"
+          :preview-mode="true"
           @jump:screen="emit('switch:screen', $event)"
         />
       </div>
