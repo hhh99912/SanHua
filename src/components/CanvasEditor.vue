@@ -6,7 +6,7 @@ import {
   Lock, Unlock, BookmarkPlus, RotateCw, Radio,
   AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
-  Crosshair, Crop
+  Crosshair, Crop, Sliders, Workflow
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetConfig } from '../types';
 import WidgetRenderer from './widgets/WidgetRenderer.vue';
@@ -19,7 +19,7 @@ interface Props {
   selectedIds: string[];
   zoom: number;
   datasets: DatasetConfig[];
-  drawTool: 'select' | 'draw-polyline';
+  drawTool: 'select' | 'draw-polyline' | 'draw-arrow';
   canPaste?: boolean;
   showGrid?: boolean;
   gridSize?: number;
@@ -30,13 +30,13 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   canPaste: false,
   showGrid: true,
-  gridSize: 10,
+  gridSize: 40,
   snapToGrid: true,
-  orthogonalLock: true
+  orthogonalLock: false
 });
 
 const emit = defineEmits<{
-  (e: 'update:drawTool', tool: 'select' | 'draw-polyline'): void;
+  (e: 'update:drawTool', tool: 'select' | 'draw-polyline' | 'draw-arrow'): void;
   (e: 'update:zoom', zoom: number): void;
   (e: 'update:screen', screen: ScreenConfig): void;
   (e: 'select', ids: string[]): void;
@@ -60,6 +60,7 @@ const emit = defineEmits<{
   (e: 'undo'): void;
   (e: 'redo'): void;
   (e: 'open:control-modal', deviceId?: string): void;
+  (e: 'open:property-inspector'): void;
 }>();
 
 const containerRef = ref<HTMLDivElement | null>(null);
@@ -82,15 +83,17 @@ const {
   updatePan,
   endPan,
   centerCanvasInViewport,
+  getContentBoundingBox,
+  fitAndCenterContentInViewport,
   snapAllToGrid,
   centerAllInCanvas,
   cropCanvasToContent
 } = useCanvasEngine({
   initialZoom: props.zoom || 1,
-  initialGridSize: props.gridSize || 10,
+  initialGridSize: props.gridSize || 40,
   initialShowGrid: props.showGrid ?? true,
   initialSnapToGrid: props.snapToGrid ?? true,
-  initialOrthogonalLock: props.orthogonalLock ?? true
+  initialOrthogonalLock: props.orthogonalLock ?? false
 });
 
 // Sync prop changes into canvas engine
@@ -99,6 +102,41 @@ watch(() => props.showGrid, (val) => { if (val !== undefined) showGrid.value = v
 watch(() => props.gridSize, (val) => { if (val !== undefined) gridSize.value = val; });
 watch(() => props.snapToGrid, (val) => { if (val !== undefined) snapToGrid.value = val; });
 watch(() => props.orthogonalLock, (val) => { if (val !== undefined) orthogonalLock.value = val; });
+watch(() => props.drawTool, (newTool) => {
+  if (newTool === 'draw-polyline') {
+    emit('select', []);
+    isDragging.value = false;
+    isResizing.value = false;
+    isRotating.value = false;
+    isSelectingMarquee.value = false;
+    arrowDrawing.value.active = false;
+    polylineDrawing.value = {
+      active: false,
+      points: [],
+      currentX: mousePos.value.x,
+      currentY: mousePos.value.y
+    };
+  } else if (newTool === 'draw-arrow') {
+    emit('select', []);
+    isDragging.value = false;
+    isResizing.value = false;
+    isRotating.value = false;
+    isSelectingMarquee.value = false;
+    polylineDrawing.value.active = false;
+    polylineDrawing.value.points = [];
+    arrowDrawing.value = {
+      active: false,
+      startX: mousePos.value.x,
+      startY: mousePos.value.y,
+      currentX: mousePos.value.x,
+      currentY: mousePos.value.y
+    };
+  } else {
+    polylineDrawing.value.active = false;
+    polylineDrawing.value.points = [];
+    arrowDrawing.value.active = false;
+  }
+});
 
 
 // Space key pan state
@@ -151,6 +189,36 @@ const polylineDrawing = ref<{
   currentY: 0
 });
 
+// Interactive Drawing Tool State (箭头走线绘制)
+const arrowDrawing = ref<{
+  active: boolean;
+  startX: number;
+  startY: number;
+  currentX: number;
+  currentY: number;
+}>({
+  active: false,
+  startX: 0,
+  startY: 0,
+  currentX: 0,
+  currentY: 0
+});
+
+const getPolylinePreviewPoints = () => {
+  if (!polylineDrawing.value.points || polylineDrawing.value.points.length === 0) return '';
+  const pts = polylineDrawing.value.points.map(p => `${p.x},${p.y}`).join(' ');
+  return `${pts} ${polylineDrawing.value.currentX},${polylineDrawing.value.currentY}`;
+};
+
+const isBorderComponent = (comp: ScreenComponent) => {
+  return comp.category === 'decoration' ||
+         comp.type === 'deco-border-neon' ||
+         comp.type === 'deco-border-tech' ||
+         comp.type === 'deco-hazard-stripe' ||
+         comp.type === 'deco-mech-panel' ||
+         comp.type.startsWith('deco-border');
+};
+
 // Context Menu
 const contextMenu = ref<{ visible: boolean; x: number; y: number; canvasX: number; canvasY: number; targetCompId: string | null }>({
   visible: false,
@@ -201,9 +269,19 @@ const onWheelWorkspace = (e: WheelEvent) => {
   }
 };
 
-// Auto-fit canvas to screen viewport on initial load
+// Auto-fit and center all content in viewport
+const handleFitAndCenter = () => {
+  fitAndCenterContentInViewport(
+    props.components,
+    props.screen.width,
+    props.screen.height,
+    containerRef.value,
+    (newZoom) => emit('update:zoom', newZoom)
+  );
+};
+
 onMounted(() => {
-  centerCanvasInViewport(props.screen.width, props.screen.height, containerRef.value);
+  handleFitAndCenter();
 });
 
 // Precision Operations
@@ -244,15 +322,40 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
   mousePos.value = coords;
 
   // 2. Polyline Drawing Preview (with optional orthogonal lock)
-  if (props.drawTool === 'draw-polyline' && polylineDrawing.value.active) {
-    const lastPt = polylineDrawing.value.points[polylineDrawing.value.points.length - 1];
-    if (lastPt && (orthogonalLock.value || e.shiftKey)) {
-      const ortho = calculateOrthogonalPoint(lastPt.x, lastPt.y, coords.x, coords.y);
-      polylineDrawing.value.currentX = ortho.x;
-      polylineDrawing.value.currentY = ortho.y;
+  if (props.drawTool === 'draw-polyline') {
+    if (polylineDrawing.value.active && polylineDrawing.value.points.length > 0) {
+      const lastPt = polylineDrawing.value.points[polylineDrawing.value.points.length - 1];
+      if (lastPt && (orthogonalLock.value || e.shiftKey)) {
+        const ortho = calculateOrthogonalPoint(lastPt.x, lastPt.y, coords.x, coords.y);
+        polylineDrawing.value.currentX = ortho.x;
+        polylineDrawing.value.currentY = ortho.y;
+      } else {
+        polylineDrawing.value.currentX = coords.x;
+        polylineDrawing.value.currentY = coords.y;
+      }
     } else {
       polylineDrawing.value.currentX = coords.x;
       polylineDrawing.value.currentY = coords.y;
+    }
+    return;
+  }
+
+  // 3. Arrow Drawing Preview (with optional orthogonal lock)
+  if (props.drawTool === 'draw-arrow') {
+    if (arrowDrawing.value.active) {
+      if (orthogonalLock.value || e.shiftKey) {
+        const ortho = calculateOrthogonalPoint(arrowDrawing.value.startX, arrowDrawing.value.startY, coords.x, coords.y);
+        arrowDrawing.value.currentX = ortho.x;
+        arrowDrawing.value.currentY = ortho.y;
+      } else {
+        arrowDrawing.value.currentX = coords.x;
+        arrowDrawing.value.currentY = coords.y;
+      }
+    } else {
+      arrowDrawing.value.startX = coords.x;
+      arrowDrawing.value.startY = coords.y;
+      arrowDrawing.value.currentX = coords.x;
+      arrowDrawing.value.currentY = coords.y;
     }
     return;
   }
@@ -412,10 +515,12 @@ const handleMouseUpWorkspace = () => {
       suppressNextCanvasClick.value = true;
       setTimeout(() => {
         suppressNextCanvasClick.value = false;
-      }, 120);
+        hasMovedMarquee.value = false;
+      }, 150);
+    } else {
+      hasMovedMarquee.value = false;
     }
     isSelectingMarquee.value = false;
-    hasMovedMarquee.value = false;
   }
 
   if (isDragging.value) {
@@ -423,10 +528,12 @@ const handleMouseUpWorkspace = () => {
       suppressNextCanvasClick.value = true;
       setTimeout(() => {
         suppressNextCanvasClick.value = false;
-      }, 120);
+        hasMovedDrag.value = false;
+      }, 150);
+    } else {
+      hasMovedDrag.value = false;
     }
     isDragging.value = false;
-    hasMovedDrag.value = false;
   }
 
   isResizing.value = false;
@@ -460,7 +567,7 @@ const handleStartDrag = (e: MouseEvent, comp: ScreenComponent) => {
     emit('select', activeIds);
   } else {
     // Standard click without shift:
-    // If clicking an already selected component, keep current group selected for dragging
+    // If clicking an already selected component in multi-selection, keep current group selected for batch dragging
     // If clicking an unselected component, select only this one
     if (!activeIds.includes(comp.id)) {
       activeIds = [comp.id];
@@ -486,15 +593,15 @@ const handleStartDrag = (e: MouseEvent, comp: ScreenComponent) => {
 // Component Click Handler (maintains sustained selection on click)
 const handleCompClick = (e: MouseEvent, comp: ScreenComponent) => {
   e.stopPropagation();
-  if (isPanning.value || hasMovedDrag.value || hasMovedMarquee.value) {
+  if (isPanning.value || hasMovedDrag.value || hasMovedMarquee.value || suppressNextCanvasClick.value) {
     return;
   }
   if (e.shiftKey) {
     // Shift click was already toggled in handleStartDrag
     return;
   }
-  // Single click without drag on a multi-selected item isolates that single item
-  if (props.selectedIds.length > 1 && props.selectedIds.includes(comp.id)) {
+  // If clicking an unselected component, select it
+  if (!props.selectedIds.includes(comp.id)) {
     emit('select', [comp.id]);
   }
 };
@@ -529,6 +636,29 @@ const handleCanvasClick = (e: MouseEvent) => {
     return;
   }
 
+  // Arrow Drawing Mode (单击确定起点，再次单击/双击确定终点)
+  if (props.drawTool === 'draw-arrow') {
+    if (!arrowDrawing.value.active) {
+      arrowDrawing.value.active = true;
+      arrowDrawing.value.startX = coords.x;
+      arrowDrawing.value.startY = coords.y;
+      arrowDrawing.value.currentX = coords.x;
+      arrowDrawing.value.currentY = coords.y;
+    } else {
+      let finalX = coords.x;
+      let finalY = coords.y;
+      if (orthogonalLock.value || e.shiftKey) {
+        const ortho = calculateOrthogonalPoint(arrowDrawing.value.startX, arrowDrawing.value.startY, finalX, finalY);
+        finalX = ortho.x;
+        finalY = ortho.y;
+      }
+      arrowDrawing.value.currentX = finalX;
+      arrowDrawing.value.currentY = finalY;
+      finishArrowDrawing();
+    }
+    return;
+  }
+
   // Selection clear ONLY when clicking blank canvas background
   const target = e.target as HTMLElement;
   const isInsideComp = target.closest('.cursor-move');
@@ -537,8 +667,58 @@ const handleCanvasClick = (e: MouseEvent) => {
   }
 };
 
+// Finish Arrow Drawing & Auto-crop to minimal bounding box
+const finishArrowDrawing = () => {
+  if (!arrowDrawing.value.active) return;
+  const { startX, startY, currentX, currentY } = arrowDrawing.value;
+  const dist = Math.hypot(currentX - startX, currentY - startY);
+  if (dist < 5) {
+    arrowDrawing.value.active = false;
+    return;
+  }
+
+  const pad = 12;
+  const minX = Math.min(startX, currentX) - pad;
+  const minY = Math.min(startY, currentY) - pad;
+  const maxX = Math.max(startX, currentX) + pad;
+  const maxY = Math.max(startY, currentY) + pad;
+
+  const compW = Math.max(24, maxX - minX);
+  const compH = Math.max(24, maxY - minY);
+
+  const relPoints = [
+    { xRatio: (startX - minX) / compW, yRatio: (startY - minY) / compH, x: startX - minX, y: startY - minY },
+    { xRatio: (currentX - minX) / compW, yRatio: (currentY - minY) / compH, x: currentX - minX, y: currentY - minY }
+  ];
+
+  emit('add:component:at', {
+    type: 'draw-arrow',
+    category: 'basic',
+    name: '导向箭头',
+    width: compW,
+    height: compH,
+    style: { 
+      stroke: '#00f2ff', 
+      strokeWidth: 3, 
+      endArrow: true,
+      startArrow: false,
+      lineStyle: 'solid'
+    },
+    customProps: {
+      points: relPoints
+    }
+  }, minX, minY);
+
+  arrowDrawing.value.active = false;
+  emit('finish:draw');
+};
+
 // Polyline Double Click / Enter to Finish
 const handleCanvasDblClick = () => {
+  if (props.drawTool === 'draw-arrow' && arrowDrawing.value.active) {
+    finishArrowDrawing();
+    return;
+  }
   if (props.drawTool === 'draw-polyline' && polylineDrawing.value.active) {
     const pts = polylineDrawing.value.points;
     if (pts.length >= 2) {
@@ -669,6 +849,7 @@ const handleDragOver = (e: DragEvent) => {
 
 const handleDrop = (e: DragEvent) => {
   e.preventDefault();
+  e.stopPropagation();
   if (!e.dataTransfer) return;
   const rawData = e.dataTransfer.getData('application/json');
   if (!rawData) return;
@@ -762,10 +943,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
 
   // Escape to cancel drawing or clear selection
   if (e.key === 'Escape') {
-    if (lineDrawing.value.active || polylineDrawing.value.active) {
-      lineDrawing.value.active = false;
+    if (polylineDrawing.value.active || arrowDrawing.value.active) {
       polylineDrawing.value.active = false;
       polylineDrawing.value.points = [];
+      arrowDrawing.value.active = false;
       emit('finish:draw');
     } else {
       emit('select', []);
@@ -773,10 +954,16 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
-  // Enter to finish polyline
-  if (e.key === 'Enter' && polylineDrawing.value.active) {
-    handleCanvasDblClick(new MouseEvent('dblclick'));
-    return;
+  // Enter to finish polyline or arrow
+  if (e.key === 'Enter') {
+    if (polylineDrawing.value.active) {
+      handleCanvasDblClick();
+      return;
+    }
+    if (arrowDrawing.value.active) {
+      finishArrowDrawing();
+      return;
+    }
   }
 
   if (props.selectedIds.length === 0) return;
@@ -912,8 +1099,8 @@ onBeforeUnmount(() => {
 defineExpose({
   cropMinimal: handleCropCanvasToContent,
   snapAllToGrid: handleSnapAllToGrid,
-  centerAll: handleCenterAllInCanvas,
-  centerView: () => centerCanvasInViewport(props.screen.width, props.screen.height, containerRef.value)
+  centerAll: handleFitAndCenter,
+  centerView: handleFitAndCenter
 });
 </script>
 
@@ -921,12 +1108,6 @@ defineExpose({
   <div 
     ref="containerRef"
     @wheel.prevent="onWheelWorkspace"
-    @mousedown="handleCanvasMouseDown"
-    @click="handleCanvasClick"
-    @dblclick="handleCanvasDblClick"
-    @dragover="handleDragOver"
-    @drop="handleDrop"
-    @contextmenu.prevent="handleContextMenu($event, null)"
     class="flex-1 h-full bg-[#03060f] relative overflow-hidden select-none flex flex-col"
     :class="{
       'cursor-grab': isSpacePressed && !isPanning,
@@ -939,6 +1120,7 @@ defineExpose({
       :width="screen.width"
       :height="screen.height"
       :zoom="zoom"
+      :panOffset="panOffset"
       :cursorPos="mousePos"
     />
 
@@ -989,14 +1171,29 @@ defineExpose({
     <div 
       ref="infinitePlaneRef"
       class="flex-1 w-full h-full relative overflow-hidden infinite-canvas-plane"
+      :class="{
+        'cursor-crosshair': drawTool !== 'select',
+        'cursor-grab': isSpacePressed && !isPanning,
+        'cursor-grabbing': isPanning,
+        'cursor-default': drawTool === 'select' && !isSpacePressed && !isPanning
+      }"
       :style="{
         backgroundColor: screen.backgroundColor || '#040810',
         backgroundImage: showGrid 
-          ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.16)'} 1.5px, transparent 1.5px)` 
+          ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.75)'} 2.2px, transparent 2.2px)` 
           : 'none',
         backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
         backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px`
       }"
+      @mousedown="handleCanvasMouseDown"
+      @mousemove="handleMouseMoveWorkspace"
+      @mouseup="handleMouseUpWorkspace"
+      @click="handleCanvasClick"
+      @dblclick="handleCanvasDblClick"
+      @contextmenu="handleCanvasContextMenu"
+      @wheel="onWheelWorkspace"
+      @dragover="handleDragOver"
+      @drop="handleDrop"
     >
       <!-- Components Transformation Layer (Translates & Scales smoothly) -->
       <div
@@ -1012,13 +1209,16 @@ defineExpose({
         <div
           v-for="comp in components"
           :key="comp.id"
-          @mousedown.stop="handleStartDrag($event, comp)"
-          @click.stop="handleCompClick($event, comp)"
-          @contextmenu="handleContextMenu($event, comp.id)"
-          class="absolute group cursor-move pointer-events-auto"
+          @mousedown.stop="drawTool === 'select' && !isBorderComponent(comp) && handleStartDrag($event, comp)"
+          @click.stop="drawTool === 'select' && !isBorderComponent(comp) && handleCompClick($event, comp)"
+          @contextmenu="drawTool === 'select' && !isBorderComponent(comp) && handleContextMenu($event, comp.id)"
+          class="absolute group"
           :class="{
-            'pointer-events-none opacity-40': comp.visible === false,
-            'cursor-not-allowed': comp.locked
+            'cursor-move': drawTool === 'select',
+            'pointer-events-auto': drawTool === 'select' && !isBorderComponent(comp) && comp.visible !== false,
+            'pointer-events-none': drawTool !== 'select' || isBorderComponent(comp) || comp.visible === false,
+            'opacity-40': comp.visible === false,
+            'cursor-not-allowed': comp.locked && drawTool === 'select'
           }"
           :style="{
             left: `${comp.x}px`,
@@ -1037,14 +1237,46 @@ defineExpose({
             :preview-mode="false"
           />
 
+          <!-- 4 Edge Hit-test Strips for Border Components (Middle allows clicking underlying widgets) -->
+          <template v-if="drawTool === 'select' && isBorderComponent(comp) && comp.visible !== false">
+            <div 
+              @mousedown.stop="handleStartDrag($event, comp)"
+              @click.stop="handleCompClick($event, comp)"
+              @contextmenu="handleContextMenu($event, comp.id)"
+              class="absolute top-0 left-0 right-0 h-6 cursor-move pointer-events-auto z-20"
+              title="边框顶部线条"
+            />
+            <div 
+              @mousedown.stop="handleStartDrag($event, comp)"
+              @click.stop="handleCompClick($event, comp)"
+              @contextmenu="handleContextMenu($event, comp.id)"
+              class="absolute bottom-0 left-0 right-0 h-6 cursor-move pointer-events-auto z-20"
+              title="边框底部线条"
+            />
+            <div 
+              @mousedown.stop="handleStartDrag($event, comp)"
+              @click.stop="handleCompClick($event, comp)"
+              @contextmenu="handleContextMenu($event, comp.id)"
+              class="absolute top-0 bottom-0 left-0 w-6 cursor-move pointer-events-auto z-20"
+              title="边框左侧线条"
+            />
+            <div 
+              @mousedown.stop="handleStartDrag($event, comp)"
+              @click.stop="handleCompClick($event, comp)"
+              @contextmenu="handleContextMenu($event, comp.id)"
+              class="absolute top-0 bottom-0 right-0 w-6 cursor-move pointer-events-auto z-20"
+              title="边框右侧线条"
+            />
+          </template>
+
           <!-- Locked Indicator Badge -->
-          <div v-if="comp.locked" class="absolute top-1 right-1 p-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-500/40 z-30">
+          <div v-if="comp.locked" class="absolute top-1 right-1 p-0.5 rounded bg-amber-950/80 text-amber-400 border border-amber-500/40 z-30 pointer-events-auto">
             <Lock class="w-3 h-3" />
           </div>
 
           <!-- Selection Bounding Box & 8 Resize Handles & Rotation Handle -->
           <div 
-            v-if="selectedIds.includes(comp.id)"
+            v-if="drawTool === 'select' && selectedIds.includes(comp.id)"
             class="absolute -inset-0.5 border-2 border-cyan-400 pointer-events-none rounded-xs z-40 shadow-[0_0_12px_rgba(0,242,255,0.6)]"
           >
             <!-- Single Selection Only Controls: Rotation Handle & 8 Resizers -->
@@ -1086,27 +1318,173 @@ defineExpose({
           }"
         />
 
-        <!-- Interactive Polyline Drawing Live Preview -->
+        <!-- Interactive Polyline Drawing Live SVG Overlay (Rendered in Canvas Coordinate Space) -->
         <svg 
-          v-if="drawTool === 'draw-polyline' && polylineDrawing.active" 
-          class="absolute inset-0 pointer-events-none w-full h-full z-50 overflow-visible"
+          v-if="drawTool === 'draw-polyline'" 
+          class="absolute top-0 left-0 pointer-events-none z-50 overflow-visible"
+          style="width: 1px; height: 1px;"
         >
-          <polyline
-            :points="`${polylineDrawing.points.map(p => `${p.x},${p.y}`).join(' ')} ${polylineDrawing.currentX},${polylineDrawing.currentY}`"
-            fill="none"
-            stroke="#00f2ff"
-            stroke-width="3"
-            stroke-dasharray="4 4"
-          />
-          <circle 
-            v-for="(p, idx) in polylineDrawing.points" 
-            :key="idx" 
-            :cx="p.x" 
-            :cy="p.y" 
-            r="4" 
-            fill="#00f2ff" 
-          />
-          <circle :cx="polylineDrawing.currentX" :cy="polylineDrawing.currentY" r="4" fill="#00e5a3" />
+          <!-- Active placed polyline segments -->
+          <template v-if="polylineDrawing.active && polylineDrawing.points.length > 0">
+            <!-- Outer glowing aura path -->
+            <polyline
+              :points="getPolylinePreviewPoints()"
+              fill="none"
+              stroke="#00f2ff"
+              stroke-width="7"
+              stroke-opacity="0.35"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <!-- Main dashed vector line -->
+            <polyline
+              :points="getPolylinePreviewPoints()"
+              fill="none"
+              stroke="#00f2ff"
+              stroke-width="3"
+              stroke-dasharray="8 4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <!-- Dynamic connecting line from last vertex to moving cursor -->
+            <line
+              :x1="polylineDrawing.points[polylineDrawing.points.length - 1].x"
+              :y1="polylineDrawing.points[polylineDrawing.points.length - 1].y"
+              :x2="polylineDrawing.currentX"
+              :y2="polylineDrawing.currentY"
+              stroke="#00e5a3"
+              stroke-width="2"
+              stroke-dasharray="4 3"
+            />
+            <!-- Placed vertices with index tags -->
+            <g v-for="(p, idx) in polylineDrawing.points" :key="idx">
+              <circle 
+                :cx="p.x" 
+                :cy="p.y" 
+                r="6" 
+                fill="#00f2ff" 
+                stroke="#040810"
+                stroke-width="2"
+              />
+              <rect 
+                :x="p.x + 8" 
+                :y="p.y - 18" 
+                width="34" 
+                height="15" 
+                rx="3" 
+                fill="#090f1d" 
+                fill-opacity="0.9" 
+                stroke="#00f2ff" 
+                stroke-width="0.8" 
+              />
+              <text 
+                :x="p.x + 12" 
+                :y="p.y - 7" 
+                fill="#00f2ff" 
+                font-size="9" 
+                font-family="monospace" 
+                font-weight="bold"
+              >
+                #{{ idx + 1 }}
+              </text>
+            </g>
+          </template>
+
+          <!-- Current moving cursor vertex indicator -->
+          <g :transform="`translate(${polylineDrawing.currentX}, ${polylineDrawing.currentY})`">
+            <circle 
+              cx="0" 
+              cy="0" 
+              r="6" 
+              fill="#00e5a3" 
+              stroke="#040810"
+              stroke-width="2"
+            />
+            <circle 
+              cx="0" 
+              cy="0" 
+              r="12" 
+              fill="none" 
+              stroke="#00e5a3" 
+              stroke-width="1.5"
+              stroke-dasharray="3 3"
+            />
+          </g>
+        </svg>
+
+        <!-- Interactive Arrow Drawing Live SVG Overlay (Rendered in Canvas Coordinate Space) -->
+        <svg 
+          v-if="drawTool === 'draw-arrow'" 
+          class="absolute top-0 left-0 pointer-events-none z-50 overflow-visible"
+          style="width: 1px; height: 1px;"
+        >
+          <defs>
+            <marker
+              id="preview-arrow-head"
+              markerWidth="10"
+              markerHeight="10"
+              refX="6"
+              refY="3"
+              orient="auto"
+            >
+              <path d="M0,0 L0,6 L9,3 z" fill="#00f2ff" />
+            </marker>
+          </defs>
+          <template v-if="arrowDrawing.active">
+            <!-- Outer glowing aura path -->
+            <line
+              :x1="arrowDrawing.startX"
+              :y1="arrowDrawing.startY"
+              :x2="arrowDrawing.currentX"
+              :y2="arrowDrawing.currentY"
+              stroke="#00f2ff"
+              stroke-width="7"
+              stroke-opacity="0.35"
+              stroke-linecap="round"
+            />
+            <!-- Main dashed vector line with arrowhead -->
+            <line
+              :x1="arrowDrawing.startX"
+              :y1="arrowDrawing.startY"
+              :x2="arrowDrawing.currentX"
+              :y2="arrowDrawing.currentY"
+              stroke="#00f2ff"
+              stroke-width="3"
+              stroke-dasharray="6 3"
+              stroke-linecap="round"
+              marker-end="url(#preview-arrow-head)"
+            />
+            <!-- Start vertex circle -->
+            <circle
+              :cx="arrowDrawing.startX"
+              :cy="arrowDrawing.startY"
+              r="6"
+              fill="#00f2ff"
+              stroke="#040810"
+              stroke-width="2"
+            />
+          </template>
+
+          <!-- Current moving cursor vertex indicator -->
+          <g :transform="`translate(${arrowDrawing.currentX}, ${arrowDrawing.currentY})`">
+            <circle 
+              cx="0" 
+              cy="0" 
+              r="6" 
+              fill="#00e5a3" 
+              stroke="#040810"
+              stroke-width="2"
+            />
+            <circle 
+              cx="0" 
+              cy="0" 
+              r="12" 
+              fill="none" 
+              stroke="#00e5a3" 
+              stroke-width="1.5"
+              stroke-dasharray="3 3"
+            />
+          </g>
         </svg>
       </div>
     </div>
@@ -1126,6 +1504,18 @@ defineExpose({
         </div>
 
         <div class="py-1 space-y-0.5">
+          <!-- View / Edit Properties Inspector (选中右击查看属性) -->
+          <button
+            @click="emit('open:property-inspector'); closeContextMenu();"
+            class="w-full text-left px-2.5 py-1.5 bg-cyan-950/40 hover:bg-cyan-500/25 rounded-md text-cyan-300 hover:text-cyan-100 cursor-pointer flex items-center justify-between group transition-colors border border-cyan-500/30"
+          >
+            <div class="flex items-center gap-2 font-bold">
+              <Sliders class="w-3.5 h-3.5 text-cyan-400" />
+              <span>查看/编辑属性面板</span>
+            </div>
+            <span class="text-[10px] text-cyan-400 font-mono">打开</span>
+          </button>
+
           <!-- Copy (Ctrl+C) -->
           <button
             @click="emit('copy', selectedComponents); closeContextMenu();"

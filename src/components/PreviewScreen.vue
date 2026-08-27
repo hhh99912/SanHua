@@ -327,25 +327,55 @@ const resolveComponentPointInfo = (comp: ScreenComponent) => {
   };
 };
 
-// Component Mouse Enter -> Trigger Point Hover Tooltip
+// Component Mouse Enter & Move -> Trigger Point Hover Tooltip right next to cursor
+const updateTooltipPosition = (e: MouseEvent) => {
+  const tooltipWidth = 320;
+  const tooltipHeight = 210;
+  let posX = e.clientX + 14;
+  let posY = e.clientY + 14;
+
+  if (posX + tooltipWidth > window.innerWidth) {
+    posX = e.clientX - tooltipWidth - 10;
+  }
+  if (posY + tooltipHeight > window.innerHeight) {
+    posY = e.clientY - tooltipHeight - 10;
+  }
+
+  return {
+    x: Math.max(10, posX),
+    y: Math.max(10, posY)
+  };
+};
+
 const handleCompMouseEnter = (e: MouseEvent, comp: ScreenComponent) => {
   clearTimeout(hoverTimer);
   const info = resolveComponentPointInfo(comp);
   if (!info) return;
 
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const pos = updateTooltipPosition(e);
   hoverTooltip.value = {
     ...info,
     visible: true,
-    x: Math.min(window.innerWidth - 240, Math.max(10, rect.left + rect.width / 2 - 110)),
-    y: Math.max(10, rect.top - 90)
+    x: pos.x,
+    y: pos.y
   };
 };
 
+const handleCompMouseMove = (e: MouseEvent, comp: ScreenComponent) => {
+  if (!hoverTooltip.value || !hoverTooltip.value.visible) {
+    const info = resolveComponentPointInfo(comp);
+    if (!info) return;
+    hoverTooltip.value = { ...info, visible: true, x: 0, y: 0 };
+  }
+  const pos = updateTooltipPosition(e);
+  hoverTooltip.value.x = pos.x;
+  hoverTooltip.value.y = pos.y;
+};
+
 const handleCompMouseLeave = () => {
-  hoverTimer = setTimeout(() => {
-    hoverTooltip.value = null;
-  }, 250);
+  clearTimeout(hoverTimer);
+  // Immediate disappearance when cursor leaves the component
+  hoverTooltip.value = null;
 };
 
 // Right-click Context Menu
@@ -401,11 +431,20 @@ const handleGlobalJump = (e: any) => {
   }
 };
 
+// Global SCADA control event listener inside preview
+const handleGlobalControl = (e: any) => {
+  if (e.detail) {
+    controlDeviceId.value = e.detail.deviceId || 'DEV-101';
+    showControlModal.value = true;
+  }
+};
+
 onMounted(() => {
   window.addEventListener('resize', handleResize);
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('click', closeContextMenu);
   window.addEventListener('datav:jump:screen', handleGlobalJump);
+  window.addEventListener('scada:open:control', handleGlobalControl);
   handleResize();
 });
 
@@ -414,6 +453,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('click', closeContextMenu);
   window.removeEventListener('datav:jump:screen', handleGlobalJump);
+  window.removeEventListener('scada:open:control', handleGlobalControl);
   clearTimeout(hoverTimer);
 });
 </script>
@@ -458,6 +498,7 @@ onBeforeUnmount(() => {
         }"
         @click="handlePreviewCompClick(comp)"
         @mouseenter="handleCompMouseEnter($event, comp)"
+        @mousemove="handleCompMouseMove($event, comp)"
         @mouseleave="handleCompMouseLeave"
         @contextmenu.stop="handlePreviewContextMenu($event, comp)"
       >
@@ -470,54 +511,69 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- Hovered Point Telemetry Information Tooltip Badge -->
+    <!-- Hovered Point Information Tooltip (完整显示测点/装置详细遥测遥信参数，紧随光标) -->
     <div
       v-if="hoverTooltip && hoverTooltip.visible"
-      class="fixed z-50 pointer-events-none bg-[#070f22]/95 border border-cyan-400 p-2.5 rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.9)] font-mono text-xs text-white max-w-xs animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md"
+      class="fixed z-50 pointer-events-none bg-[#050c1e]/98 border border-cyan-500/70 p-3 rounded-xl shadow-[0_12px_35px_rgba(0,0,0,0.92)] font-mono text-xs text-white w-76 animate-in fade-in duration-75 backdrop-blur-xl flex flex-col gap-2"
       :style="{
         left: `${hoverTooltip.x}px`,
         top: `${hoverTooltip.y}px`
       }"
     >
-      <div class="flex items-center justify-between gap-2 border-b border-cyan-900/60 pb-1 text-[10px]">
-        <div class="flex items-center gap-1.5 font-bold text-cyan-300 truncate">
-          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-          <span>{{ hoverTooltip.device ? `[${hoverTooltip.device.deviceId}] ${hoverTooltip.device.name}` : 'SCADA 关联测点' }}</span>
+      <!-- Header: Device & Point Type Badge -->
+      <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+        <div class="flex items-center gap-1.5 truncate">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping shrink-0" />
+          <span class="text-slate-300 font-bold truncate">
+            {{ hoverTooltip.device ? hoverTooltip.device.name : 'SCADA测控装置' }}
+          </span>
         </div>
         <span
-          class="px-1.5 py-0.2 rounded font-bold uppercase text-[9px] border"
+          class="text-[10px] px-1.5 py-0.5 rounded font-bold uppercase shrink-0"
           :class="{
-            'bg-cyan-950 text-cyan-300 border-cyan-500/40': hoverTooltip.pointType === 'YC',
-            'bg-emerald-950 text-emerald-300 border-emerald-500/40': hoverTooltip.pointType === 'YX',
-            'bg-purple-950 text-purple-300 border-purple-500/40': hoverTooltip.pointType === 'DD',
-            'bg-amber-950 text-amber-300 border-amber-500/40': hoverTooltip.pointType === 'YK',
-            'bg-blue-950 text-blue-300 border-blue-500/40': hoverTooltip.pointType === 'YT'
+            'bg-cyan-950 text-cyan-300 border border-cyan-500/40': hoverTooltip.pointType === 'YC',
+            'bg-emerald-950 text-emerald-300 border border-emerald-500/40': hoverTooltip.pointType === 'YX',
+            'bg-purple-950 text-purple-300 border border-purple-500/40': hoverTooltip.pointType === 'YK',
+            'bg-amber-950 text-amber-300 border border-amber-500/40': hoverTooltip.pointType === 'YT',
+            'bg-blue-950 text-blue-300 border border-blue-500/40': hoverTooltip.pointType === 'DD'
           }"
         >
-          {{ hoverTooltip.pointType === 'YC' ? '遥测 YC' : hoverTooltip.pointType === 'YX' ? '遥信 YX' : hoverTooltip.pointType === 'DD' ? '电度 DD' : hoverTooltip.pointType === 'YK' ? '遥控 YK' : '遥调 YT' }}
+          {{ hoverTooltip.pointType }}_{{ hoverTooltip.pointId }}
         </span>
       </div>
 
-      <div class="mt-1.5 space-y-1">
-        <div class="text-[11px] font-bold text-slate-200 truncate">
-          {{ hoverTooltip.pointName }}
+      <!-- Point Name & Value -->
+      <div class="space-y-1">
+        <div class="text-slate-400 text-[11px] truncate">
+          测点名称: <span class="text-slate-100 font-bold">{{ hoverTooltip.pointName || '未命名测点' }}</span>
         </div>
 
-        <div class="flex items-baseline justify-between text-xs pt-0.5">
-          <span class="text-slate-400 text-[10px]">实时状态/数值:</span>
-          <span class="font-black text-cyan-300 font-mono">
-            {{ hoverTooltip.statusText || hoverTooltip.currentValue }}
-            <span v-if="hoverTooltip.unit" class="text-[10px] text-cyan-500 font-normal ml-0.5">{{ hoverTooltip.unit }}</span>
-          </span>
+        <div class="flex items-center justify-between bg-[#030712]/90 px-2.5 py-1.5 rounded-lg border border-slate-800/80">
+          <span class="text-[11px] text-slate-400">实时数值/状态:</span>
+          <div class="flex items-center gap-1.5 font-bold">
+            <span
+              v-if="hoverTooltip.statusText"
+              class="px-1.5 py-0.2 rounded text-[11px]"
+              :class="hoverTooltip.currentValue === 1 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : (hoverTooltip.currentValue === 2 ? 'bg-rose-950 text-rose-300 border border-rose-500/40' : 'bg-slate-900 text-slate-300 border border-slate-700')"
+            >
+              {{ hoverTooltip.statusText }} ({{ hoverTooltip.currentValue }})
+            </span>
+            <span v-else class="text-cyan-300 text-sm">
+              {{ typeof hoverTooltip.currentValue === 'number' ? hoverTooltip.currentValue.toFixed(2) : hoverTooltip.currentValue }}
+              <span v-if="hoverTooltip.unit" class="text-[11px] text-cyan-500 ml-0.5">{{ hoverTooltip.unit }}</span>
+            </span>
+          </div>
         </div>
+      </div>
 
-        <div v-if="hoverTooltip.verifyText" class="text-[10px] text-purple-300 bg-purple-950/40 border border-purple-500/30 px-1.5 py-0.5 rounded">
+      <!-- Extra SCADA Telemetry & Quality Info -->
+      <div class="pt-1.5 border-t border-slate-800/80 text-[10px] text-slate-400 space-y-1">
+        <div class="flex items-center justify-between">
+          <span>装置编号: <span class="text-slate-300">{{ hoverTooltip.device ? hoverTooltip.device.deviceId : 'DEV-101' }}</span></span>
+          <span class="text-emerald-400">品质: 正常 (0x00)</span>
+        </div>
+        <div v-if="hoverTooltip.verifyText" class="text-purple-300 truncate">
           {{ hoverTooltip.verifyText }}
-        </div>
-
-        <div class="text-[9px] text-slate-400 flex items-center justify-between pt-0.5 border-t border-slate-800">
-          <span>品质: GOOD (0x00)</span>
-          <span class="text-slate-500">右键调阅曲线/置数</span>
         </div>
       </div>
     </div>
@@ -684,7 +740,9 @@ onBeforeUnmount(() => {
     <!-- SCADA Control Modal -->
     <ScadaControlModal
       v-if="showControlModal"
+      :visible="showControlModal"
       :initial-device-id="controlDeviceId"
+      :datasets="datasets"
       @close="showControlModal = false"
     />
 

@@ -39,7 +39,8 @@ import {
   Unlock,
   BookmarkPlus,
   ShieldCheck,
-  UserCheck
+  UserCheck,
+  MoveRight
 } from 'lucide-vue-next';
 import { ScreenConfig, ScreenComponent } from '../types';
 import { templates } from '../data/templates';
@@ -52,7 +53,7 @@ interface Props {
   isStreaming: boolean;
   canUndo: boolean;
   canRedo: boolean;
-  drawTool?: 'select' | 'draw-polyline';
+  drawTool?: 'select' | 'draw-polyline' | 'draw-arrow';
   selectedIds?: string[];
   selectedComponents?: ScreenComponent[];
   showGrid?: boolean;
@@ -66,15 +67,15 @@ const props = withDefaults(defineProps<Props>(), {
   selectedIds: () => [],
   selectedComponents: () => [],
   showGrid: true,
-  gridSize: 10,
+  gridSize: 40,
   snapToGrid: true,
-  orthogonalLock: true
+  orthogonalLock: false
 });
 
 const emit = defineEmits<{
   (e: 'update:screen', value: ScreenConfig): void;
   (e: 'update:zoom', value: number): void;
-  (e: 'update:drawTool', tool: 'select' | 'draw-polyline'): void;
+  (e: 'update:drawTool', tool: 'select' | 'draw-polyline' | 'draw-arrow'): void;
   (e: 'update:showGrid', value: boolean): void;
   (e: 'update:gridSize', value: number): void;
   (e: 'update:snapToGrid', value: boolean): void;
@@ -326,7 +327,7 @@ const handleSelectTemplate = (id: string) => {
     <div class="flex items-center justify-between bg-slate-950/90 border border-cyan-500/20 px-2 py-0.5 rounded-lg text-xs font-mono select-none">
       <!-- Left: Tools & History -->
       <div class="flex items-center gap-1">
-        <!-- Interactive Tool Switcher (选择 / 折线) -->
+        <!-- Interactive Tool Switcher (选择 / 折线 / 箭头) -->
         <div class="flex items-center bg-slate-900 p-0.5 rounded-md border border-slate-800">
           <button
             @click="emit('update:drawTool', 'select')"
@@ -348,6 +349,17 @@ const handleSelectTemplate = (id: string) => {
             title="折线连线绘制 (单击连续添加拐点，双击或回车结束，画完自动最小裁剪)"
           >
             <Workflow class="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            @click="emit('update:drawTool', 'draw-arrow')"
+            class="p-1 rounded transition-all cursor-pointer"
+            :class="drawTool === 'draw-arrow' 
+              ? 'bg-emerald-400 text-slate-950 font-bold shadow-[0_0_8px_rgba(52,211,153,0.5)]' 
+              : 'text-slate-400 hover:text-white'"
+            title="导向箭头绘制 (单击起点拖拽/单击终点完成绘制，画完自动最小裁剪)"
+          >
+            <MoveRight class="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -400,12 +412,18 @@ const handleSelectTemplate = (id: string) => {
             :value="gridSize"
             @change="emit('update:gridSize', Number(($event.target as HTMLSelectElement).value))"
             class="bg-slate-950 border border-slate-800 rounded px-1 py-0.5 text-[10px] text-cyan-300 focus:outline-hidden cursor-pointer"
-            title="切换点格网格步进尺寸 (5px / 10px / 20px / 40px)"
+            title="切换点格网格步进尺寸 (10px - 160px)"
           >
-            <option :value="5">5px</option>
             <option :value="10">10px</option>
             <option :value="20">20px</option>
-            <option :value="40">40px</option>
+            <option :value="30">30px</option>
+            <option :value="40">40px (默认)</option>
+            <option :value="50">50px</option>
+            <option :value="60">60px</option>
+            <option :value="80">80px</option>
+            <option :value="100">100px</option>
+            <option :value="120">120px</option>
+            <option :value="160">160px</option>
           </select>
 
           <button

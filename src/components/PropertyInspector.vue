@@ -36,7 +36,8 @@ import {
   CheckCircle2,
   ShieldCheck,
   Info,
-  Type
+  Type,
+  X
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
 
@@ -62,6 +63,7 @@ const emit = defineEmits<{
   (e: 'delete', ids: string[]): void;
   (e: 'open:batch:points'): void;
   (e: 'open:control', deviceId: string): void;
+  (e: 'close'): void;
 }>();
 
 const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry');
@@ -433,6 +435,14 @@ const toggleBatchLock = () => {
           >
             <BookmarkPlus class="w-3.5 h-3.5 text-emerald-400" />
             <span>存为图元</span>
+          </button>
+          
+          <button
+            @click="emit('close')"
+            class="p-1 rounded bg-slate-900/80 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 border border-slate-700/60 cursor-pointer transition-colors"
+            title="关闭属性面板"
+          >
+            <X class="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

@@ -51,14 +51,22 @@ const selectedIds = ref<string[]>([]);
 const zoom = ref<number>(0.62);
 const isStreaming = ref<boolean>(true);
 const leftSidebarTab = ref<'palette' | 'layers'>('palette');
-const drawTool = ref<'select' | 'draw-polyline'>('select');
+const drawTool = ref<'select' | 'draw-polyline' | 'draw-arrow'>('select');
 
 // Infinite Canvas & Snapping Controls
 const showGrid = ref<boolean>(true);
-const gridSize = ref<number>(10);
+const gridSize = ref<number>(40);
 const snapToGrid = ref<boolean>(true);
-const orthogonalLock = ref<boolean>(true);
+const orthogonalLock = ref<boolean>(false);
 const canvasEditorRef = ref<any>(null);
+const showPropertyInspector = ref<boolean>(false);
+
+// Watch selectedIds to automatically hide property inspector when nothing is selected
+watch(selectedIds, (newIds) => {
+  if (!newIds || newIds.length === 0) {
+    showPropertyInspector.value = false;
+  }
+});
 
 // Modals
 const showDatasetsModal = ref(false);
@@ -102,16 +110,31 @@ const handleSwitchScreen = (screenId: string) => {
   recordHistory();
 };
 
-// Add new screen
+// Helper to enforce strictly unique screen names across the system
+const getUniqueScreenName = (baseName: string, excludeId?: string): string => {
+  let name = baseName.trim() || '新建大屏';
+  let counter = 1;
+  const exists = (n: string) => screens.value.some(s => s.id !== excludeId && s.name.trim().toLowerCase() === n.trim().toLowerCase());
+  
+  if (!exists(name)) return name;
+  
+  while (exists(`${name} (${counter})`)) {
+    counter++;
+  }
+  return `${name} (${counter})`;
+};
+
+// Add new screen (names must be unique)
 const handleAddScreen = (payload: { name: string; width: number; height: number }) => {
   syncActiveScreenToProject();
   const newId = `screen-${Date.now()}`;
+  const uniqueName = getUniqueScreenName(payload.name);
   const newScreenItem: ScreenItem = {
     id: newId,
-    name: payload.name,
+    name: uniqueName,
     screen: {
       id: newId,
-      name: payload.name,
+      name: uniqueName,
       width: payload.width || 1920,
       height: payload.height || 1080,
       backgroundColor: '#040914',
@@ -149,21 +172,22 @@ const handleAddScreen = (payload: { name: string; width: number; height: number 
   handleSwitchScreen(newId);
 };
 
-// Duplicate screen
+// Duplicate screen (names must be unique)
 const handleDuplicateScreen = (screenId: string) => {
   syncActiveScreenToProject();
   const source = screens.value.find(s => s.id === screenId);
   if (!source) return;
 
   const newId = `screen-${Date.now()}`;
+  const uniqueName = getUniqueScreenName(`${source.name} (副本)`);
   const cloned: ScreenItem = {
     id: newId,
-    name: `${source.name} (副本)`,
+    name: uniqueName,
     description: source.description,
     screen: {
       ...JSON.parse(JSON.stringify(source.screen)),
       id: newId,
-      name: `${source.name} (副本)`
+      name: uniqueName
     },
     components: JSON.parse(JSON.stringify(source.components))
   };
@@ -172,14 +196,21 @@ const handleDuplicateScreen = (screenId: string) => {
   handleSwitchScreen(newId);
 };
 
-// Rename screen
+// Rename screen (names must be unique)
 const handleRenameScreen = (payload: { screenId: string; newName: string }) => {
   const target = screens.value.find(s => s.id === payload.screenId);
   if (target) {
-    target.name = payload.newName;
-    target.screen.name = payload.newName;
+    const trimmed = payload.newName.trim();
+    if (!trimmed) return;
+    const isTaken = screens.value.some(s => s.id !== payload.screenId && s.name.trim().toLowerCase() === trimmed.toLowerCase());
+    if (isTaken) {
+      alert(`大屏画面「${trimmed}」已存在，大屏画面名称为唯一识别标识，不可重复！`);
+      return;
+    }
+    target.name = trimmed;
+    target.screen.name = trimmed;
     if (target.id === activeScreenId.value) {
-      screen.value.name = payload.newName;
+      screen.value.name = trimmed;
     }
   }
 };
@@ -820,6 +851,8 @@ const handleGlobalJumpEvent = (e: any) => {
 };
 
 const handleGlobalScadaControlEvent = (e: any) => {
+  // If preview is active, PreviewScreen handles the modal directly in the preview layer
+  if (showPreviewModal.value) return;
   controlInitialDeviceId.value = e.detail?.deviceId || undefined;
   showControlModal.value = true;
 };
@@ -1000,6 +1033,8 @@ onBeforeUnmount(() => {
           @save:symbol="handleOpenSaveSymbolModal"
           @undo="handleUndo"
           @redo="handleRedo"
+          @finish:draw="drawTool = 'select'"
+          @open:property-inspector="showPropertyInspector = true"
           @open:control-modal="(devId) => { controlInitialDeviceId = devId; showControlModal = true; }"
         />
 
@@ -1015,13 +1050,15 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <!-- Right Property & Data Inspector Panel -->
+      <!-- Right Property & Data Inspector Panel (Opened via Right-Click Context Menu "查看/编辑属性面板") -->
       <PropertyInspector
+        v-if="showPropertyInspector && selectedIds.length > 0"
         :component="selectedComponent"
         :selectedComponents="selectedComponents"
         :screen="screen"
         :datasets="datasets"
         :screens="screens"
+        @close="showPropertyInspector = false"
         @update:component="handleUpdateComponent"
         @update:components="handleUpdateComponents"
         @update:screen="screen = $event; recordHistory();"

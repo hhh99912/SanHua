@@ -27,7 +27,7 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
 
   // Grid & Snapping State
   const showGrid = ref<boolean>(options.initialShowGrid ?? true);
-  const gridSize = ref<number>(options.initialGridSize ?? 20);
+  const gridSize = ref<number>(options.initialGridSize ?? 40);
   const snapToGrid = ref<boolean>(options.initialSnapToGrid ?? true);
   const orthogonalLock = ref<boolean>(options.initialOrthogonalLock ?? false);
 
@@ -271,6 +271,61 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     };
   };
 
+  // Fit and Center All Content in Viewport (自动计算所有图形最大缩放与居中视口坐标)
+  const fitAndCenterContentInViewport = <T extends { x: number; y: number; width: number; height: number }>(
+    components: T[],
+    canvasWidth: number,
+    canvasHeight: number,
+    containerElement: HTMLElement | null,
+    onZoomChange?: (newZoom: number) => void
+  ) => {
+    if (!containerElement) return;
+    const rect = containerElement.getBoundingClientRect();
+    const availableW = Math.max(100, rect.width - 24); // Deduct ruler width (24px)
+    const availableH = Math.max(100, rect.height - 24); // Deduct ruler height (24px)
+
+    const bbox = getContentBoundingBox(components);
+    let targetBounds = {
+      minX: 0,
+      minY: 0,
+      width: canvasWidth,
+      height: canvasHeight,
+      centerX: canvasWidth / 2,
+      centerY: canvasHeight / 2
+    };
+
+    if (bbox && bbox.width > 10 && bbox.height > 10) {
+      targetBounds = {
+        minX: bbox.minX,
+        minY: bbox.minY,
+        width: bbox.width,
+        height: bbox.height,
+        centerX: bbox.minX + bbox.width / 2,
+        centerY: bbox.minY + bbox.height / 2
+      };
+    }
+
+    // Add margin around graphics
+    const margin = 80;
+    const scaleX = (availableW - margin) / targetBounds.width;
+    const scaleY = (availableH - margin) / targetBounds.height;
+    const optimalZoom = Math.min(2.5, Math.max(0.15, Number(Math.min(scaleX, scaleY).toFixed(2))));
+
+    zoom.value = optimalZoom;
+    if (onZoomChange) {
+      onZoomChange(optimalZoom);
+    }
+
+    // Viewport center point (offset by ruler 24px)
+    const vpCenterX = 24 + availableW / 2;
+    const vpCenterY = 24 + availableH / 2;
+
+    panOffset.value = {
+      x: Math.round(vpCenterX - targetBounds.centerX * optimalZoom),
+      y: Math.round(vpCenterY - targetBounds.centerY * optimalZoom)
+    };
+  };
+
   return {
     zoom,
     minZoom,
@@ -290,6 +345,7 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     endPan,
     centerCanvasInViewport,
     getContentBoundingBox,
+    fitAndCenterContentInViewport,
     snapAllToGrid,
     centerAllInCanvas,
     cropCanvasToContent

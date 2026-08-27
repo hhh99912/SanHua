@@ -2207,17 +2207,51 @@ export function addCustomSymbol(symbol: CustomSymbolDef): CustomSymbolDef[] {
   const list = getCustomSymbols();
   const existingIdx = list.findIndex(s => s.id === symbol.id);
   if (existingIdx !== -1) {
-    list[existingIdx] = symbol;
+    list[existingIdx] = { ...symbol, updatedAt: new Date().toISOString() };
   } else {
-    list.unshift(symbol);
+    list.unshift({ ...symbol, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
   }
   saveCustomSymbols(list);
   return list;
 }
 
-export function removeCustomSymbol(id: string): CustomSymbolDef[] {
+export function updateCustomSymbol(symbol: CustomSymbolDef): CustomSymbolDef[] {
+  return addCustomSymbol(symbol);
+}
+
+export function deleteCustomSymbol(id: string): CustomSymbolDef[] {
   const list = getCustomSymbols().filter(s => s.id !== id);
   saveCustomSymbols(list);
   return list;
+}
+
+export function removeCustomSymbol(id: string): CustomSymbolDef[] {
+  return deleteCustomSymbol(id);
+}
+
+export function exportSymbolsAsJSON() {
+  const data = getCustomSymbols();
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `scada-custom-symbols-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function importSymbolsFromJSON(file: File): Promise<boolean> {
+  try {
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      saveCustomSymbols(parsed);
+      return true;
+    }
+    return false;
+  } catch (e) {
+    console.error('Failed to import symbols:', e);
+    return false;
+  }
 }
 
