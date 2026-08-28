@@ -99,6 +99,7 @@ const emit = defineEmits<{
   (e: 'save:symbol'): void;
   (e: 'center:all'): void;
   (e: 'crop:minimal'): void;
+  (e: 'snap:all'): void;
 }>();
 
 const currentPlatform = detectPlatform();
@@ -425,6 +426,16 @@ const handleSelectTemplate = (id: string) => {
             <option :value="120">120px</option>
             <option :value="160">160px</option>
           </select>
+
+          <!-- Re-snap All Components to Grid Nodes Button -->
+          <button
+            @click="emit('snap:all')"
+            class="px-1.5 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-500/40 text-[10px] text-cyan-300 font-mono flex items-center gap-1 cursor-pointer transition-all shadow-xs"
+            title="手动重新吸附：当网格密度发生变化时，一键将当前画布所有组件重新精准吸附对齐到最近的网格点"
+          >
+            <RefreshCw class="w-3 h-3 text-cyan-400" />
+            <span>重新吸附</span>
+          </button>
 
           <button
             @click="emit('update:orthogonalLock', !orthogonalLock)"

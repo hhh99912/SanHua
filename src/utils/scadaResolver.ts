@@ -45,9 +45,20 @@ export function resolveDataPointValue(
         } else if (type === 'DD') {
           const pt = dev.energies?.find(p => String(p.pointId) === String(ptId));
           if (pt) return pt.value;
+        } else if (type === 'YK') {
+          // 严谨 SCADA 规约：遥控本身为命令输出通道无采样值，画面显示取其关联校验遥信点 (targetPointId) 的值
+          const yk = dev.teleControls?.find(p => String(p.pointId) === String(ptId));
+          const verifyYxId = yk?.targetPointId !== undefined ? yk.targetPointId : 1;
+          const yx = dev.teleSignals?.find(p => String(p.pointId) === String(verifyYxId));
+          if (yx) return yx.value;
         } else if (type === 'YT') {
-          const pt = dev.teleRegulations?.find(p => String(p.pointId) === String(ptId));
-          if (pt) return pt.value;
+          // 严谨 SCADA 规约：遥调本身为设定输出通道无采样值，画面显示优先取其关联校验遥测点 (targetYcPointId) 的实测值
+          const yt = dev.teleRegulations?.find(p => String(p.pointId) === String(ptId));
+          if (yt?.targetYcPointId !== undefined) {
+            const yc = dev.telemetries?.find(p => String(p.pointId) === String(yt.targetYcPointId));
+            if (yc) return yc.value;
+          }
+          if (yt) return yt.value;
         }
       }
     }

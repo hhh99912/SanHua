@@ -316,11 +316,14 @@ export interface CustomSymbolStateDef {
   id: string; // "0", "1", "2"
   name: string; // e.g. "状态 0 (分闸)", "状态 1 (合闸)", "状态 2 (故障)"
   matchValue?: 0 | 1 | 2 | string | number;
+  stateValue?: number; // Unique integer for SCADA telemetry state mapping
   description?: string;
   children: ScreenComponent[];
   style?: StyleConfig;
   customProps?: Record<string, any>;
 }
+
+export type SymbolState = CustomSymbolStateDef;
 
 export interface ScreenComponent {
   id: string;

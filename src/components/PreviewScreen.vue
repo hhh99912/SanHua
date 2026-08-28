@@ -253,9 +253,14 @@ const resolveComponentPointInfo = (comp: ScreenComponent) => {
     const targetYxId = action?.targetPointId || mapping.targetYxPointId || 1;
     const targetYx = device?.teleSignals?.find(s => s.pointId === targetYxId);
     if (targetYx) {
-      verifyText = `闭环校验: [YX_${targetYxId}] ${targetYx.name}`;
+      verifyText = `闭环校验遥信: [YX_${targetYxId}] ${targetYx.name}`;
+      statusText = targetYx.statusText || (targetYx.value === 1 ? '合闸运行' : targetYx.value === 2 ? '故障跳闸' : '分闸停运');
+      currentValue = targetYx.value;
+    } else {
+      verifyText = '控制输出 (无直接采样值)';
+      currentValue = '无采样值';
+      statusText = '控制通道';
     }
-    currentValue = '可下发';
   }
   // 2. Tele-regulation (YT)
   else if (isRegulation) {
@@ -266,9 +271,14 @@ const resolveComponentPointInfo = (comp: ScreenComponent) => {
     const targetYcId = action?.targetPointId || mapping.targetYcPointId || 1;
     const targetYc = device?.telemetries?.find(m => m.pointId === targetYcId);
     if (targetYc) {
-      verifyText = `闭环校验: [YC_${targetYcId}] ${targetYc.name}`;
+      verifyText = `闭环校验遥测: [YC_${targetYcId}] ${targetYc.name}`;
+      currentValue = targetYc.value;
+      unit = targetYc.unit || ytDef?.unit || '';
+    } else {
+      verifyText = '调节输出 (无直接采样值)';
+      currentValue = ytDef ? ytDef.value : '无采样值';
+      unit = ytDef?.unit || '';
     }
-    currentValue = '可调定值';
   }
   // 3. Tele-signal (YX)
   else if (isBreakerOrIndicator || mapping.stateKey || mapping.statusKey) {
@@ -475,6 +485,7 @@ onBeforeUnmount(() => {
         backgroundImage: screen.backgroundGrid 
           ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.15)'} 1.5px, transparent 1.5px)` 
           : 'none',
+        backgroundPosition: `-${(screen.gridSize || 30) / 2}px -${(screen.gridSize || 30) / 2}px`,
         backgroundSize: `${screen.gridSize || 30}px ${screen.gridSize || 30}px`,
         boxShadow: '0 0 60px rgba(0,0,0,0.95)'
       }"

@@ -197,8 +197,8 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     };
   };
 
-  // Snap All Components to nearest grid nodes
-  const snapAllToGrid = <T extends { x: number; y: number; width: number; height: number }>(
+  // Snap All Components to nearest grid nodes (snaps x, y to exact grid points)
+  const snapAllToGrid = <T extends { x: number; y: number; width?: number; height?: number }>(
     components: T[],
     customGridSize?: number
   ): T[] => {
@@ -206,9 +206,7 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     return components.map(c => ({
       ...c,
       x: Math.round(c.x / gs) * gs,
-      y: Math.round(c.y / gs) * gs,
-      width: Math.max(gs, Math.round(c.width / gs) * gs),
-      height: Math.max(gs, Math.round(c.height / gs) * gs)
+      y: Math.round(c.y / gs) * gs
     }));
   };
 

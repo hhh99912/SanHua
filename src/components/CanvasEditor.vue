@@ -996,10 +996,10 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
-  // Arrow key nudges (snapped by grid if shift not held)
+  // Arrow key micro-nudges: always moves with minimal 1px step, independent of grid density
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
     e.preventDefault();
-    const step = e.shiftKey ? 1 : (gridSize.value || 10);
+    const step = e.shiftKey ? 5 : 1;
     let dx = 0;
     let dy = 0;
     if (e.key === 'ArrowUp') dy = -step;
@@ -1182,7 +1182,7 @@ defineExpose({
         backgroundImage: showGrid 
           ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.75)'} 2.2px, transparent 2.2px)` 
           : 'none',
-        backgroundPosition: `${panOffset.x}px ${panOffset.y}px`,
+        backgroundPosition: `${panOffset.x - (gridSize * zoom) / 2}px ${panOffset.y - (gridSize * zoom) / 2}px`,
         backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px`
       }"
       @mousedown="handleCanvasMouseDown"

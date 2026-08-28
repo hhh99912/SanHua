@@ -660,6 +660,17 @@ const handleAlignComponent = (type: 'left' | 'center' | 'right' | 'top' | 'middl
   recordHistory();
 };
 
+// Re-snap all components to grid nodes (吸附到点格)
+const handleSnapAllToGrid = () => {
+  const gs = gridSize.value || 40;
+  components.value = components.value.map(c => ({
+    ...c,
+    x: Math.round(c.x / gs) * gs,
+    y: Math.round(c.y / gs) * gs
+  }));
+  recordHistory();
+};
+
 // Group Components (组合多选图元为复合组件)
 const handleGroup = (targets?: ScreenComponent[]) => {
   const compsToGroup = targets && targets.length > 0
@@ -941,6 +952,7 @@ onBeforeUnmount(() => {
       @save:symbol="() => handleOpenSaveSymbolModal(selectedComponents)"
       @crop:minimal="canvasEditorRef?.cropMinimal?.()"
       @center:all="canvasEditorRef?.centerAll?.()"
+      @snap:all="handleSnapAllToGrid"
     />
 
     <!-- Main Workspace Studio -->

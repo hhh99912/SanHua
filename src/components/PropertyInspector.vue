@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import {
   SlidersHorizontal,
   Palette,
@@ -37,7 +37,12 @@ import {
   ShieldCheck,
   Info,
   Type,
-  X
+  X,
+  Crosshair,
+  LocateFixed,
+  Link2,
+  Unlink,
+  AlertTriangle
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
 
@@ -150,7 +155,264 @@ const isElectricalSwitch = computed(() => {
   return ['elec-breaker', 'elec-disconnector', 'elec-grounding', 'elec-handcart', 'ctrl-indicator'].includes(props.component.type);
 });
 
-// Direct Smart Point Binding Action (智能测点关联，无需用户配置繁琐的内部属性目标)
+// SCADA Full Binding Details Inspector
+const currentBindingDetails = computed(() => {
+  const comp = props.component;
+  if (!comp || !comp.data) {
+    return {
+      isBound: false,
+      category: 'none' as const,
+      categoryLabel: '未指定',
+      categoryBadgeColor: 'bg-slate-800 text-slate-400 border-slate-700',
+      isControl: false,
+      isRegulation: false,
+      currentDisplayValue: '--',
+      pointKey: '',
+      pointName: '未绑定',
+      deviceName: '未选择装置'
+    };
+  }
+
+  const mapping = comp.data.mapping || {};
+  const action = comp.data.action;
+  
+  let devId = mapping.deviceId || action?.deviceId;
+  let rawKey = mapping.valueKey || mapping.stateKey || mapping.statusKey || '';
+  
+  if (!devId && rawKey) {
+    const match = rawKey.match(/^([A-Za-z0-9_-]+)_(YC|YX|DD|YK|YT)_/);
+    if (match) devId = match[1];
+  }
+  
+  const dev = currentDatasetDevices.value.find(d => d.deviceId === devId) || 
+    (devId ? { deviceId: devId, deviceName: mapping.deviceName || `装置 [${devId}]`, telemetries: [], teleSignals: [], energies: [], teleControls: [], teleRegulations: [] } as any : undefined);
+
+  let category: 'yc' | 'yx' | 'dd' | 'yk' | 'yt' | 'none' = 'none';
+  let isControl = false;
+  let isRegulation = false;
+
+  if (mapping.pointCategory === 'teleControl' || action?.type === 'tele-control' || mapping.ykPointId || rawKey.includes('_YK_')) {
+    category = 'yk';
+    isControl = true;
+  } else if (mapping.pointCategory === 'teleRegulation' || action?.type === 'tele-regulation' || mapping.ytPointId || rawKey.includes('_YT_')) {
+    category = 'yt';
+    isRegulation = true;
+  } else if (mapping.pointCategory === 'teleSignal' || rawKey.includes('_YX_') || mapping.stateKey || isElectricalSwitch.value) {
+    category = 'yx';
+  } else if (mapping.pointCategory === 'energy' || rawKey.includes('_DD_')) {
+    category = 'dd';
+  } else if (mapping.pointCategory === 'telemetry' || rawKey.includes('_YC_') || mapping.valueKey) {
+    category = 'yc';
+  }
+
+  let pointId: any = undefined;
+  if (category === 'yk') {
+    pointId = mapping.ykPointId || action?.pointId || mapping.pointId;
+  } else if (category === 'yt') {
+    pointId = mapping.ytPointId || action?.pointId || mapping.pointId;
+  } else {
+    pointId = mapping.pointId;
+  }
+  if (pointId === undefined && rawKey) {
+    const m = rawKey.match(/_(?:YC|YX|DD|YK|YT)_(\d+)/i);
+    if (m) pointId = Number(m[1]);
+  }
+
+  const isBound = !!(devId && pointId !== undefined);
+
+  let pointEntity: any = null;
+  let verificationInfo: any = null;
+  let currentDisplayValue: any = '--';
+  let unit = '';
+  let statusText = '';
+
+  if (dev) {
+    if (category === 'yk') {
+      pointEntity = dev.teleControls?.find((c: any) => String(c.pointId) === String(pointId)) || dev.teleControls?.[0];
+      const targetYxId = action?.targetPointId || mapping.targetYxPointId || pointEntity?.targetPointId || 1;
+      const targetYx = dev.teleSignals?.find((s: any) => String(s.pointId) === String(targetYxId));
+      if (targetYx) {
+        statusText = targetYx.statusText || (targetYx.value === 1 ? '合闸 (1)' : '分闸 (0)');
+        currentDisplayValue = statusText;
+        verificationInfo = {
+          type: 'yx',
+          typeLabel: '闭环校验遥信 (YX)',
+          pointId: targetYxId,
+          pointName: targetYx.name,
+          currentValue: targetYx.value,
+          statusText: targetYx.statusText || (targetYx.value === 1 ? '合闸运行' : '分闸停止')
+        };
+      } else {
+        currentDisplayValue = '未配置校验遥信';
+      }
+    } else if (category === 'yt') {
+      pointEntity = dev.teleRegulations?.find((r: any) => String(r.pointId) === String(pointId)) || dev.teleRegulations?.[0];
+      const targetYcId = action?.targetPointId || mapping.targetYcPointId || pointEntity?.targetYcPointId || 1;
+      const targetYc = dev.telemetries?.find((m: any) => String(m.pointId) === String(targetYcId));
+      if (targetYc) {
+        unit = targetYc.unit || pointEntity?.unit || '';
+        currentDisplayValue = `${targetYc.value} ${unit}`;
+        verificationInfo = {
+          type: 'yc',
+          typeLabel: '闭环校验遥测 (YC)',
+          pointId: targetYcId,
+          pointName: targetYc.name,
+          currentValue: targetYc.value,
+          unit: targetYc.unit
+        };
+      } else {
+        currentDisplayValue = '未配置校验遥测';
+      }
+    } else if (category === 'yx') {
+      pointEntity = dev.teleSignals?.find((s: any) => String(s.pointId) === String(pointId));
+      if (pointEntity) {
+        statusText = pointEntity.statusText || (pointEntity.value === 1 ? '合闸 (1)' : '分闸 (0)');
+        currentDisplayValue = statusText;
+      }
+    } else if (category === 'dd') {
+      pointEntity = dev.energies?.find((e: any) => String(e.pointId) === String(pointId));
+      if (pointEntity) {
+        unit = pointEntity.unit || 'kWh';
+        currentDisplayValue = `${pointEntity.value} ${unit}`;
+      }
+    } else if (category === 'yc') {
+      pointEntity = dev.telemetries?.find((m: any) => String(m.pointId) === String(pointId));
+      if (pointEntity) {
+        unit = pointEntity.unit || '';
+        currentDisplayValue = `${pointEntity.value} ${unit}`;
+      }
+    }
+  }
+
+  const categoryLabelMap = {
+    yc: '遥测 YC (模拟量)',
+    yx: '遥信 YX (状态量)',
+    dd: '电度 DD (电能量)',
+    yk: '遥控 YK (控制输出)',
+    yt: '遥调 YT (定值输出)',
+    none: '未指定'
+  };
+
+  const categoryColorMap = {
+    yc: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40',
+    yx: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
+    dd: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+    yk: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+    yt: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
+    none: 'bg-slate-800 text-slate-400 border-slate-700'
+  };
+
+  return {
+    isBound,
+    deviceId: dev?.deviceId || devId,
+    deviceName: dev?.deviceName || mapping.deviceName || (devId ? `装置 ${devId}` : '未指定装置'),
+    device: dev,
+    category,
+    categoryLabel: categoryLabelMap[category],
+    categoryBadgeColor: categoryColorMap[category],
+    pointId,
+    pointName: pointEntity?.name || mapping.pointName || (pointId ? `测点 #${pointId}` : '未指定点名'),
+    pointKey: rawKey || (devId && pointId ? `${devId}_${category.toUpperCase()}_${pointId}` : ''),
+    currentDisplayValue,
+    unit,
+    statusText,
+    isControl,
+    isRegulation,
+    verificationPoint: verificationInfo
+  };
+});
+
+// Helper functions for reading verification values in the point table
+const getTargetYxStatusText = (targetYxId: number | string) => {
+  const dev = selectedDevice.value;
+  if (!dev || !dev.teleSignals) return '无遥信';
+  const yx = dev.teleSignals.find(s => String(s.pointId) === String(targetYxId));
+  if (!yx) return `未找到 [YX_${targetYxId}]`;
+  return `${yx.statusText || (yx.value === 1 ? '合闸' : '分闸')} (${yx.value})`;
+};
+
+const getTargetYcValueText = (targetYcId: number | string) => {
+  const dev = selectedDevice.value;
+  if (!dev || !dev.telemetries) return '无遥测';
+  const yc = dev.telemetries.find(m => String(m.pointId) === String(targetYcId));
+  if (!yc) return `未找到 [YC_${targetYcId}]`;
+  return `${yc.value} ${yc.unit || ''}`;
+};
+
+// Locate point in table & smooth scroll
+const scrollToPointInTable = (pointId?: number | string) => {
+  if (!pointId) return;
+  pointSearchQuery.value = '';
+  nextTick(() => {
+    const el = document.getElementById(`scada-point-row-${pointId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-cyan-400', 'bg-cyan-950/80');
+      setTimeout(() => {
+        el.classList.remove('ring-2', 'ring-cyan-400', 'bg-cyan-950/80');
+      }, 2500);
+    }
+  });
+};
+
+const handleLocateBoundPoint = () => {
+  const details = currentBindingDetails.value;
+  if (!details.isBound) return;
+  if (details.deviceId && currentDatasetDevices.value.some(d => d.deviceId === details.deviceId)) {
+    selectedDeviceId.value = details.deviceId;
+  }
+  if (details.category && details.category !== 'none') {
+    selectedTeleCategory.value = details.category as any;
+  }
+  scrollToPointInTable(details.pointId);
+};
+
+// Automatic reverse synchronization when component changes
+const syncCurrentComponentMapping = (autoScroll = false) => {
+  if (!props.component) return;
+  const details = currentBindingDetails.value;
+  if (details.isBound) {
+    if (details.deviceId && currentDatasetDevices.value.some(d => d.deviceId === details.deviceId)) {
+      selectedDeviceId.value = details.deviceId;
+    }
+    if (details.category && details.category !== 'none') {
+      selectedTeleCategory.value = details.category as any;
+    }
+    if (autoScroll && details.pointId) {
+      scrollToPointInTable(details.pointId);
+    }
+  } else {
+    // 智能默认
+    if (isElectricalSwitch.value) {
+      selectedTeleCategory.value = 'yx';
+    } else if (props.component.type === 'ctrl-button') {
+      selectedTeleCategory.value = 'yk';
+    } else if (props.component.category === 'metrics') {
+      selectedTeleCategory.value = 'yc';
+    }
+  }
+};
+
+watch(
+  () => props.component?.id,
+  (newId) => {
+    if (newId) {
+      syncCurrentComponentMapping(activeTab.value === 'data');
+    }
+  },
+  { immediate: true }
+);
+
+watch(
+  () => activeTab.value,
+  (newTab) => {
+    if (newTab === 'data') {
+      syncCurrentComponentMapping(true);
+    }
+  }
+);
+
+// Direct Smart Point Binding Action (严格遵循 SCADA 规范：遥控遥调本身无采样值，状态来自校验点)
 const handleBindPointToComponent = (point: any) => {
   if (!props.component) return;
   const dev = selectedDevice.value;
@@ -194,10 +456,9 @@ const handleBindPointToComponent = (point: any) => {
     mappingUpdates.valueKey = pointKey;
   }
 
-  // 2. 遥控/遥调类图元自动绑定操作动作与闭环校验测点
+  // 2. 遥控/遥调类图元：遥控遥调本身无采样值，画面状态和显示数值严格取校验点
   let newAction = props.component.data?.action;
   if (cat === 'yk') {
-    // 寻找默认关联遥信点
     const defaultYxId = point.targetPointId !== undefined ? point.targetPointId : (dev.teleSignals?.[0]?.pointId ?? 1);
     newAction = {
       type: 'tele-control',
@@ -207,12 +468,13 @@ const handleBindPointToComponent = (point: any) => {
       verifyType: 'yx',
       autoSyncState: true
     };
+    // 严谨 SCADA 规范：图元状态直接取闭环校验遥信
     mappingUpdates.stateKey = `${dev.deviceId}_YX_${defaultYxId}`;
     mappingUpdates.statusKey = `${dev.deviceId}_YX_${defaultYxId}`;
+    mappingUpdates.valueKey = `${dev.deviceId}_YX_${defaultYxId}`;
     mappingUpdates.ykPointId = point.pointId;
     mappingUpdates.targetYxPointId = defaultYxId;
   } else if (cat === 'yt') {
-    // 寻找默认关联遥测点
     const defaultYcId = point.targetYcPointId !== undefined ? point.targetYcPointId : (dev.telemetries?.[0]?.pointId ?? 1);
     newAction = {
       type: 'tele-regulation',
@@ -222,6 +484,7 @@ const handleBindPointToComponent = (point: any) => {
       verifyType: 'yc',
       autoSyncState: true
     };
+    // 严谨 SCADA 规范：图元实测读数直接取闭环校验遥测
     mappingUpdates.valueKey = `${dev.deviceId}_YC_${defaultYcId}`;
     mappingUpdates.ytPointId = point.pointId;
     mappingUpdates.targetYcPointId = defaultYcId;
@@ -242,27 +505,31 @@ const handleBindPointToComponent = (point: any) => {
   });
 };
 
-// Set Verification Point for YK / YT
+// Set Verification Point for YK / YT (切换校验点时同步刷新图元的数据显示源)
 const handleSetVerificationPoint = (verifyPointId: number | string) => {
-  if (!props.component || !props.component.data?.action) return;
-  const action = props.component.data.action;
-  const devId = action.deviceId || props.component.data.mapping?.deviceId || selectedDevice.value?.deviceId || 'DEV-101';
+  if (!props.component) return;
+  const action = props.component.data?.action;
+  const devId = action?.deviceId || props.component.data.mapping?.deviceId || selectedDevice.value?.deviceId || 'DEV-101';
   
-  if (action.type === 'tele-control') {
+  if (selectedTeleCategory.value === 'yk' || action?.type === 'tele-control') {
     updateComponentData({
       mapping: {
         ...props.component.data.mapping,
         targetYxPointId: verifyPointId,
         stateKey: `${devId}_YX_${verifyPointId}`,
-        statusKey: `${devId}_YX_${verifyPointId}`
+        statusKey: `${devId}_YX_${verifyPointId}`,
+        valueKey: `${devId}_YX_${verifyPointId}`
       },
       action: {
-        ...action,
+        ...(action || { type: 'tele-control', deviceId: devId, pointId: props.component.data.mapping?.ykPointId || 1 }),
+        type: 'tele-control',
+        deviceId: devId,
         targetPointId: verifyPointId,
-        verifyType: 'yx'
+        verifyType: 'yx',
+        autoSyncState: true
       }
     });
-  } else if (action.type === 'tele-regulation') {
+  } else if (selectedTeleCategory.value === 'yt' || action?.type === 'tele-regulation') {
     updateComponentData({
       mapping: {
         ...props.component.data.mapping,
@@ -270,9 +537,12 @@ const handleSetVerificationPoint = (verifyPointId: number | string) => {
         valueKey: `${devId}_YC_${verifyPointId}`
       },
       action: {
-        ...action,
+        ...(action || { type: 'tele-regulation', deviceId: devId, pointId: props.component.data.mapping?.ytPointId || 1 }),
+        type: 'tele-regulation',
+        deviceId: devId,
         targetPointId: verifyPointId,
-        verifyType: 'yc'
+        verifyType: 'yc',
+        autoSyncState: true
       }
     });
   }
@@ -1215,192 +1485,353 @@ const toggleBatchLock = () => {
           </div>
 
           <!-- ================= SCADA FOUR-TELEMETRY MODE ================= -->
-          <div v-if="dataBindingSource === 'scada'" class="space-y-3.5">
-            <!-- Currently Bound Summary Badge -->
-            <div class="p-2.5 rounded-lg bg-[#050a16] border border-cyan-500/30 text-xs space-y-1">
-              <div class="flex items-center justify-between text-slate-300">
-                <span class="font-semibold text-cyan-300 flex items-center gap-1">
-                  <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-                  <span>当前绑定状态</span>
-                </span>
-                <span class="text-[10px] text-slate-400 font-mono">
-                  {{ component.data.useStatic ? '使用静态数据' : '使用SCADA实时' }}
-                </span>
-              </div>
-              <div class="text-[11px] font-mono text-slate-300 break-all pt-0.5">
-                <template v-if="component.data.mapping?.stateKey || component.data.mapping?.valueKey || component.data.mapping?.seriesKey">
-                  <span class="text-cyan-400 font-bold">已绑键:</span> {{ component.data.mapping.stateKey || component.data.mapping.valueKey || component.data.mapping.seriesKey }}
-                  <span v-if="component.data.mapping.deviceId" class="text-slate-400">({{ component.data.mapping.deviceId }})</span>
-                </template>
-                <template v-else>
-                  <span class="text-amber-400/80">未绑定具体点号 (使用默认值)</span>
-                </template>
-              </div>
-            </div>
-
-            <!-- Step 1: Select SCADA Dataset -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">
-                1. 选择 SCADA 集控数据集
-              </label>
-              <select
-                :value="component.data.datasetId || boundDataset?.id || ''"
-                @change="updateComponentData({ datasetId: ($event.target as HTMLSelectElement).value, useStatic: false })"
-                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-semibold text-xs outline-hidden cursor-pointer"
-              >
-                <option v-for="ds in datasets" :key="ds.id" :value="ds.id">
-                  {{ ds.name }} ({{ ds.type }})
-                </option>
-              </select>
-            </div>
-
-            <!-- Step 2: Select Device -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">
-                2. 选择受控装置 (Device)
-              </label>
-              <select
-                v-model="selectedDeviceId"
-                class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-bold text-xs outline-hidden cursor-pointer"
-              >
-                <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
-                  [{{ dev.deviceId }}] {{ dev.deviceName }}
-                </option>
-              </select>
-            </div>
-
-            <!-- Step 3: Select Telemetry Category (YC / YX / DD / YK / YT) -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">
-                3. 选择四遥分类 (直连测点)
-              </label>
-              <div class="grid grid-cols-5 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
-                <button
-                  @click="selectedTeleCategory = 'yc'"
-                  class="py-1 rounded text-center cursor-pointer transition-colors"
-                  :class="selectedTeleCategory === 'yc' ? 'bg-cyan-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
-                >
-                  遥测 YC
-                </button>
-                <button
-                  @click="selectedTeleCategory = 'yx'"
-                  class="py-1 rounded text-center cursor-pointer transition-colors"
-                  :class="selectedTeleCategory === 'yx' ? 'bg-emerald-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
-                >
-                  遥信 YX
-                </button>
-                <button
-                  @click="selectedTeleCategory = 'dd'"
-                  class="py-1 rounded text-center cursor-pointer transition-colors"
-                  :class="selectedTeleCategory === 'dd' ? 'bg-amber-500 text-slate-950 font-bold' : 'text-slate-400 hover:text-white'"
-                >
-                  电度 DD
-                </button>
-                <button
-                  @click="selectedTeleCategory = 'yk'"
-                  class="py-1 rounded text-center cursor-pointer transition-colors"
-                  :class="selectedTeleCategory === 'yk' ? 'bg-purple-500 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                >
-                  遥控 YK
-                </button>
-                <button
-                  @click="selectedTeleCategory = 'yt'"
-                  class="py-1 rounded text-center cursor-pointer transition-colors"
-                  :class="selectedTeleCategory === 'yt' ? 'bg-blue-500 text-white font-bold' : 'text-slate-400 hover:text-white'"
-                >
-                  遥调 YT
-                </button>
-              </div>
-            </div>
-
-            <!-- Step 4: Point List & Search (智能直接关联) -->
-            <div class="space-y-2">
-              <div class="flex items-center justify-between">
-                <label class="text-xs font-semibold text-slate-200">
-                  4. 点击测点即时智能绑定
-                </label>
+          <div v-if="dataBindingSource === 'scada'" class="space-y-4">
+            <!-- 1. SCADA 测点关联全景卡片 (Already Bound Details & Quick Locating) -->
+            <div
+              class="p-3 rounded-xl border transition-all"
+              :class="currentBindingDetails.isBound ? 'bg-[#050e1f] border-cyan-500/50 shadow-[0_0_20px_rgba(0,242,255,0.08)]' : 'bg-[#060b17] border-slate-800'"
+            >
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
                 <div class="flex items-center gap-2">
+                  <div
+                    class="w-2 h-2 rounded-full"
+                    :class="currentBindingDetails.isBound ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'"
+                  ></div>
+                  <span class="font-bold text-xs" :class="currentBindingDetails.isBound ? 'text-cyan-300' : 'text-slate-400'">
+                    {{ currentBindingDetails.isBound ? '已关联 SCADA 测点' : '未关联 SCADA 实时测点' }}
+                  </span>
+                </div>
+                
+                <span
+                  v-if="currentBindingDetails.isBound"
+                  class="px-2 py-0.5 rounded text-[10px] font-mono font-bold border"
+                  :class="currentBindingDetails.categoryBadgeColor"
+                >
+                  {{ currentBindingDetails.categoryLabel }}
+                </span>
+                <span v-else class="text-[10px] text-slate-500 font-mono">处于仿真默认模式</span>
+              </div>
+
+              <!-- Bound Details Display -->
+              <div v-if="currentBindingDetails.isBound" class="pt-2.5 space-y-2 text-xs">
+                <!-- Device & Point Meta -->
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div class="bg-[#030712]/80 p-2 rounded-lg border border-slate-800/80">
+                    <span class="text-slate-400 block text-[10px]">关联测控装置</span>
+                    <span class="font-bold text-slate-200 truncate block mt-0.5" :title="currentBindingDetails.deviceName">
+                      [{{ currentBindingDetails.deviceId }}] {{ currentBindingDetails.deviceName }}
+                    </span>
+                  </div>
+                  <div class="bg-[#030712]/80 p-2 rounded-lg border border-slate-800/80">
+                    <span class="text-slate-400 block text-[10px]">关联点号与名称</span>
+                    <span class="font-bold text-cyan-300 truncate block mt-0.5" :title="currentBindingDetails.pointName">
+                      #{{ currentBindingDetails.pointId }} {{ currentBindingDetails.pointName }}
+                    </span>
+                  </div>
+                </div>
+
+                <!-- Strict Telemetry / Tele-control Real-time Value Box -->
+                <div class="p-2.5 rounded-lg border" :class="currentBindingDetails.isControl ? 'bg-purple-950/20 border-purple-500/40' : (currentBindingDetails.isRegulation ? 'bg-blue-950/20 border-blue-500/40' : 'bg-cyan-950/20 border-cyan-500/40')">
+                  <!-- Case 1: Tele-Control (YK) - Explicitly state it has NO raw sampled value, displays verification point -->
+                  <template v-if="currentBindingDetails.isControl">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-[10px] font-bold text-purple-300 flex items-center gap-1">
+                        <ShieldCheck class="w-3 h-3 text-purple-400" />
+                        <span>遥控通道性质: 控制输出 (无现场采样值)</span>
+                      </span>
+                      <span class="text-[9px] px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-200 border border-purple-400/30 font-mono">
+                        双位置控制
+                      </span>
+                    </div>
+                    <div class="flex items-baseline justify-between pt-1">
+                      <span class="text-[11px] text-slate-300">图元状态显示 (取自校验遥信):</span>
+                      <div class="text-right">
+                        <span class="font-mono font-bold text-emerald-400 text-sm">
+                          {{ currentBindingDetails.currentDisplayValue }}
+                        </span>
+                        <span v-if="currentBindingDetails.verificationPoint" class="block text-[10px] text-purple-300 font-mono">
+                          来自: [YX_{{ currentBindingDetails.verificationPoint.pointId }}] {{ currentBindingDetails.verificationPoint.pointName }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="mt-1.5 pt-1.5 border-t border-purple-500/20 text-[10px] text-purple-300/80 leading-tight">
+                      💡 严谨 SCADA 规约：遥控本身无测量数据值，画面图元分合状态由闭环校验遥信实时驱动。
+                    </div>
+                  </template>
+
+                  <!-- Case 2: Tele-Regulation (YT) - Explicitly state it displays verification telemetry -->
+                  <template v-else-if="currentBindingDetails.isRegulation">
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-[10px] font-bold text-blue-300 flex items-center gap-1">
+                        <ShieldCheck class="w-3 h-3 text-blue-400" />
+                        <span>遥调通道性质: 定值输出 (无现场采样值)</span>
+                      </span>
+                      <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-200 border border-blue-400/30 font-mono">
+                        模拟量整定
+                      </span>
+                    </div>
+                    <div class="flex items-baseline justify-between pt-1">
+                      <span class="text-[11px] text-slate-300">图元数值显示 (取自校验遥测):</span>
+                      <div class="text-right">
+                        <span class="font-mono font-bold text-cyan-300 text-sm">
+                          {{ currentBindingDetails.currentDisplayValue }}
+                        </span>
+                        <span v-if="currentBindingDetails.verificationPoint" class="block text-[10px] text-blue-300 font-mono">
+                          来自: [YC_{{ currentBindingDetails.verificationPoint.pointId }}] {{ currentBindingDetails.verificationPoint.pointName }}
+                        </span>
+                      </div>
+                    </div>
+                    <div class="mt-1.5 pt-1.5 border-t border-blue-500/20 text-[10px] text-blue-300/80 leading-tight">
+                      💡 严谨 SCADA 规约：遥调本身无测量数据值，画面图元实时读数由闭环校验遥测实测值驱动。
+                    </div>
+                  </template>
+
+                  <!-- Case 3: Standard Telemetry (YC), Tele-Signal (YX), Energy (DD) -->
+                  <template v-else>
+                    <div class="flex items-center justify-between mb-1">
+                      <span class="text-[10px] font-bold text-slate-400">现场实时采样值</span>
+                      <span class="text-[9px] text-emerald-400 font-mono">质量码: 0x00 优</span>
+                    </div>
+                    <div class="flex items-baseline justify-between">
+                      <span class="text-[10px] text-slate-400 font-mono">采样通道键:</span>
+                      <span class="font-mono font-bold text-cyan-300 text-sm">
+                        {{ currentBindingDetails.currentDisplayValue }}
+                      </span>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Bound Action Toolbar: Locate in Table, Control Test, Unbind -->
+                <div class="flex items-center gap-1.5 pt-1">
                   <button
-                    v-if="component.data.mapping?.pointId || component.data.mapping?.valueKey"
-                    @click="handleUnbindPoint"
-                    class="text-[10px] text-red-400 hover:text-red-300 font-bold cursor-pointer"
+                    @click="handleLocateBoundPoint"
+                    class="flex-1 py-1.5 px-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                    title="在下方点表库中快速定位并聚焦此测点"
                   >
-                    解除绑定
+                    <Crosshair class="w-3.5 h-3.5 text-cyan-400" />
+                    <span>在点表中定位</span>
                   </button>
-                  <span class="text-[10px] text-cyan-400 font-mono">共 {{ filteredPoints.length }} 个</span>
+
+                  <button
+                    v-if="currentBindingDetails.isControl || currentBindingDetails.isRegulation"
+                    @click="emit('open:control', currentBindingDetails.deviceId || 'DEV-101')"
+                    class="py-1.5 px-2.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-500/50 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-xs"
+                    title="在控制台下发遥控/遥调预演指令"
+                  >
+                    <Zap class="w-3.5 h-3.5 text-purple-400" />
+                    <span>控制台预演</span>
+                  </button>
+
+                  <button
+                    @click="handleUnbindPoint"
+                    class="py-1.5 px-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all"
+                    title="解除当前图元与此测点的关联"
+                  >
+                    <Unlink class="w-3 h-3 text-rose-400" />
+                    <span>解绑</span>
+                  </button>
                 </div>
               </div>
 
-              <!-- Search Input -->
-              <div class="relative">
-                <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
-                <input
-                  type="text"
-                  v-model="pointSearchQuery"
-                  placeholder="搜索点号、名称或说明..."
-                  class="w-full bg-[#060b17] border border-slate-800 focus:border-cyan-400 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 outline-hidden"
-                />
+              <!-- Empty prompt -->
+              <div v-else class="pt-2 text-[11px] text-slate-400 leading-relaxed">
+                当前图元尚未关联集控系统的实时点表。请在下方依次按【厂站/装置 ➔ 四遥分类 ➔ 规约测点】流程选择并建立严谨的规约映射。
+              </div>
+            </div>
+
+            <!-- ================= TRADITIONAL SCADA 4-STEP BINDING WORKFLOW ================= -->
+            <div class="space-y-3 pt-1">
+              <!-- Step 1: Substation & IED Device -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] flex items-center justify-center font-mono font-bold">1</span>
+                    <span>受控间隔与测控装置 (IED Device)</span>
+                  </label>
+                  <span class="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    通信在线
+                  </span>
+                </div>
+                <select
+                  v-model="selectedDeviceId"
+                  class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-bold text-xs outline-hidden cursor-pointer"
+                >
+                  <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
+                    [{{ dev.deviceId }}] {{ dev.deviceName }} ({{ dev.deviceType || '测控保护' }})
+                  </option>
+                </select>
               </div>
 
-              <!-- Scrollable Point List -->
-              <div class="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-0.5">
-                <div
-                  v-for="pt in filteredPoints"
-                  :key="pt.pointId"
-                  @click="handleBindPointToComponent(pt)"
-                  class="p-2 rounded-lg bg-[#060b17] border border-slate-800 hover:border-cyan-500/70 text-xs cursor-pointer transition-all flex items-center justify-between group"
-                  :class="component.data.mapping?.pointId === pt.pointId && component.data.mapping?.deviceId === selectedDevice?.deviceId ? 'border-cyan-400 bg-cyan-950/30' : ''"
-                >
-                  <div class="flex items-center gap-2 overflow-hidden">
-                    <span class="font-mono font-bold text-cyan-400 text-[11px] shrink-0">#{{ pt.pointId }}</span>
-                    <div class="truncate">
-                      <span class="font-semibold text-slate-200 block truncate group-hover:text-cyan-300">{{ pt.name }}</span>
-                      <span class="text-[10px] text-slate-400 block truncate font-mono">
-                        {{ selectedDevice?.deviceId }}_{{ selectedTeleCategory.toUpperCase() }}_{{ pt.pointId }}
+              <!-- Step 2: Telemetry Classification (四遥严格分流) -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] flex items-center justify-center font-mono font-bold">2</span>
+                    <span>四遥测点分类 (Tele-Category)</span>
+                  </label>
+                  <span class="text-[10px] text-slate-400 font-mono">
+                    当前装置包含 {{ selectedDevice ? (selectedDevice.telemetries?.length || 0) + (selectedDevice.teleSignals?.length || 0) + (selectedDevice.energies?.length || 0) + (selectedDevice.teleControls?.length || 0) + (selectedDevice.teleRegulations?.length || 0) : 0 }} 个测点
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-5 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800 text-[11px] font-bold">
+                  <button
+                    @click="selectedTeleCategory = 'yc'"
+                    class="py-1.5 rounded text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                    :class="selectedTeleCategory === 'yc' ? 'bg-cyan-500 text-slate-950 font-bold shadow-xs' : 'text-slate-400 hover:text-white'"
+                  >
+                    <span>遥测 YC</span>
+                    <span class="text-[9px] font-mono opacity-80">模拟量 ({{ selectedDevice?.telemetries?.length || 0 }})</span>
+                  </button>
+                  <button
+                    @click="selectedTeleCategory = 'yx'"
+                    class="py-1.5 rounded text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                    :class="selectedTeleCategory === 'yx' ? 'bg-emerald-500 text-slate-950 font-bold shadow-xs' : 'text-slate-400 hover:text-white'"
+                  >
+                    <span>遥信 YX</span>
+                    <span class="text-[9px] font-mono opacity-80">状态量 ({{ selectedDevice?.teleSignals?.length || 0 }})</span>
+                  </button>
+                  <button
+                    @click="selectedTeleCategory = 'dd'"
+                    class="py-1.5 rounded text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                    :class="selectedTeleCategory === 'dd' ? 'bg-amber-500 text-slate-950 font-bold shadow-xs' : 'text-slate-400 hover:text-white'"
+                  >
+                    <span>电度 DD</span>
+                    <span class="text-[9px] font-mono opacity-80">电能量 ({{ selectedDevice?.energies?.length || 0 }})</span>
+                  </button>
+                  <button
+                    @click="selectedTeleCategory = 'yk'"
+                    class="py-1.5 rounded text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                    :class="selectedTeleCategory === 'yk' ? 'bg-purple-500 text-white font-bold shadow-xs' : 'text-slate-400 hover:text-white'"
+                  >
+                    <span>遥控 YK</span>
+                    <span class="text-[9px] font-mono opacity-80">控制 ({{ selectedDevice?.teleControls?.length || 0 }})</span>
+                  </button>
+                  <button
+                    @click="selectedTeleCategory = 'yt'"
+                    class="py-1.5 rounded text-center cursor-pointer transition-all flex flex-col items-center justify-center"
+                    :class="selectedTeleCategory === 'yt' ? 'bg-blue-500 text-white font-bold shadow-xs' : 'text-slate-400 hover:text-white'"
+                  >
+                    <span>遥调 YT</span>
+                    <span class="text-[9px] font-mono opacity-80">定值 ({{ selectedDevice?.teleRegulations?.length || 0 }})</span>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Step 3: SCADA Point Table Mapping (标准工业点表) -->
+              <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-400 text-[10px] flex items-center justify-center font-mono font-bold">3</span>
+                    <span>工业规约点表检索与关联 (Point Library)</span>
+                  </label>
+                  <span class="text-[10px] text-cyan-400 font-mono">共 {{ filteredPoints.length }} 个测点</span>
+                </div>
+
+                <!-- Search Input -->
+                <div class="relative">
+                  <Search class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2" />
+                  <input
+                    type="text"
+                    v-model="pointSearchQuery"
+                    placeholder="按点号、中文点名、规约标识搜索..."
+                    class="w-full bg-[#060b17] border border-slate-800 focus:border-cyan-400 rounded-lg pl-8 pr-2.5 py-1.5 text-xs text-slate-200 outline-hidden"
+                  />
+                </div>
+
+                <!-- Scrollable Point List -->
+                <div class="space-y-1.5 max-h-56 overflow-y-auto custom-scrollbar pr-0.5">
+                  <div
+                    v-for="pt in filteredPoints"
+                    :key="pt.pointId"
+                    :id="`scada-point-row-${pt.pointId}`"
+                    @click="handleBindPointToComponent(pt)"
+                    class="p-2 rounded-lg bg-[#060b17] border text-xs cursor-pointer transition-all flex items-center justify-between group"
+                    :class="[
+                      currentBindingDetails.isBound &&
+                      currentBindingDetails.deviceId === selectedDevice?.deviceId &&
+                      currentBindingDetails.category === selectedTeleCategory &&
+                      String(currentBindingDetails.pointId) === String(pt.pointId)
+                        ? 'border-cyan-400 bg-cyan-950/40 shadow-[0_0_12px_rgba(0,242,255,0.15)] ring-1 ring-cyan-400'
+                        : 'border-slate-800 hover:border-cyan-500/70 hover:bg-slate-900/50'
+                    ]"
+                  >
+                    <div class="flex items-center gap-2 overflow-hidden">
+                      <span class="font-mono font-bold text-cyan-400 text-[11px] shrink-0">#{{ pt.pointId }}</span>
+                      <div class="truncate">
+                        <div class="flex items-center gap-1.5">
+                          <span class="font-semibold text-slate-200 block truncate group-hover:text-cyan-300">{{ pt.name }}</span>
+                          <span
+                            v-if="currentBindingDetails.isBound && currentBindingDetails.deviceId === selectedDevice?.deviceId && currentBindingDetails.category === selectedTeleCategory && String(currentBindingDetails.pointId) === String(pt.pointId)"
+                            class="px-1 py-0.2 rounded text-[9px] bg-cyan-500 text-slate-950 font-bold shrink-0"
+                          >
+                            已关联
+                          </span>
+                        </div>
+                        <span class="text-[10px] text-slate-400 block truncate font-mono">
+                          {{ selectedDevice?.deviceId }}_{{ selectedTeleCategory.toUpperCase() }}_{{ pt.pointId }}
+                        </span>
+                      </div>
+                    </div>
+
+                    <!-- Right Side: Rigorous Value & Status Handling (YK/YT shows verification point) -->
+                    <div class="text-right shrink-0 pl-2">
+                      <!-- Case YC / DD -->
+                      <span
+                        v-if="selectedTeleCategory === 'yc' || selectedTeleCategory === 'dd'"
+                        class="font-mono font-bold text-emerald-400 text-xs block"
+                      >
+                        {{ pt.value }} <span class="text-[10px] text-cyan-300 font-normal">{{ pt.unit || '' }}</span>
                       </span>
+
+                      <!-- Case YX -->
+                      <span
+                        v-else-if="selectedTeleCategory === 'yx'"
+                        class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono inline-block"
+                        :class="pt.value === 1 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : (pt.value === 2 ? 'bg-amber-950 text-amber-300 border border-amber-500/40' : 'bg-slate-900 text-slate-400 border border-slate-700')"
+                      >
+                        {{ pt.value }} ({{ pt.statusText || (pt.value === 1 ? '合闸' : '分闸') }})
+                      </span>
+
+                      <!-- Case YK: Rigorous industrial presentation - No raw sampled value, displays verification YX state -->
+                      <div v-else-if="selectedTeleCategory === 'yk'" class="space-y-0.5">
+                        <span class="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-purple-950/80 text-purple-300 border border-purple-500/40">
+                          控制通道 (无采样值)
+                        </span>
+                        <span class="text-[10px] text-slate-300 block font-mono">
+                          ➔ 校验 [YX_{{ pt.targetPointId || 1 }}]: <span class="text-emerald-400 font-bold">{{ getTargetYxStatusText(pt.targetPointId || 1) }}</span>
+                        </span>
+                      </div>
+
+                      <!-- Case YT: Rigorous industrial presentation - No raw sampled value, displays verification YC value -->
+                      <div v-else-if="selectedTeleCategory === 'yt'" class="space-y-0.5">
+                        <span class="inline-block px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-blue-950/80 text-blue-300 border border-blue-500/40">
+                          调节通道 (无采样值)
+                        </span>
+                        <span class="text-[10px] text-slate-300 block font-mono">
+                          ➔ 校验 [YC_{{ pt.targetYcPointId || 1 }}]: <span class="text-cyan-300 font-bold">{{ getTargetYcValueText(pt.targetYcPointId || 1) }}</span>
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div class="text-right shrink-0 pl-2">
-                    <span
-                      v-if="selectedTeleCategory === 'yc' || selectedTeleCategory === 'dd'"
-                      class="font-mono font-bold text-emerald-400 text-xs block"
-                    >
-                      {{ pt.value }} <span class="text-[10px] text-cyan-300 font-normal">{{ pt.unit || '' }}</span>
-                    </span>
-                    <span
-                      v-else-if="selectedTeleCategory === 'yx'"
-                      class="px-1.5 py-0.5 rounded text-[10px] font-bold font-mono"
-                      :class="pt.value === 1 ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : (pt.value === 2 ? 'bg-amber-950 text-amber-300 border border-amber-500/40' : 'bg-slate-900 text-slate-400 border border-slate-700')"
-                    >
-                      {{ pt.value }} ({{ pt.statusText || (pt.value === 1 ? '合闸' : '分闸') }})
-                    </span>
-                    <span
-                      v-else-if="selectedTeleCategory === 'yk'"
-                      class="text-[10px] text-amber-300 font-mono"
-                    >
-                      {{ pt.options?.length || 2 }} 档控制
-                    </span>
-                    <span
-                      v-else-if="selectedTeleCategory === 'yt'"
-                      class="text-[10px] text-cyan-300 font-mono"
-                    >
-                      {{ pt.value }} {{ pt.unit }}
-                    </span>
+                  <div v-if="filteredPoints.length === 0" class="p-4 text-center text-xs text-slate-500">
+                    未找到符合条件的规约测点
                   </div>
-                </div>
-
-                <div v-if="filteredPoints.length === 0" class="p-4 text-center text-xs text-slate-500">
-                  未找到符合条件的测点
                 </div>
               </div>
 
-              <!-- STEP 2: Closed-Loop Verification Point (遥控->遥信校验 / 遥调->遥测校验) -->
-              <div v-if="component.data.action?.type === 'tele-control' || component.data.action?.type === 'tele-regulation' || selectedTeleCategory === 'yk' || selectedTeleCategory === 'yt'" class="p-3 rounded-xl bg-purple-950/30 border border-purple-500/50 space-y-2.5">
+              <!-- Step 4: Closed-Loop Verification & Safety Interlock (针对遥控遥调的严密闭环校验) -->
+              <div
+                v-if="component.data.action?.type === 'tele-control' || component.data.action?.type === 'tele-regulation' || selectedTeleCategory === 'yk' || selectedTeleCategory === 'yt'"
+                class="p-3 rounded-xl bg-purple-950/30 border border-purple-500/50 space-y-2.5"
+              >
                 <div class="flex items-center justify-between text-xs font-bold text-purple-300">
                   <span class="flex items-center gap-1.5">
+                    <span class="w-4 h-4 rounded-full bg-purple-500/20 text-purple-400 text-[10px] flex items-center justify-center font-mono font-bold">4</span>
                     <ShieldCheck class="w-4 h-4 text-purple-400" />
-                    <span>指定闭环校验点 (Step 2 校验)</span>
+                    <span>闭环校验点与状态源设定 (Closed-Loop Verification)</span>
                   </span>
                   <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-900/60 text-purple-200 border border-purple-400/40 font-mono">
                     {{ (component.data.action?.type === 'tele-control' || selectedTeleCategory === 'yk') ? '遥控 ➔ 校验遥信 (YX)' : '遥调 ➔ 校验遥测 (YC)' }}
@@ -1408,49 +1839,53 @@ const toggleBatchLock = () => {
                 </div>
 
                 <div class="text-[11px] text-slate-300 leading-relaxed">
-                  选择下发指令后用于状态校验反馈的测点。遥控将校验对应遥信变位，遥调将校验遥测数值更新：
+                  严谨 SCADA 规约要求：下发指令后必须通过现场测点校验闭环生效。图元画面中显示的开合状态或实测数值将严格绑定于此校验点：
                 </div>
 
                 <!-- Select corresponding YX for YK -->
                 <div v-if="component.data.action?.type === 'tele-control' || selectedTeleCategory === 'yk'">
-                  <label class="text-[11px] font-semibold text-purple-300 block mb-1">对应校验遥信点 (YX)</label>
+                  <label class="text-[11px] font-semibold text-purple-300 block mb-1">
+                    对应状态校验遥信点 (YX) - 驱动图元画面开合显示
+                  </label>
                   <select
                     :value="component.data.action?.targetPointId ?? component.data.mapping?.targetYxPointId ?? selectedDevice?.teleSignals?.[0]?.pointId ?? ''"
                     @change="handleSetVerificationPoint(Number(($event.target as HTMLSelectElement).value))"
                     class="w-full bg-[#060b17] border border-purple-500/40 focus:border-purple-300 rounded-lg px-2.5 py-1.5 text-purple-200 font-mono font-bold text-xs outline-hidden cursor-pointer"
                   >
                     <option v-for="yx in selectedDevice?.teleSignals || []" :key="yx.pointId" :value="yx.pointId">
-                      [YX_{{ yx.pointId }}] {{ yx.name }} (当前值: {{ yx.value }} - {{ yx.statusText || (yx.value === 1 ? '合闸' : '分闸') }})
+                      [YX_{{ yx.pointId }}] {{ yx.name }} (实时反馈: {{ yx.value }} - {{ yx.statusText || (yx.value === 1 ? '合闸' : '分闸') }})
                     </option>
                   </select>
                 </div>
 
                 <!-- Select corresponding YC for YT -->
                 <div v-if="component.data.action?.type === 'tele-regulation' || selectedTeleCategory === 'yt'">
-                  <label class="text-[11px] font-semibold text-purple-300 block mb-1">对应校验遥测点 (YC)</label>
+                  <label class="text-[11px] font-semibold text-blue-300 block mb-1">
+                    对应实测校验遥测点 (YC) - 驱动图元画面定值显示
+                  </label>
                   <select
                     :value="component.data.action?.targetPointId ?? component.data.mapping?.targetYcPointId ?? selectedDevice?.telemetries?.[0]?.pointId ?? ''"
                     @change="handleSetVerificationPoint(Number(($event.target as HTMLSelectElement).value))"
-                    class="w-full bg-[#060b17] border border-purple-500/40 focus:border-purple-300 rounded-lg px-2.5 py-1.5 text-purple-200 font-mono font-bold text-xs outline-hidden cursor-pointer"
+                    class="w-full bg-[#060b17] border border-blue-500/40 focus:border-blue-300 rounded-lg px-2.5 py-1.5 text-blue-200 font-mono font-bold text-xs outline-hidden cursor-pointer"
                   >
                     <option v-for="yc in selectedDevice?.telemetries || []" :key="yc.pointId" :value="yc.pointId">
-                      [YC_{{ yc.pointId }}] {{ yc.name }} (当前值: {{ yc.value }} {{ yc.unit || '' }})
+                      [YC_{{ yc.pointId }}] {{ yc.name }} (现场实测: {{ yc.value }} {{ yc.unit || '' }})
                     </option>
                   </select>
                 </div>
 
-                <!-- Quick Test Button -->
+                <!-- Quick Test Button in Step 4 -->
                 <button
                   @click="emit('open:control', selectedDevice?.deviceId || component.data.action?.deviceId || 'DEV-101')"
                   class="w-full py-1.5 px-2.5 rounded-lg bg-purple-900/60 hover:bg-purple-800 text-purple-200 border border-purple-500/50 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors shadow-xs"
                 >
                   <Zap class="w-3.5 h-3.5 text-purple-400" />
-                  <span>立即在控制台预演下发并校验</span>
+                  <span>立即在控制台预演下发并校验变位</span>
                 </button>
               </div>
 
               <!-- Quick shortcut to bulk points manager -->
-              <div class="pt-2">
+              <div class="pt-1">
                 <button
                   @click="emit('open:batch:points')"
                   class="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
