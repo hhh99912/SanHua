@@ -19,7 +19,7 @@ const handcartState = computed(() => {
 
   const isWorking = resolved.isWorking || resolved.numericValue === 1 || resolved.numericValue === 4;
   const isTest = resolved.isTest || resolved.numericValue === 0 || resolved.numericValue === 3;
-  const posColor = isWorking ? '#ef4444' : (isTest ? '#3b82f6' : '#10b981');
+  const posColor = isWorking ? '#ff3344' : (isTest ? '#00f2ff' : '#00e676');
 
   return {
     isWorking,
@@ -41,8 +41,8 @@ const handcartState = computed(() => {
       viewBox="0 0 70 80" 
       preserveAspectRatio="xMidYMid meet"
     >
-      <!-- Fixed Outer Cabinet Guide Frame (Dashed) -->
-      <rect x="8" y="8" width="54" height="64" rx="2" fill="none" stroke="#475569" stroke-width="1.5" stroke-dasharray="3 3" />
+      <!-- Fixed Outer Cabinet Guide Frame (Dashed, High Brightness) -->
+      <rect x="8" y="8" width="54" height="64" rx="2" fill="none" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="3 3" stroke-opacity="0.8" />
       
       <!-- Top Fixed Contact Pin -->
       <circle cx="35" cy="8" r="3" :fill="handcartState.stroke" />

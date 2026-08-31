@@ -21,8 +21,8 @@ const breakerState = computed(() => {
   const isClosed = resolved.isClosed || resolved.numericValue === 1;
   const status = resolved.isFault ? 'fault' : (isClosed ? 'closed' : 'open');
   const statusColor = resolved.color || (status === 'fault' 
-    ? '#f59e0b' 
-    : (isClosed ? (style.breakerColorClosed || '#ef4444') : (style.breakerColorOpen || '#10b981')));
+    ? '#ffb703' 
+    : (isClosed ? (style.breakerColorClosed || '#ff3344') : (style.breakerColorOpen || '#00e676')));
 
   return {
     status,
@@ -53,7 +53,7 @@ const breakerState = computed(() => {
         y="20" 
         width="30" 
         height="40" 
-        :fill="breakerState.isClosed ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.15)'" 
+        :fill="breakerState.isClosed ? 'rgba(255, 51, 68, 0.25)' : 'rgba(0, 230, 118, 0.25)'" 
         :stroke="breakerState.statusColor" 
         :stroke-width="breakerState.strokeWidth"
         rx="2"

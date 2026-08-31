@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
-import { withAlpha } from '../../utils/color';
 
 interface Props {
   component: ScreenComponent;
@@ -25,8 +24,8 @@ const matrixState = computed(() => {
   const activeData = boundDataset?.data || data.staticData || {};
 
   const devices = activeData.devices || defaultDevices;
-  const themeColor = style.fill || '#00f2ff';
-  const title = props.component.name || '车间智能设备矩阵工况';
+  const themeColor = style.stroke || '#00f2ff';
+  const title = props.component.name || '车间设备矩阵工况';
 
   return {
     devices,
@@ -38,50 +37,50 @@ const matrixState = computed(() => {
 
 <template>
   <div 
-    class="w-full h-full p-2.5 rounded-xl bg-[#080d18]/95 border border-slate-800 flex flex-col justify-between select-none shadow-xl overflow-hidden"
-    :style="{ borderColor: withAlpha(matrixState.themeColor, 0.25) }"
+    class="w-full h-full p-2 rounded-xl bg-[#060e22] border border-cyan-400/60 flex flex-col justify-between select-none shadow-[0_4px_20px_rgba(0,0,0,0.8)] overflow-hidden"
+    :style="{ borderColor: matrixState.themeColor }"
   >
     <!-- Header -->
-    <div class="flex items-center justify-between border-b border-cyan-500/20 pb-2 mb-2">
+    <div class="flex items-center justify-between border-b border-cyan-400/30 pb-1.5 mb-1.5 shrink-0">
       <div class="flex items-center gap-1.5">
-        <div class="w-1.5 h-3 bg-cyan-400 rounded-[2px]" />
-        <span class="text-xs font-mono font-bold text-cyan-200 tracking-wider">
+        <span class="w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_6px_#00f2ff]" />
+        <span class="text-xs font-bold text-white tracking-wider">
           {{ matrixState.title }}
         </span>
       </div>
-      <div class="flex items-center gap-2 text-[10px] font-mono">
-        <span class="text-emerald-400">● 运行中</span>
-        <span class="text-amber-400">▲ 预警</span>
-        <span class="text-slate-500">○ 停机</span>
+      <div class="flex items-center gap-2 text-[10px] font-mono font-bold">
+        <span class="text-emerald-300">● 运行</span>
+        <span class="text-amber-300">▲ 预警</span>
+        <span class="text-sky-300">○ 停机</span>
       </div>
     </div>
 
     <!-- Matrix Cells Grid -->
-    <div class="grid grid-cols-3 gap-2 flex-1 overflow-hidden">
+    <div class="grid grid-cols-3 gap-1.5 flex-1 overflow-hidden">
       <div
         v-for="dev in matrixState.devices"
         :key="dev.id"
-        class="p-2 rounded bg-slate-950/80 border text-[10px] font-mono flex flex-col justify-between transition-all hover:scale-[1.02]"
+        class="p-1.5 rounded-lg bg-slate-900 border text-xs font-mono flex flex-col justify-between"
         :class="{
-          'border-emerald-500/40 text-emerald-300': dev.status === 'RUNNING',
-          'border-amber-500/60 text-amber-300 animate-pulse': dev.status === 'WARNING',
-          'border-slate-800 text-slate-500': dev.status === 'STOPPED'
+          'border-emerald-400 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.3)]': dev.status === 'RUNNING',
+          'border-amber-400 text-amber-300 shadow-[0_0_8px_rgba(245,158,11,0.3)]': dev.status === 'WARNING',
+          'border-slate-700 text-slate-200': dev.status === 'STOPPED'
         }"
       >
         <div class="flex items-center justify-between font-bold">
-          <span class="truncate">{{ dev.name }}</span>
+          <span class="truncate text-white">{{ dev.name }}</span>
           <span 
-            class="w-2 h-2 rounded-full"
+            class="w-2 h-2 rounded-full shrink-0"
             :class="{
-              'bg-emerald-400 shadow-[0_0_6px_#10b981]': dev.status === 'RUNNING',
-              'bg-amber-400 shadow-[0_0_6px_#f59e0b]': dev.status === 'WARNING',
-              'bg-slate-600': dev.status === 'STOPPED'
+              'bg-emerald-300 shadow-[0_0_6px_#10b981]': dev.status === 'RUNNING',
+              'bg-amber-300 shadow-[0_0_6px_#f59e0b]': dev.status === 'WARNING',
+              'bg-sky-400 shadow-[0_0_6px_#38bdf8]': dev.status === 'STOPPED'
             }"
           />
         </div>
-        <div class="flex items-center justify-between mt-1 text-[9px] text-slate-400">
+        <div class="flex items-center justify-between mt-1 text-[10px] text-cyan-200 font-bold">
           <span>负荷: {{ dev.load }}</span>
-          <span>{{ dev.temp }}</span>
+          <span class="text-amber-300">{{ dev.temp }}</span>
         </div>
       </div>
     </div>

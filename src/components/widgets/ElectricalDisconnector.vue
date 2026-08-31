@@ -20,7 +20,7 @@ const disconnectorState = computed(() => {
   const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
   const isClosed = resolved.isClosed || resolved.numericValue === 1;
 
-  const statusColor = isClosed ? (isGrounding ? '#eab308' : '#ef4444') : '#10b981';
+  const statusColor = isClosed ? (isGrounding ? '#ffb703' : '#ff3344') : '#00e676';
 
   return {
     isGrounding,

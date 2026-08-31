@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
-import { withAlpha } from '../../utils/color';
 import { resolveDataPointValue } from '../../utils/scadaResolver';
 
 interface Props {
@@ -15,14 +14,14 @@ const meterData = computed(() => {
   const { data, style, customProps } = props.component;
   const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
 
-  const title = style.feederName || customProps?.name || data?.mapping?.titleKey || props.component.name || '101 进线多功能测控表';
+  const title = style.feederName || customProps?.name || data?.mapping?.titleKey || props.component.name || '多功能测控表';
 
   // Default Telemetry Sample
   let Ua = 5.98, Ub = 6.01, Uc = 5.97, Uab = 10.35;
   let Ia = 142.5, Ib = 141.8, Ic = 143.2;
   let P = 2450.0, Q = 480.0, cosPhi = 0.98, freq = 50.01;
 
-  // 1. Resolve from specific mappings (e.g. voltageKey, currentKey, powerKey)
+  // 1. Resolve from specific mappings
   const vKey = data?.mapping?.voltageKey || data?.mapping?.valueKey;
   const iKey = data?.mapping?.currentKey;
   const pKey = data?.mapping?.powerKey;
@@ -79,12 +78,12 @@ const meterData = computed(() => {
     if (d.frequency_hz !== undefined) freq = Number(d.frequency_hz);
   }
 
-  const themeColor = style.stroke || '#00f2ff';
-  const bgColor = style.fill || 'rgba(6, 14, 28, 0.92)';
+  const strokeColor = style.stroke || '#00f2ff';
+  const bgColor = style.fill || '#060e22';
 
   return {
     title,
-    themeColor,
+    strokeColor,
     bgColor,
     Ua: Ua.toFixed(2),
     Ub: Ub.toFixed(2),
@@ -103,62 +102,71 @@ const meterData = computed(() => {
 
 <template>
   <div 
-    class="w-full h-full flex flex-col justify-between p-2 rounded-xl border select-none relative overflow-hidden backdrop-blur-xs shadow-lg transition-all"
+    class="w-full h-full flex flex-col justify-between p-2 rounded-xl border border-cyan-400/60 select-none relative overflow-hidden backdrop-blur-md shadow-[0_4px_20px_rgba(0,0,0,0.8)]"
     :style="{
       backgroundColor: meterData.bgColor,
-      borderColor: withAlpha(meterData.themeColor, 0.4),
-      boxShadow: `0 0 16px ${withAlpha(meterData.themeColor, 0.1)}`
+      borderColor: meterData.strokeColor
     }"
   >
-    <!-- Header -->
-    <div class="flex items-center justify-between border-b border-cyan-500/20 pb-1 font-mono">
+    <!-- Top Header Bar -->
+    <div class="flex items-center justify-between border-b border-cyan-400/30 pb-1.5 shrink-0">
       <div class="flex items-center gap-1.5 min-w-0">
-        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-        <span class="text-xs font-bold text-slate-100 truncate">{{ meterData.title }}</span>
+        <span class="w-2 h-2 rounded-full bg-cyan-300 shadow-[0_0_6px_#00f2ff] shrink-0" />
+        <span class="text-xs font-bold text-white tracking-wide truncate">{{ meterData.title }}</span>
       </div>
-      <span class="text-[9px] text-cyan-300 font-bold px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-500/30">
-        PM-3000
+      <span class="text-[10px] text-cyan-300 font-mono font-bold px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-400/60 shrink-0">
+        {{ meterData.Uab }} kV
       </span>
     </div>
 
-    <!-- 3-Phase Voltage & Current Telemetry Matrix Grid -->
-    <div class="grid grid-cols-2 gap-1.5 my-1 font-mono text-[10px]">
-      <!-- Voltage Block -->
-      <div class="p-1.5 rounded bg-slate-950/80 border border-slate-800 space-y-0.5">
-        <div class="flex justify-between text-slate-200 font-bold border-b border-slate-800 pb-0.5">
-          <span>三相电压</span>
-          <span class="text-amber-300 font-bold">{{ meterData.Uab }} kV</span>
+    <!-- 3-Phase Telemetry Grid (A: Bright Yellow, B: Bright Green, C: Bright Red) -->
+    <div class="grid grid-cols-2 gap-1.5 my-1 flex-1 font-mono text-xs">
+      <!-- Voltage Phase Column -->
+      <div class="p-1.5 rounded-lg bg-slate-900 border border-slate-700 flex flex-col justify-around">
+        <div class="text-[10px] text-cyan-300 font-bold border-b border-slate-700 pb-0.5">
+          三相电压 (kV)
         </div>
-        <div class="flex justify-between text-yellow-300 font-semibold"><span>Ua:</span><span>{{ meterData.Ua }} kV</span></div>
-        <div class="flex justify-between text-emerald-300 font-semibold"><span>Ub:</span><span>{{ meterData.Ub }} kV</span></div>
-        <div class="flex justify-between text-rose-400 font-semibold"><span>Uc:</span><span>{{ meterData.Uc }} kV</span></div>
+        <div class="flex items-center justify-between text-yellow-300 font-bold">
+          <span>Ua:</span><span>{{ meterData.Ua }}</span>
+        </div>
+        <div class="flex items-center justify-between text-emerald-300 font-bold">
+          <span>Ub:</span><span>{{ meterData.Ub }}</span>
+        </div>
+        <div class="flex items-center justify-between text-rose-300 font-bold">
+          <span>Uc:</span><span>{{ meterData.Uc }}</span>
+        </div>
       </div>
 
-      <!-- Current Block -->
-      <div class="p-1.5 rounded bg-slate-950/80 border border-slate-800 space-y-0.5">
-        <div class="flex justify-between text-slate-200 font-bold border-b border-slate-800 pb-0.5">
-          <span>三相电流</span>
-          <span class="text-cyan-300 font-bold">cosφ {{ meterData.cosPhi }}</span>
+      <!-- Current Phase Column -->
+      <div class="p-1.5 rounded-lg bg-slate-900 border border-slate-700 flex flex-col justify-around">
+        <div class="text-[10px] text-cyan-300 font-bold border-b border-slate-700 pb-0.5">
+          三相电流 (A)
         </div>
-        <div class="flex justify-between text-yellow-300 font-semibold"><span>Ia:</span><span>{{ meterData.Ia }} A</span></div>
-        <div class="flex justify-between text-emerald-300 font-semibold"><span>Ib:</span><span>{{ meterData.Ib }} A</span></div>
-        <div class="flex justify-between text-rose-400 font-semibold"><span>Ic:</span><span>{{ meterData.Ic }} A</span></div>
+        <div class="flex items-center justify-between text-yellow-300 font-bold">
+          <span>Ia:</span><span>{{ meterData.Ia }}</span>
+        </div>
+        <div class="flex items-center justify-between text-emerald-300 font-bold">
+          <span>Ib:</span><span>{{ meterData.Ib }}</span>
+        </div>
+        <div class="flex items-center justify-between text-rose-300 font-bold">
+          <span>Ic:</span><span>{{ meterData.Ic }}</span>
+        </div>
       </div>
     </div>
 
-    <!-- Power & Frequency Bottom Row -->
-    <div class="grid grid-cols-3 gap-1 pt-1 border-t border-slate-800/80 text-[10px] font-mono text-center">
-      <div class="p-1 rounded bg-slate-900/80 border border-slate-800">
-        <div class="text-slate-300 text-[9px] font-semibold">有功 P</div>
-        <div class="text-emerald-300 font-bold">{{ meterData.P }} kW</div>
+    <!-- Power & Frequency Row -->
+    <div class="grid grid-cols-3 gap-1 pt-1 border-t border-cyan-400/30 text-[10px] font-mono text-center shrink-0">
+      <div class="p-1 rounded bg-slate-900 border border-slate-700">
+        <div class="text-slate-200 text-[9px] font-bold">有功 P</div>
+        <div class="text-emerald-300 font-black truncate">{{ meterData.P }} kW</div>
       </div>
-      <div class="p-1 rounded bg-slate-900/80 border border-slate-800">
-        <div class="text-slate-300 text-[9px] font-semibold">无功 Q</div>
-        <div class="text-cyan-300 font-bold">{{ meterData.Q }} kVar</div>
+      <div class="p-1 rounded bg-slate-900 border border-slate-700">
+        <div class="text-slate-200 text-[9px] font-bold">无功 Q</div>
+        <div class="text-cyan-300 font-black truncate">{{ meterData.Q }} kVar</div>
       </div>
-      <div class="p-1 rounded bg-slate-900/80 border border-slate-800">
-        <div class="text-slate-300 text-[9px] font-semibold">频率 f</div>
-        <div class="text-amber-300 font-bold">{{ meterData.freq }} Hz</div>
+      <div class="p-1 rounded bg-slate-900 border border-slate-700">
+        <div class="text-slate-200 text-[9px] font-bold">功率因数</div>
+        <div class="text-amber-300 font-black truncate">{{ meterData.cosPhi }}</div>
       </div>
     </div>
   </div>

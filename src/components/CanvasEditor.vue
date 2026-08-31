@@ -891,10 +891,27 @@ const handleContextMenu = (e: MouseEvent, compId: string | null) => {
 
   const coords = getCanvasCoords(e.clientX, e.clientY);
 
+  const menuWidth = 240;
+  const menuHeight = 440;
+  const winWidth = window.innerWidth;
+  const winHeight = window.innerHeight;
+
+  let x = e.clientX;
+  let y = e.clientY;
+
+  // Prevent right edge overflow (flip to left or clamp within screen)
+  if (x + menuWidth > winWidth - 10) {
+    x = Math.max(10, winWidth - menuWidth - 10);
+  }
+  // Prevent bottom edge overflow (flip up or clamp within screen)
+  if (y + menuHeight > winHeight - 10) {
+    y = Math.max(10, winHeight - menuHeight - 10);
+  }
+
   contextMenu.value = {
     visible: true,
-    x: e.clientX,
-    y: e.clientY,
+    x,
+    y,
     canvasX: coords.x,
     canvasY: coords.y,
     targetCompId: compId
@@ -1501,7 +1518,7 @@ defineExpose({
     <!-- Right-Click Context Menu -->
     <div
       v-if="contextMenu.visible"
-      class="fixed bg-[#090f1d] border border-cyan-500/50 rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.8)] p-1.5 z-50 backdrop-blur-md w-56 text-xs font-sans text-slate-100"
+      class="fixed bg-[#090f1d] border border-cyan-500/50 rounded-xl shadow-[0_10px_35px_rgba(0,0,0,0.8)] p-1.5 z-50 backdrop-blur-md w-56 max-h-[calc(100vh-20px)] overflow-y-auto custom-scrollbar text-xs font-sans text-slate-100"
       :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
       @click.stop
     >

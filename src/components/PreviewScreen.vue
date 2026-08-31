@@ -108,13 +108,16 @@ const handleResize = () => {
   windowHeight.value = window.innerHeight;
 };
 
-// Calculate dynamic content bounding box to ensure ALL parts of ALL components are fully visible
+// Calculate content bounding box of all visible components
 const contentBounds = computed(() => {
   const visibleComps = (props.components || []).filter(c => c.visible !== false);
+  
   if (visibleComps.length === 0) {
     return {
       minX: 0,
       minY: 0,
+      maxX: props.screen.width || 1920,
+      maxY: props.screen.height || 1080,
       width: props.screen.width || 1920,
       height: props.screen.height || 1080
     };
@@ -132,36 +135,30 @@ const contentBounds = computed(() => {
     maxY = Math.max(maxY, c.y + c.height);
   });
 
-  if (!isFinite(minX) || !isFinite(minY)) {
-    return {
-      minX: 0,
-      minY: 0,
-      width: props.screen.width || 1920,
-      height: props.screen.height || 1080
-    };
-  }
-
-  // Safe padding so shadows, borders, and rotated corners are never clipped
-  const pad = 40;
-  const boundMinX = minX - pad;
-  const boundMinY = minY - pad;
-  const boundWidth = Math.max(200, (maxX - minX) + pad * 2);
-  const boundHeight = Math.max(150, (maxY - minY) + pad * 2);
+  const width = Math.max(10, maxX - minX);
+  const height = Math.max(10, maxY - minY);
 
   return {
-    minX: boundMinX,
-    minY: boundMinY,
-    width: boundWidth,
-    height: boundHeight
+    minX,
+    minY,
+    maxX,
+    maxY,
+    width,
+    height
   };
 });
 
+// Screen dimensions
+const canvasWidth = computed(() => contentBounds.value.width);
+const canvasHeight = computed(() => contentBounds.value.height);
+
 // Calculate scale factor
 const scaleRatio = computed(() => {
-  const bounds = contentBounds.value;
+  const cw = contentBounds.value.width;
+  const ch = contentBounds.value.height;
   if (scaleMode.value === 'original') return { scaleX: 1, scaleY: 1 };
-  const sx = windowWidth.value / bounds.width;
-  const sy = windowHeight.value / bounds.height;
+  const sx = windowWidth.value / cw;
+  const sy = windowHeight.value / ch;
 
   if (scaleMode.value === 'fill') {
     return { scaleX: sx, scaleY: sy };
@@ -193,7 +190,7 @@ const handleExitPreview = () => {
   if (canEditCanvas()) {
     emit('close');
   } else {
-    loginNotice.value = '当前为【普通用户】角色，仅限 SCADA 实时监视。请登录【系统用户】以进入画布设计与编辑模式。';
+    loginNotice.value = '请登录【系统用户】以进入编辑模式。';
     showLoginModal.value = true;
   }
 };
@@ -472,15 +469,18 @@ onBeforeUnmount(() => {
   <div
     ref="containerRef"
     @contextmenu.prevent="handlePreviewContextMenu($event)"
-    class="fixed inset-0 bg-[#02050b] z-50 overflow-hidden flex items-center justify-center select-none font-sans"
+    class="fixed inset-0 bg-[#02050b] z-50 overflow-hidden select-none font-sans"
   >
-    <!-- Scaled Screen Canvas View -->
+    <!-- Scaled Screen Canvas View: Perfectly centered using absolute translate + scale -->
     <div
-      class="relative transition-transform duration-100 ease-out origin-center"
+      class="absolute transition-transform duration-100 ease-out"
       :style="{
-        width: `${contentBounds.width}px`,
-        height: `${contentBounds.height}px`,
-        transform: `scale(${scaleRatio.scaleX}, ${scaleRatio.scaleY})`,
+        width: `${canvasWidth}px`,
+        height: `${canvasHeight}px`,
+        left: '50%',
+        top: '50%',
+        transform: `translate(-50%, -50%) scale(${scaleRatio.scaleX}, ${scaleRatio.scaleY})`,
+        transformOrigin: 'center center',
         backgroundColor: screen.backgroundColor || '#040810',
         backgroundImage: 'none',
         boxShadow: '0 0 60px rgba(0,0,0,0.95)'
