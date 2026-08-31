@@ -13,9 +13,6 @@ const props = defineProps<Props>();
 const metricState = computed(() => {
   const { data, style, customProps } = props.component;
 
-  let suffix = style.suffix ?? customProps?.suffix ?? '';
-  let prefix = style.prefix ?? customProps?.prefix ?? '';
-
   const decimals = typeof style.decimals === 'number' 
     ? style.decimals 
     : (typeof customProps?.decimals === 'number' ? customProps.decimals : 2);
@@ -40,30 +37,44 @@ const metricState = computed(() => {
 
   const textColor = style.textColor || style.stroke || '#00f2ff';
   const bgColor = style.fill || 'transparent';
-  const fontSize = style.fontSize || 20;
+
+  // Calculate SVG viewBox width based on character length for optimal fit
+  const strLen = Math.max(1, formattedVal.length);
+  const charWidth = strLen * 24 + 10;
 
   return {
-    prefix,
-    suffix,
     value: formattedVal,
     textColor,
     bgColor,
-    fontSize
+    viewWidth: charWidth
   };
 });
 </script>
 
 <template>
+  <!-- Pure Atomic Float Metric - Numbers only, scales 100% to bounding box -->
   <div 
-    class="w-full h-full flex items-center justify-center p-0 m-0 select-none font-mono tracking-tight overflow-hidden leading-none"
-    :style="{
-      backgroundColor: metricState.bgColor,
-      color: metricState.textColor,
-      fontSize: `${metricState.fontSize}px`
-    }"
+    class="w-full h-full flex items-center justify-center p-0 m-0 select-none overflow-hidden"
+    :style="{ backgroundColor: metricState.bgColor }"
   >
-    <span v-if="metricState.prefix" class="opacity-80 text-[0.8em] mr-0.5 leading-none">{{ metricState.prefix }}</span>
-    <span class="font-bold leading-none inline-block">{{ metricState.value }}</span>
-    <span v-if="metricState.suffix" class="opacity-80 text-[0.75em] ml-0.5 font-sans leading-none">{{ metricState.suffix }}</span>
+    <svg 
+      :viewBox="`0 0 ${metricState.viewWidth} 40`" 
+      class="w-full h-full"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      <text 
+        :x="metricState.viewWidth / 2" 
+        y="30" 
+        text-anchor="middle" 
+        font-family="monospace" 
+        font-weight="900" 
+        font-size="34" 
+        letter-spacing="1"
+        :fill="metricState.textColor"
+        :style="{ filter: `drop-shadow(0 0 6px ${metricState.textColor}70)` }"
+      >
+        {{ metricState.value }}
+      </text>
+    </svg>
   </div>
 </template>

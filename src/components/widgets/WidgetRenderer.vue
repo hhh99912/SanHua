@@ -25,6 +25,7 @@ import StraightLine from './StraightLine.vue';
 import PolyLine from './PolyLine.vue';
 import StatusIndicator from './StatusIndicator.vue';
 import CompositeSymbol from './CompositeSymbol.vue';
+import TimeClockWidget from './TimeClockWidget.vue';
 
 interface Props {
   component: ScreenComponent;
@@ -189,10 +190,16 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       class="pointer-events-auto"
     />
 
-    <!-- 10. Metrics & Digital Displays -->
+    <!-- 10. Metrics & Digital Displays & Time Clocks -->
     <div v-else-if="isMetrics" class="w-full h-full">
+      <TimeClockWidget
+        v-if="component.type === 'metric-clock' || component.type === 'metric-time-banner' || component.type === 'metric-clock-analog' || component.type === 'metric-countdown'"
+        :component="component"
+        :datasets="datasets"
+        :preview-mode="previewMode"
+      />
       <FloatMetric 
-        v-if="component.type === 'metric-float'"
+        v-else-if="component.type === 'metric-float'"
         :component="component"
         :datasets="datasets"
       />

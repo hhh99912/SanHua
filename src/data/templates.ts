@@ -17,7 +17,7 @@ const SMART_FACTORY_COMPONENTS: ScreenComponent[] = [
   // Title Banner
   {
     id: 'comp-title-01',
-    name: '大屏科幻标题',
+    name: 'SCADA主标题',
     type: 'metric-title',
     category: 'metrics',
     x: 480,
@@ -415,7 +415,7 @@ const DEFAULT_SCREEN_CONFIG: ScreenConfig = {
   backgroundColor: '#070b14',
   backgroundGrid: true,
   gridSize: 20,
-  gridColor: 'rgba(0, 242, 255, 0.05)',
+  gridColor: 'rgba(0, 242, 255, 0.22)',
   theme: 'cyber-dark',
   version: '2.0.0',
   updatedAt: new Date().toISOString()

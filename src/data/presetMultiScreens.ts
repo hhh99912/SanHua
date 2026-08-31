@@ -14,7 +14,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       backgroundColor: '#040914',
       backgroundGrid: true,
       gridSize: 20,
-      gridColor: 'rgba(0, 242, 255, 0.05)',
+      gridColor: 'rgba(0, 242, 255, 0.22)',
       theme: 'cyber-dark',
       version: '2.0.0',
       updatedAt: new Date().toISOString()
@@ -23,7 +23,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       // 1. Global Navigation Bar
       {
         id: 'comp-nav-bar',
-        name: '多大屏全局导航条',
+        name: '多画面全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -42,8 +42,8 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         customProps: {
           screens: [
             { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
-            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
-            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控画面' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电画面' },
             { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
           ]
         }
@@ -52,7 +52,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       // 2. Title & Header
       {
         id: 'comp-main-title',
-        name: '大屏主标题',
+        name: 'SCADA主标题',
         type: 'draw-text',
         category: 'basic',
         x: 600,
@@ -324,20 +324,20 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     ]
   },
 
-  // Screen 2: #1 主变压器测控大屏
+  // Screen 2: #1 主变压器测控画面
   {
     id: 'screen-transformer-detail',
-    name: '#1主变压器及测控大屏',
+    name: '#1主变压器及测控画面',
     description: '110kV/10kV #1主变压器绕组温度、高低压侧负荷、油温及瓦斯信号',
     screen: {
       id: 'screen-transformer-detail',
-      name: '#1主变压器及测控大屏',
+      name: '#1主变压器及测控画面',
       width: 1920,
       height: 1080,
       backgroundColor: '#040914',
       backgroundGrid: true,
       gridSize: 20,
-      gridColor: 'rgba(0, 242, 255, 0.05)',
+      gridColor: 'rgba(0, 242, 255, 0.22)',
       theme: 'cyber-dark',
       version: '2.0.0',
       updatedAt: new Date().toISOString()
@@ -345,7 +345,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-2',
-        name: '多大屏全局导航条',
+        name: '多画面全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -364,8 +364,8 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         customProps: {
           screens: [
             { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
-            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
-            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控画面' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电画面' },
             { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
           ]
         }
@@ -443,20 +443,20 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     ]
   },
 
-  // Screen 3: 0.4kV 低压综合配电大屏
+  // Screen 3: 0.4kV 低压综合配电画面
   {
     id: 'screen-low-voltage-04kv',
-    name: '0.4kV低压配电大屏',
+    name: '0.4kV低压配电画面',
     description: '0.4kV 综合智能配电进线、电容无功自动补偿及动力支路用电',
     screen: {
       id: 'screen-low-voltage-04kv',
-      name: '0.4kV低压配电大屏',
+      name: '0.4kV低压配电画面',
       width: 1920,
       height: 1080,
       backgroundColor: '#040914',
       backgroundGrid: true,
       gridSize: 20,
-      gridColor: 'rgba(0, 242, 255, 0.05)',
+      gridColor: 'rgba(0, 242, 255, 0.22)',
       theme: 'cyber-dark',
       version: '2.0.0',
       updatedAt: new Date().toISOString()
@@ -464,7 +464,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-3',
-        name: '多大屏全局导航条',
+        name: '多画面全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -483,8 +483,8 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         customProps: {
           screens: [
             { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
-            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
-            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控画面' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电画面' },
             { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
           ]
         }
@@ -529,7 +529,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       backgroundColor: '#040914',
       backgroundGrid: true,
       gridSize: 20,
-      gridColor: 'rgba(0, 242, 255, 0.05)',
+      gridColor: 'rgba(0, 242, 255, 0.22)',
       theme: 'cyber-dark',
       version: '2.0.0',
       updatedAt: new Date().toISOString()
@@ -537,7 +537,7 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
     components: [
       {
         id: 'comp-nav-bar-4',
-        name: '多大屏全局导航条',
+        name: '多画面全局导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -556,8 +556,8 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         customProps: {
           screens: [
             { id: 'screen-10kv-main', name: '⚡ 10kV一次系统接线图' },
-            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控大屏' },
-            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电大屏' },
+            { id: 'screen-transformer-detail', name: '🔄 #1主变压器及测控画面' },
+            { id: 'screen-low-voltage-04kv', name: '🏭 0.4kV低压配电画面' },
             { id: 'screen-telemetry-scada', name: '📊 全站电力遥测与告警' }
           ]
         }

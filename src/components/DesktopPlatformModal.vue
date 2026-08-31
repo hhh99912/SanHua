@@ -69,7 +69,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \\
     libasound2 libpulse0 libgbm1 libdrm2 ca-certificates fonts-wqy-zenhei fonts-wqy-microhei \\
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-CMD ["./datav-scada-studio", "--no-sandbox", "--disable-gpu-sandbox", "--disable-dev-shm-usage"]
+CMD ["./ge-scada", "--no-sandbox", "--disable-gpu-sandbox", "--disable-dev-shm-usage"]
 EOF
 
 docker build -t ge-scada-env:latest -f Dockerfile.base .`
@@ -95,7 +95,7 @@ docker build -t ge-scada-env:latest -f Dockerfile.base .`
     cmd: `cat > Dockerfile << 'EOF'
 FROM ge-scada-env:latest
 COPY release/linux-unpacked/ /app/
-RUN chmod +x /app/datav-scada-studio
+RUN chmod +x /app/ge-scada
 EOF
 
 docker build -t ge-scada-app:latest .`
@@ -108,11 +108,11 @@ docker build -t ge-scada-app:latest .`
   {
     step: '【日常开发步骤 4】传输至凝思工控机',
     desc: '通过 scp 传输镜像压缩文件',
-    cmd: 'scp ge-scada-app.tar root@192.168.1.101:/home/docker/datav-scada-deploy/'
+    cmd: 'scp ge-scada-app.tar root@192.168.1.101:/home/docker/ge-scada-deploy/'
   },
   {
-    step: '【凝思工控机】加载镜像并启动大屏 (GUI 会话穿透)',
-    desc: '开放 xhost 权限并挂载 /tmp/.X11-unix 与显卡设备，启动工业 SCADA 大屏',
+    step: '【凝思工控机】加载镜像并启动 SCADA (GUI 会话穿透)',
+    desc: '开放 xhost 权限并挂载 /tmp/.X11-unix 与显卡设备，启动工业 SCADA 监控',
     cmd: `xhost +local:root
 docker load -i ge-scada-app.tar
 docker run -d \\
@@ -226,7 +226,7 @@ const copyCommand = (cmd: string, index: number | string) => {
               <div>
                 <div class="text-slate-200 font-bold">工控机沉浸式真全屏 (Kiosk 模式)</div>
                 <div class="text-slate-400 text-[10px] mt-0.5 leading-normal">
-                  支持无边框与开机全屏展示，防止车间/展厅现场操作人员误触退出大屏。
+                  支持无边框与开机全屏展示，防止车间/站控现场操作人员误触退出监控。
                 </div>
               </div>
             </div>
@@ -236,7 +236,7 @@ const copyCommand = (cmd: string, index: number | string) => {
               <div>
                 <div class="text-slate-200 font-bold">本地磁盘直读直存</div>
                 <div class="text-slate-400 text-[10px] mt-0.5 leading-normal">
-                  调用系统原生对话框一键读写大屏工程 JSON，支持本地离线数据持久化。
+                  调用系统原生对话框一键读写 SCADA 工程 JSON，支持本地离线数据持久化。
                 </div>
               </div>
             </div>
@@ -244,9 +244,9 @@ const copyCommand = (cmd: string, index: number | string) => {
             <div class="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start gap-2.5">
               <CheckCircle2 class="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
               <div>
-                <div class="text-slate-200 font-bold">独立沙箱与 GPU 硬件加速</div>
+                <div class="text-slate-200 font-bold">独立沙箱与图形硬件加速</div>
                 <div class="text-slate-400 text-[10px] mt-0.5 leading-normal">
-                  使用独立 Chromium V8 与 LeaferJS Canvas 硬件图形加速，渲染帧率更高更稳定。
+                  使用独立 Chromium V8 与 Canvas 硬件图形加速，渲染帧率更高更稳定。
                 </div>
               </div>
             </div>

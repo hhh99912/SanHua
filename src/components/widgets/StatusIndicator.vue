@@ -34,8 +34,7 @@ const indicatorState = computed(() => {
   };
 });
 
-const labelText = computed(() => style.value.indicatorLabel || props.component.name || '运行指示');
-const shape = computed(() => style.value.indicatorShape || 'circle');
+const labelText = computed(() => style.value.indicatorLabel || '');
 const blinkSpeed = computed(() => style.value.indicatorBlinkSpeed || (indicatorState.value.stateType === 'alarm' ? 'fast' : 'none'));
 
 // Color palettes for LED
@@ -47,7 +46,7 @@ const stateColors = computed(() => {
         glow: 'rgba(239, 68, 68, 0.8)',
         shadow: '0 0 16px rgba(239, 68, 68, 0.9)',
         text: 'text-red-400',
-        label: indicatorState.value.statusText || '故障告警'
+        label: indicatorState.value.statusText || '故障'
       };
     case 'warning':
       return {
@@ -55,7 +54,7 @@ const stateColors = computed(() => {
         glow: 'rgba(245, 158, 11, 0.8)',
         shadow: '0 0 16px rgba(245, 158, 11, 0.8)',
         text: 'text-amber-400',
-        label: indicatorState.value.statusText || '越限预警'
+        label: indicatorState.value.statusText || '预警'
       };
     case 'standby':
       return {
@@ -63,7 +62,7 @@ const stateColors = computed(() => {
         glow: 'rgba(59, 130, 246, 0.8)',
         shadow: '0 0 14px rgba(59, 130, 246, 0.7)',
         text: 'text-blue-400',
-        label: indicatorState.value.statusText || '分闸/备用'
+        label: indicatorState.value.statusText || '分闸'
       };
     case 'offline':
       return {
@@ -71,7 +70,7 @@ const stateColors = computed(() => {
         glow: 'transparent',
         shadow: 'none',
         text: 'text-slate-500',
-        label: '未投入'
+        label: '未投'
       };
     case 'normal':
     default:
@@ -80,42 +79,61 @@ const stateColors = computed(() => {
         glow: 'rgba(16, 185, 129, 0.8)',
         shadow: '0 0 16px rgba(16, 185, 129, 0.8)',
         text: 'text-emerald-400',
-        label: indicatorState.value.statusText || '合闸/正常'
+        label: indicatorState.value.statusText || '合闸'
       };
   }
 });
 </script>
 
 <template>
-  <div class="w-full h-full flex items-center justify-center gap-1.5 p-0.5 select-none font-mono leading-none">
-    <!-- LED Light Core with Metallic Bezel -->
-    <div 
-      class="relative shrink-0 flex items-center justify-center p-[1.5px] rounded-full bg-gradient-to-br from-slate-700 via-slate-900 to-slate-950 border border-slate-600 shadow-xs"
-      :style="{
-        width: `${Math.min(component.width, component.height) - 4}px`,
-        height: `${Math.min(component.width, component.height) - 4}px`
-      }"
+  <div class="w-full h-full flex items-center justify-center select-none overflow-hidden">
+    <!-- Pure LED Lamp SVG tightly fitting 100% of bounding box -->
+    <svg 
+      viewBox="0 0 40 40" 
+      class="w-full h-full"
+      preserveAspectRatio="xMidYMid meet"
     >
-      <div 
-        class="w-full h-full rounded-full transition-all duration-300 relative overflow-hidden"
+      <defs>
+        <!-- Metallic Outer Bezel Gradient -->
+        <linearGradient :id="`bezel-${component.id}`" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#475569" />
+          <stop offset="50%" stop-color="#0f172a" />
+          <stop offset="100%" stop-color="#1e293b" />
+        </linearGradient>
+        <!-- Lamp Core Radial Gradient -->
+        <radialGradient :id="`core-${component.id}`" cx="40%" cy="35%" r="65%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.8" />
+          <stop offset="40%" :stop-color="stateColors.core" />
+          <stop offset="100%" :stop-color="stateColors.core" stop-opacity="0.85" />
+        </radialGradient>
+      </defs>
+
+      <!-- Outer Bezel Ring -->
+      <circle cx="20" cy="20" r="19" :fill="`url(#bezel-${component.id})`" stroke="#334155" stroke-width="1.2" />
+      <circle cx="20" cy="20" r="16.5" fill="#020617" stroke="#1e293b" stroke-width="1" />
+
+      <!-- Glowing Light Core -->
+      <circle 
+        cx="20" 
+        cy="20" 
+        r="14.5" 
+        :fill="`url(#core-${component.id})`"
+        :style="{
+          filter: `drop-shadow(0 0 6px ${stateColors.core})`
+        }"
         :class="{
           'animate-pulse': blinkSpeed === 'slow',
-          'animate-ping': blinkSpeed === 'fast'
+          'animate-ping origin-center': blinkSpeed === 'fast'
         }"
-        :style="{
-          backgroundColor: stateColors.core,
-          boxShadow: stateColors.shadow
-        }"
-      >
-        <!-- Top gloss highlight -->
-        <div class="absolute top-0.5 left-1/2 -translate-x-1/2 w-3/4 h-1/2 bg-white/40 rounded-full blur-[0.5px]" />
-      </div>
-    </div>
+      />
 
-    <!-- Optional Text Label beside or underneath -->
-    <div v-if="component.width >= 70" class="flex-1 min-w-0 leading-tight">
-      <div class="text-[11px] font-bold truncate text-slate-200 leading-tight">{{ labelText }}</div>
-      <div class="text-[9px] font-mono leading-none" :class="stateColors.text">{{ stateColors.label }}</div>
+      <!-- Top Gloss Reflection Arc -->
+      <ellipse cx="20" cy="11.5" rx="8" ry="4" fill="#ffffff" fill-opacity="0.35" />
+    </svg>
+
+    <!-- Optional Label if user explicitly configured one -->
+    <div v-if="labelText" class="ml-2 text-xs font-bold text-slate-200 truncate">
+      {{ labelText }}
     </div>
   </div>
 </template>

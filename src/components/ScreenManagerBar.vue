@@ -49,10 +49,10 @@ const handleOpenAddModal = () => {
   errorMessage.value = '';
   // Generate a unique suggested name
   let idx = props.screens.length + 1;
-  let candidate = `新大屏画面 ${idx}`;
+  let candidate = `新画面 ${idx}`;
   while (isNameTaken(candidate)) {
     idx++;
-    candidate = `新大屏画面 ${idx}`;
+    candidate = `新画面 ${idx}`;
   }
   newScreenName.value = candidate;
   newScreenWidth.value = currentScreen.value?.screen.width || 1920;
@@ -63,11 +63,11 @@ const handleOpenAddModal = () => {
 const handleConfirmAdd = () => {
   const trimmed = newScreenName.value.trim();
   if (!trimmed) {
-    errorMessage.value = '大屏名称不能为空';
+    errorMessage.value = '画面名称不能为空';
     return;
   }
   if (isNameTaken(trimmed)) {
-    errorMessage.value = `大屏画面「${trimmed}」已存在，大屏画面名称为唯一识别标识，不可重复！`;
+    errorMessage.value = `画面「${trimmed}」已存在，画面名称为唯一识别标识，不可重复！`;
     return;
   }
 
@@ -91,11 +91,11 @@ const handleConfirmRename = () => {
   if (!currentScreen.value) return;
   const trimmed = renameText.value.trim();
   if (!trimmed) {
-    errorMessage.value = '大屏名称不能为空';
+    errorMessage.value = '画面名称不能为空';
     return;
   }
   if (isNameTaken(trimmed, currentScreen.value.id)) {
-    errorMessage.value = `大屏画面「${trimmed}」已存在，大屏画面名称为唯一识别标识，不可重复！`;
+    errorMessage.value = `画面「${trimmed}」已存在，画面名称为唯一识别标识，不可重复！`;
     return;
   }
 
@@ -125,7 +125,7 @@ const handleDeleteCurrent = () => {
       <!-- Label -->
       <div class="flex items-center gap-1.5 text-xs text-cyan-400 font-bold px-1 shrink-0">
         <Layout class="w-3.5 h-3.5" />
-        <span>大屏画面:</span>
+        <span>SCADA 画面:</span>
       </div>
 
       <!-- Dropdown Screen Selector Trigger -->
@@ -136,7 +136,7 @@ const handleDeleteCurrent = () => {
         >
           <div class="flex items-center gap-2 truncate">
             <Monitor class="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-            <span class="font-bold truncate max-w-[180px]">{{ currentScreen?.name || '选择大屏' }}</span>
+            <span class="font-bold truncate max-w-[180px]">{{ currentScreen?.name || '选择画面' }}</span>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
             <span class="text-[9px] px-1 py-0.2 rounded bg-slate-950 text-slate-400 border border-slate-800">
@@ -152,7 +152,7 @@ const handleDeleteCurrent = () => {
           class="absolute bottom-full left-0 mb-1 w-72 bg-[#060c1c] border border-cyan-500/50 rounded-lg shadow-2xl overflow-hidden z-50 divide-y divide-slate-800 animate-in fade-in zoom-in-95 duration-100"
         >
           <div class="px-3 py-1.5 bg-slate-950/80 text-[10px] text-slate-400 flex items-center justify-between">
-            <span class="font-bold">切换大屏页面 (共 {{ screens.length }} 屏)</span>
+            <span class="font-bold">切换监控画面 (共 {{ screens.length }} 画面)</span>
             <span class="text-cyan-400">名称唯一识别</span>
           </div>
 
@@ -186,7 +186,7 @@ const handleDeleteCurrent = () => {
               class="w-full flex items-center justify-center gap-1.5 py-1.5 px-2 bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 border border-cyan-500/40 rounded text-xs font-bold cursor-pointer transition-colors"
             >
               <Plus class="w-3.5 h-3.5" />
-              <span>添加新大屏画面</span>
+              <span>添加新画面</span>
             </button>
           </div>
         </div>
@@ -198,7 +198,7 @@ const handleDeleteCurrent = () => {
         <button
           @click="handleOpenAddModal"
           class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900 hover:bg-cyan-950/70 border border-slate-800 hover:border-cyan-500/40 text-slate-300 hover:text-cyan-300 text-xs font-mono transition-all cursor-pointer shadow-xs"
-          title="新建大屏页面"
+          title="新建画面页面"
         >
           <Plus class="w-3 h-3 text-cyan-400" />
           <span>新建</span>
@@ -208,7 +208,7 @@ const handleDeleteCurrent = () => {
         <button
           @click="handleOpenRenameModal"
           class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-slate-200 text-xs font-mono transition-all cursor-pointer shadow-xs"
-          title="重命名当前大屏"
+          title="重命名当前画面"
         >
           <Edit3 class="w-3 h-3" />
           <span>重命名</span>
@@ -218,7 +218,7 @@ const handleDeleteCurrent = () => {
         <button
           @click="handleDuplicateCurrent"
           class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900 hover:bg-emerald-950/60 border border-slate-800 hover:border-emerald-500/40 text-slate-400 hover:text-emerald-300 text-xs font-mono transition-all cursor-pointer shadow-xs"
-          title="复制当前大屏画面"
+          title="复制当前画面"
         >
           <Copy class="w-3 h-3" />
           <span>复制</span>
@@ -229,7 +229,7 @@ const handleDeleteCurrent = () => {
           v-if="screens.length > 1"
           @click="handleDeleteCurrent"
           class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 text-xs font-mono transition-all cursor-pointer shadow-xs"
-          title="删除当前大屏画面"
+          title="删除当前画面"
         >
           <Trash2 class="w-3 h-3" />
           <span>删除</span>
@@ -239,7 +239,7 @@ const handleDeleteCurrent = () => {
 
     <!-- Right: Screen Resolution Info -->
     <div class="text-[11px] text-slate-500 flex items-center gap-2 shrink-0">
-      <span>当前大屏尺寸: <strong class="text-slate-300">{{ currentScreen?.screen.width || 1920 }}×{{ currentScreen?.screen.height || 1080 }}</strong></span>
+      <span>当前画面尺寸: <strong class="text-slate-300">{{ currentScreen?.screen.width || 1920 }}×{{ currentScreen?.screen.height || 1080 }}</strong></span>
     </div>
 
     <!-- Add Screen Modal -->
@@ -250,7 +250,7 @@ const handleDeleteCurrent = () => {
       <div class="bg-[#080e1c] border border-cyan-500/40 rounded-xl w-full max-w-md p-5 shadow-2xl space-y-4 font-mono">
         <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
           <Plus class="w-4 h-4 text-cyan-400" />
-          新建大屏页面 (名称唯一)
+          新建画面 (名称唯一)
         </h3>
 
         <div v-if="errorMessage" class="p-2.5 rounded-lg bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs flex items-center gap-2">
@@ -260,7 +260,7 @@ const handleDeleteCurrent = () => {
 
         <div class="space-y-3 text-xs">
           <div>
-            <label class="block text-slate-400 mb-1">大屏画面名称 * (不可重复)</label>
+            <label class="block text-slate-400 mb-1">画面名称 * (不可重复)</label>
             <input 
               v-model="newScreenName"
               @input="errorMessage = ''"
@@ -316,7 +316,7 @@ const handleDeleteCurrent = () => {
       <div class="bg-[#080e1c] border border-cyan-500/40 rounded-xl w-full max-w-md p-5 shadow-2xl space-y-4 font-mono">
         <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2 border-b border-slate-800 pb-2">
           <Edit3 class="w-4 h-4 text-cyan-400" />
-          重命名大屏页面 (名称唯一)
+          重命名画面 (名称唯一)
         </h3>
 
         <div v-if="errorMessage" class="p-2.5 rounded-lg bg-rose-950/80 border border-rose-500/60 text-rose-200 text-xs flex items-center gap-2">
@@ -326,12 +326,12 @@ const handleDeleteCurrent = () => {
 
         <div class="space-y-3 text-xs">
           <div>
-            <label class="block text-slate-400 mb-1">新的大屏名称 * (不可重复)</label>
+            <label class="block text-slate-400 mb-1">新的画面名称 * (不可重复)</label>
             <input 
               v-model="renameText"
               @input="errorMessage = ''"
               @keydown.enter="handleConfirmRename"
-              placeholder="请输入新的大屏画面名称"
+              placeholder="请输入新的画面名称"
               class="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:border-cyan-400 focus:outline-hidden font-mono"
               autofocus
             />

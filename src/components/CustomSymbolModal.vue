@@ -8,7 +8,8 @@ import {
   MoveRight, RefreshCw, AlertCircle, Eye, HelpCircle, Triangle, Hexagon, Star,
   Diamond, Heart, MessageSquare, Disc, ArrowLeftRight, CornerDownRight,
   Sparkles, Activity, ToggleRight, Database, CircleDot, ZapOff,
-  PieChart, Workflow
+  PieChart, Workflow, Scissors, Clipboard, Undo, Redo, RotateCcw,
+  ArrowUp, ArrowDown, CheckSquare, CornerUpLeft, CornerUpRight
 } from 'lucide-vue-next';
 import { CustomSymbolDef, ScreenComponent, SymbolState, ComponentType, ComponentCategory } from '../types';
 import {
@@ -80,6 +81,28 @@ const selectedCompIds = ref<string[]>([]);
 const isDraggingComps = ref(false);
 const dragStartMouse = ref({ x: 0, y: 0 });
 const dragInitialPositions = ref<Record<string, { x: number; y: number }>>({});
+
+// Clipboard & Context Menu & Undo/Redo Engine for Symbol Workshop
+const symbolClipboard = ref<ScreenComponent[]>([]);
+const contextMenu = ref<{
+  visible: boolean;
+  x: number;
+  y: number;
+  canvasX: number;
+  canvasY: number;
+  targetCompId: string | null;
+}>({
+  visible: false,
+  x: 0,
+  y: 0,
+  canvasX: 0,
+  canvasY: 0,
+  targetCompId: null
+});
+
+const historyStack = ref<string[]>([]);
+const historyIndex = ref(-1);
+const isHistoryTraveling = ref(false);
 
 // Component Resizing & Rotating on workshop canvas
 const isResizingComp = ref(false);
@@ -252,11 +275,13 @@ onMounted(() => {
   loadSymbols();
   window.addEventListener('keydown', handleKeyDown);
   window.addEventListener('mouseup', handleGlobalMouseUp);
+  window.addEventListener('click', closeContextMenu);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeyDown);
   window.removeEventListener('mouseup', handleGlobalMouseUp);
+  window.removeEventListener('click', closeContextMenu);
 });
 
 watch(() => props.visible, (val) => {
@@ -1280,7 +1305,203 @@ const handleCompMouseDown = (comp: ScreenComponent, e: MouseEvent) => {
   });
 };
 
-// Keyboard handler: micro-adjustments with minimal step 1px regardless of grid density
+// ==================== WORKSHOP HISTORY & CLIPBOARD & SHORTCUTS ====================
+
+const recordHistory = () => {
+  if (isHistoryTraveling.value) return;
+  try {
+    const snapshot = JSON.stringify({
+      states: editorStates.value,
+      activeStateId: activeStateId.value
+    });
+    if (historyIndex.value >= 0 && historyStack.value[historyIndex.value] === snapshot) return;
+    
+    if (historyIndex.value < historyStack.value.length - 1) {
+      historyStack.value = historyStack.value.slice(0, historyIndex.value + 1);
+    }
+    historyStack.value.push(snapshot);
+    if (historyStack.value.length > 40) historyStack.value.shift();
+    historyIndex.value = historyStack.value.length - 1;
+  } catch (err) {
+    console.error('Record history failed:', err);
+  }
+};
+
+const handleUndo = () => {
+  if (historyIndex.value > 0) {
+    isHistoryTraveling.value = true;
+    historyIndex.value--;
+    try {
+      const state = JSON.parse(historyStack.value[historyIndex.value]);
+      editorStates.value = state.states;
+      activeStateId.value = state.activeStateId;
+      showNotice('已撤销 (Undo)');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isHistoryTraveling.value = false;
+    }
+  } else {
+    showNotice('已至最早历史记录');
+  }
+};
+
+const handleRedo = () => {
+  if (historyIndex.value < historyStack.value.length - 1) {
+    isHistoryTraveling.value = true;
+    historyIndex.value++;
+    try {
+      const state = JSON.parse(historyStack.value[historyIndex.value]);
+      editorStates.value = state.states;
+      activeStateId.value = state.activeStateId;
+      showNotice('已重做 (Redo)');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      isHistoryTraveling.value = false;
+    }
+  } else {
+    showNotice('已至最新历史记录');
+  }
+};
+
+const handleCopySelected = () => {
+  if (selectedCompIds.value.length === 0) {
+    showNotice('请先选择要复制的基础图元');
+    return;
+  }
+  const toCopy = currentEditingComponents.value.filter(c => selectedCompIds.value.includes(c.id));
+  symbolClipboard.value = JSON.parse(JSON.stringify(toCopy));
+  showNotice(`已复制 ${toCopy.length} 个图元组件 (Ctrl+C)`);
+};
+
+const handleCutSelected = () => {
+  if (selectedCompIds.value.length === 0) return;
+  handleCopySelected();
+  handleDeleteSelectedPrimitives();
+  showNotice('已剪切选中图元 (Ctrl+X)');
+};
+
+const handlePastePrimitives = (targetCanvasX?: number, targetCanvasY?: number) => {
+  if (symbolClipboard.value.length === 0) {
+    showNotice('剪贴板为空，请先复制图元 (Ctrl+C)');
+    return;
+  }
+
+  const gs = editorGridSize.value || 20;
+  let offsetX = 20;
+  let offsetY = 20;
+
+  if (targetCanvasX !== undefined && targetCanvasY !== undefined && symbolClipboard.value.length > 0) {
+    const firstComp = symbolClipboard.value[0];
+    offsetX = targetCanvasX - firstComp.x;
+    offsetY = targetCanvasY - firstComp.y;
+    if (snapToEditorGrid.value) {
+      offsetX = Math.round(offsetX / gs) * gs;
+      offsetY = Math.round(offsetY / gs) * gs;
+    }
+  }
+
+  const newIds: string[] = [];
+  const pasted: ScreenComponent[] = symbolClipboard.value.map(c => {
+    const newId = `sub-${c.type}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    newIds.push(newId);
+    return {
+      ...JSON.parse(JSON.stringify(c)),
+      id: newId,
+      name: `${c.name} (副本)`,
+      x: c.x + offsetX,
+      y: c.y + offsetY,
+      zIndex: currentEditingComponents.value.length + 1
+    };
+  });
+
+  currentEditingComponents.value = [...currentEditingComponents.value, ...pasted];
+  selectedCompIds.value = newIds;
+  recordHistory();
+  showNotice(`已粘贴 ${pasted.length} 个图元 (Ctrl+V)`);
+};
+
+const handleDuplicateSelected = () => {
+  if (selectedCompIds.value.length === 0) return;
+  handleCopySelected();
+  handlePastePrimitives();
+};
+
+const handleSelectAll = () => {
+  selectedCompIds.value = currentEditingComponents.value.map(c => c.id);
+  showNotice(`已全选 ${selectedCompIds.value.length} 个图元 (Ctrl+A)`);
+};
+
+const handleRotateSelected = (degrees = 90) => {
+  if (selectedCompIds.value.length === 0) return;
+  currentEditingComponents.value = currentEditingComponents.value.map(c => {
+    if (selectedCompIds.value.includes(c.id)) {
+      const nextAngle = ((c.rotation || 0) + degrees) % 360;
+      return { ...c, rotation: nextAngle };
+    }
+    return c;
+  });
+  recordHistory();
+  showNotice(`已旋转 ${degrees}°`);
+};
+
+const handleSnapSelectedToGrid = () => {
+  if (selectedCompIds.value.length === 0) return;
+  const gs = editorGridSize.value || 20;
+  currentEditingComponents.value = currentEditingComponents.value.map(c => {
+    if (selectedCompIds.value.includes(c.id)) {
+      return {
+        ...c,
+        x: Math.round(c.x / gs) * gs,
+        y: Math.round(c.y / gs) * gs,
+        width: Math.max(gs, Math.round(c.width / gs) * gs),
+        height: Math.max(gs, Math.round(c.height / gs) * gs)
+      };
+    }
+    return c;
+  });
+  recordHistory();
+  showNotice('选中图元已对齐网格点');
+};
+
+// Context Menu Event Handlers
+const handleCanvasContextMenu = (e: MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  const coords = getCanvasInnerCoords(e.clientX, e.clientY);
+  contextMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    canvasX: coords.x,
+    canvasY: coords.y,
+    targetCompId: null
+  };
+};
+
+const handleCompContextMenu = (comp: ScreenComponent, e: MouseEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  if (!selectedCompIds.value.includes(comp.id)) {
+    selectedCompIds.value = [comp.id];
+  }
+  const coords = getCanvasInnerCoords(e.clientX, e.clientY);
+  contextMenu.value = {
+    visible: true,
+    x: e.clientX,
+    y: e.clientY,
+    canvasX: coords.x,
+    canvasY: coords.y,
+    targetCompId: comp.id
+  };
+};
+
+const closeContextMenu = () => {
+  contextMenu.value.visible = false;
+};
+
+// Keyboard handler: micro-adjustments & full shortcut suite
 const handleKeyDown = (e: KeyboardEvent) => {
   if (currentMode.value !== 'editor') return;
 
@@ -1289,8 +1510,113 @@ const handleKeyDown = (e: KeyboardEvent) => {
     return;
   }
 
-  // Escape: cancel drawing or clear selection
+  const isCtrlOrCmd = e.ctrlKey || e.metaKey;
+
+  // Ctrl + C: Copy
+  if (isCtrlOrCmd && (e.key === 'c' || e.key === 'C')) {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleCopySelected();
+      return;
+    }
+  }
+
+  // Ctrl + V: Paste
+  if (isCtrlOrCmd && (e.key === 'v' || e.key === 'V')) {
+    e.preventDefault();
+    handlePastePrimitives();
+    return;
+  }
+
+  // Ctrl + X: Cut
+  if (isCtrlOrCmd && (e.key === 'x' || e.key === 'X')) {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleCutSelected();
+      return;
+    }
+  }
+
+  // Ctrl + D: Duplicate
+  if (isCtrlOrCmd && (e.key === 'd' || e.key === 'D')) {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleDuplicateSelected();
+      return;
+    }
+  }
+
+  // Ctrl + A: Select All
+  if (isCtrlOrCmd && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    handleSelectAll();
+    return;
+  }
+
+  // Ctrl + Z: Undo / Ctrl + Shift + Z: Redo
+  if (isCtrlOrCmd && (e.key === 'z' || e.key === 'Z')) {
+    e.preventDefault();
+    if (e.shiftKey) {
+      handleRedo();
+    } else {
+      handleUndo();
+    }
+    return;
+  }
+
+  // Ctrl + Y: Redo
+  if (isCtrlOrCmd && (e.key === 'y' || e.key === 'Y')) {
+    e.preventDefault();
+    handleRedo();
+    return;
+  }
+
+  // Ctrl + S: Quick Save
+  if (isCtrlOrCmd && (e.key === 's' || e.key === 'S')) {
+    e.preventDefault();
+    handleSaveSymbol(false);
+    return;
+  }
+
+  // R: Rotate 90 degrees
+  if (!isCtrlOrCmd && (e.key === 'r' || e.key === 'R')) {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleRotateSelected(90);
+      return;
+    }
+  }
+
+  // G: Toggle Grid Snap
+  if (!isCtrlOrCmd && (e.key === 'g' || e.key === 'G')) {
+    e.preventDefault();
+    snapToEditorGrid.value = !snapToEditorGrid.value;
+    showNotice(snapToEditorGrid.value ? '已开启点格吸附' : '已关闭点格吸附');
+    return;
+  }
+
+  // Layer shortcuts: [ and ]
+  if (e.key === '[') {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleMoveLayer(e.shiftKey ? 'bottom' : 'down');
+      return;
+    }
+  }
+  if (e.key === ']') {
+    if (selectedCompIds.value.length > 0) {
+      e.preventDefault();
+      handleMoveLayer(e.shiftKey ? 'top' : 'up');
+      return;
+    }
+  }
+
+  // Escape: cancel drawing or clear selection or close context menu
   if (e.key === 'Escape') {
+    if (contextMenu.value.visible) {
+      closeContextMenu();
+      return;
+    }
     if (activeTool.value === 'draw-polyline' || polylineDrawing.value.active) {
       polylineDrawing.value.active = false;
       polylineDrawing.value.points = [];
@@ -1329,12 +1655,12 @@ const handleKeyDown = (e: KeyboardEvent) => {
     }
   }
 
-  // Arrow keys: micro-adjustments with minimal step 1px unconditionally
+  // Arrow keys: micro-adjustments with minimal step 1px (or 10px if Shift held)
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
     if (selectedCompIds.value.length === 0) return;
     e.preventDefault();
 
-    const step = 1; // Always minimal 1px step, ignoring grid density
+    const step = e.shiftKey ? 10 : 1;
     let dx = 0;
     let dy = 0;
     if (e.key === 'ArrowUp') dy = -step;
@@ -1352,6 +1678,7 @@ const handleKeyDown = (e: KeyboardEvent) => {
       }
       return c;
     });
+    recordHistory();
   }
 };
 
@@ -1361,6 +1688,7 @@ const handleDeleteSelectedPrimitives = () => {
   const toDelete = new Set(selectedCompIds.value);
   currentEditingComponents.value = currentEditingComponents.value.filter(c => !toDelete.has(c.id));
   selectedCompIds.value = [];
+  recordHistory();
   showNotice('已删除选中基础图元');
 };
 
@@ -1392,6 +1720,7 @@ const handleMoveLayer = (direction: 'up' | 'down' | 'top' | 'bottom') => {
     c.zIndex = i + 1;
   });
   currentEditingComponents.value = list;
+  recordHistory();
 };
 
 // Gallery Operations
@@ -1773,8 +2102,70 @@ const handleFileChange = async (e: Event) => {
             </div>
           </div>
 
-          <!-- Center: Active Drawing Status Notification -->
+          <!-- Center: Active Drawing Status Notification & Quick Operation Buttons -->
           <div class="flex items-center gap-2">
+            <!-- Quick Action Toolbar Group -->
+            <div class="flex items-center gap-1 bg-slate-950/80 px-2 py-1 rounded-md border border-slate-800">
+              <button
+                @click="handleUndo"
+                class="p-1 rounded text-slate-400 hover:text-cyan-300 hover:bg-slate-900 cursor-pointer transition-colors"
+                title="撤销 (Ctrl+Z)"
+              >
+                <Undo class="w-3.5 h-3.5" />
+              </button>
+              <button
+                @click="handleRedo"
+                class="p-1 rounded text-slate-400 hover:text-cyan-300 hover:bg-slate-900 cursor-pointer transition-colors"
+                title="重做 (Ctrl+Y)"
+              >
+                <Redo class="w-3.5 h-3.5" />
+              </button>
+              <div class="w-px h-3.5 bg-slate-800 mx-0.5" />
+              <button
+                @click="handleCopySelected"
+                :disabled="selectedCompIds.length === 0"
+                class="p-1 rounded cursor-pointer transition-colors"
+                :class="selectedCompIds.length > 0 ? 'text-slate-300 hover:text-white hover:bg-slate-900' : 'text-slate-600 cursor-not-allowed'"
+                title="复制选中图元 (Ctrl+C)"
+              >
+                <Copy class="w-3.5 h-3.5" />
+              </button>
+              <button
+                @click="handlePastePrimitives()"
+                class="p-1 rounded text-slate-300 hover:text-white hover:bg-slate-900 cursor-pointer transition-colors"
+                title="粘贴图元 (Ctrl+V)"
+              >
+                <Clipboard class="w-3.5 h-3.5" />
+              </button>
+              <button
+                @click="handleDuplicateSelected"
+                :disabled="selectedCompIds.length === 0"
+                class="p-1 rounded cursor-pointer transition-colors"
+                :class="selectedCompIds.length > 0 ? 'text-slate-300 hover:text-white hover:bg-slate-900' : 'text-slate-600 cursor-not-allowed'"
+                title="创建副本 (Ctrl+D)"
+              >
+                <Copy class="w-3.5 h-3.5 text-cyan-400" />
+              </button>
+              <button
+                @click="handleRotateSelected(90)"
+                :disabled="selectedCompIds.length === 0"
+                class="p-1 rounded cursor-pointer transition-colors"
+                :class="selectedCompIds.length > 0 ? 'text-slate-300 hover:text-white hover:bg-slate-900' : 'text-slate-600 cursor-not-allowed'"
+                title="顺时针旋转90° (R)"
+              >
+                <RotateCw class="w-3.5 h-3.5" />
+              </button>
+              <button
+                @click="handleDeleteSelectedPrimitives"
+                :disabled="selectedCompIds.length === 0"
+                class="p-1 rounded cursor-pointer transition-colors"
+                :class="selectedCompIds.length > 0 ? 'text-rose-400 hover:bg-rose-950' : 'text-slate-600 cursor-not-allowed'"
+                title="删除选中图元 (Del)"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             <div
               v-if="activeTool === 'draw-polyline'"
               class="px-3 py-1 rounded-full bg-cyan-950/90 border border-cyan-400 text-cyan-200 text-xs font-mono flex items-center gap-2 shadow-[0_0_10px_rgba(0,242,255,0.2)] animate-pulse"
@@ -1804,9 +2195,9 @@ const handleFileChange = async (e: Event) => {
               </button>
             </div>
 
-            <div v-else class="text-[11px] text-slate-500 font-mono flex items-center gap-1.5">
+            <div v-else class="text-[11px] text-slate-500 font-mono flex items-center gap-1.5 hidden xl:flex">
               <MousePointer class="w-3.5 h-3.5 text-cyan-400" />
-              <span>指针选择模式 · 支持拖拽左侧图元入画布 · 方向键以最小1px微调</span>
+              <span>支持右键菜单 · 快捷键 Ctrl+C/V/D/Z · 方向键微调</span>
             </div>
           </div>
 
@@ -2129,7 +2520,7 @@ const handleFileChange = async (e: Event) => {
             :style="{
               backgroundColor: '#02050b',
               backgroundImage: showEditorGrid 
-                ? `radial-gradient(circle, rgba(0, 242, 255, 0.45) 1.5px, transparent 1.5px)` 
+                ? `radial-gradient(circle, rgba(0, 242, 255, 0.22) 1.2px, transparent 1.2px)` 
                 : 'none',
               backgroundSize: `${editorGridSize * canvasZoom}px ${editorGridSize * canvasZoom}px`,
               backgroundPosition: `${canvasPan.x - (editorGridSize * canvasZoom) / 2}px ${canvasPan.y - (editorGridSize * canvasZoom) / 2}px`,
@@ -2140,6 +2531,7 @@ const handleFileChange = async (e: Event) => {
             @mousemove="handleCanvasMouseMove"
             @mouseup="handleCanvasMouseUp"
             @dblclick="handleCanvasDblClick"
+            @contextmenu="handleCanvasContextMenu"
             @dragover.prevent
             @drop.prevent="handleCanvasDrop"
           >
@@ -2184,6 +2576,7 @@ const handleFileChange = async (e: Event) => {
                   zIndex: comp.zIndex || 1
                 }"
                 @mousedown.stop="handleCompMouseDown(comp, $event)"
+                @contextmenu.stop="handleCompContextMenu(comp, $event)"
               >
                 <WidgetRenderer :component="comp" />
 
@@ -2562,6 +2955,185 @@ const handleFileChange = async (e: Event) => {
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ==================== FLOATING WORKSHOP CONTEXT MENU ==================== -->
+    <div
+      v-if="contextMenu.visible && currentMode === 'editor'"
+      class="fixed z-[9999] bg-[#070d1e]/95 backdrop-blur-md border border-cyan-500/30 rounded-xl shadow-2xl py-1.5 min-w-[200px] text-xs font-mono select-none"
+      :style="{
+        left: `${contextMenu.x}px`,
+        top: `${contextMenu.y}px`
+      }"
+      @click.stop
+      @contextmenu.prevent
+    >
+      <!-- Target Primitive Name Header if Right-Clicked on Comp -->
+      <div v-if="contextMenu.targetCompId" class="px-3 py-1 text-[10px] text-cyan-400 font-bold border-b border-slate-800/80 mb-1 flex items-center gap-1.5 truncate">
+        <Sliders class="w-3 h-3 text-cyan-400 shrink-0" />
+        <span class="truncate">{{ currentEditingComponents.find(c => c.id === contextMenu.targetCompId)?.name || '图元组件' }}</span>
+      </div>
+
+      <!-- Copy -->
+      <button
+        @click="handleCopySelected(); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Copy class="w-3.5 h-3.5 text-slate-400" />
+          <span>复制</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">Ctrl+C</kbd>
+      </button>
+
+      <!-- Cut -->
+      <button
+        @click="handleCutSelected(); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Scissors class="w-3.5 h-3.5 text-slate-400" />
+          <span>剪切</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">Ctrl+X</kbd>
+      </button>
+
+      <!-- Paste -->
+      <button
+        @click="handlePastePrimitives(contextMenu.canvasX, contextMenu.canvasY); closeContextMenu();"
+        :disabled="symbolClipboard.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="symbolClipboard.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Clipboard class="w-3.5 h-3.5 text-slate-400" />
+          <span>粘贴在此处</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">Ctrl+V</kbd>
+      </button>
+
+      <!-- Duplicate -->
+      <button
+        @click="handleDuplicateSelected(); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Copy class="w-3.5 h-3.5 text-cyan-400" />
+          <span>创建副本</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">Ctrl+D</kbd>
+      </button>
+
+      <div class="h-px bg-slate-800/80 my-1 mx-2" />
+
+      <!-- Select All -->
+      <button
+        @click="handleSelectAll(); closeContextMenu();"
+        :disabled="currentEditingComponents.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="currentEditingComponents.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <CheckSquare class="w-3.5 h-3.5 text-slate-400" />
+          <span>全选图元</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">Ctrl+A</kbd>
+      </button>
+
+      <!-- Rotate -->
+      <button
+        @click="handleRotateSelected(90); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <RotateCw class="w-3.5 h-3.5 text-slate-400" />
+          <span>顺时针旋转 90°</span>
+        </span>
+        <kbd class="text-[10px] text-slate-500 bg-slate-900 px-1 py-0.5 rounded border border-slate-800">R</kbd>
+      </button>
+
+      <!-- Snap to Grid -->
+      <button
+        @click="handleSnapSelectedToGrid(); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-slate-200 hover:bg-cyan-500/20 hover:text-cyan-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Magnet class="w-3.5 h-3.5 text-slate-400" />
+          <span>对齐到点格</span>
+        </span>
+      </button>
+
+      <div class="h-px bg-slate-800/80 my-1 mx-2" />
+
+      <!-- Layer Ordering -->
+      <div v-if="selectedCompIds.length > 0" class="space-y-0.5">
+        <button
+          @click="handleMoveLayer('top'); closeContextMenu();"
+          class="w-full px-3 py-1 text-slate-300 hover:bg-slate-800/80 flex items-center justify-between text-left cursor-pointer"
+        >
+          <span class="flex items-center gap-2">
+            <ArrowUp class="w-3 h-3 text-cyan-400" />
+            <span>置于顶层</span>
+          </span>
+          <kbd class="text-[9px] text-slate-500 bg-slate-900 px-1 rounded">Shift+]</kbd>
+        </button>
+        <button
+          @click="handleMoveLayer('bottom'); closeContextMenu();"
+          class="w-full px-3 py-1 text-slate-300 hover:bg-slate-800/80 flex items-center justify-between text-left cursor-pointer"
+        >
+          <span class="flex items-center gap-2">
+            <ArrowDown class="w-3 h-3 text-cyan-400" />
+            <span>置于底层</span>
+          </span>
+          <kbd class="text-[9px] text-slate-500 bg-slate-900 px-1 rounded">Shift+[</kbd>
+        </button>
+        <button
+          @click="handleMoveLayer('up'); closeContextMenu();"
+          class="w-full px-3 py-1 text-slate-300 hover:bg-slate-800/80 flex items-center justify-between text-left cursor-pointer"
+        >
+          <span class="flex items-center gap-2">
+            <ArrowUp class="w-3 h-3 text-slate-400" />
+            <span>上移一层</span>
+          </span>
+          <kbd class="text-[9px] text-slate-500 bg-slate-900 px-1 rounded">]</kbd>
+        </button>
+        <button
+          @click="handleMoveLayer('down'); closeContextMenu();"
+          class="w-full px-3 py-1 text-slate-300 hover:bg-slate-800/80 flex items-center justify-between text-left cursor-pointer"
+        >
+          <span class="flex items-center gap-2">
+            <ArrowDown class="w-3 h-3 text-slate-400" />
+            <span>下移一层</span>
+          </span>
+          <kbd class="text-[9px] text-slate-500 bg-slate-900 px-1 rounded">[</kbd>
+        </button>
+      </div>
+
+      <div class="h-px bg-slate-800/80 my-1 mx-2" />
+
+      <!-- Delete -->
+      <button
+        @click="handleDeleteSelectedPrimitives(); closeContextMenu();"
+        :disabled="selectedCompIds.length === 0"
+        class="w-full px-3 py-1.5 flex items-center justify-between text-left transition-colors cursor-pointer"
+        :class="selectedCompIds.length > 0 ? 'text-rose-400 hover:bg-rose-950/60 hover:text-rose-200' : 'text-slate-600 cursor-not-allowed'"
+      >
+        <span class="flex items-center gap-2">
+          <Trash2 class="w-3.5 h-3.5 text-rose-400" />
+          <span>删除基础图元</span>
+        </span>
+        <kbd class="text-[10px] text-rose-400/80 bg-rose-950/40 px-1 py-0.5 rounded border border-rose-800/40">Del</kbd>
+      </button>
     </div>
   </div>
 </template>

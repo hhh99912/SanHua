@@ -767,19 +767,16 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     type: 'metric-float',
     category: 'metrics',
-    name: '浮点数遥测监控卡',
-    nameEn: 'Float Metric Card',
+    name: '浮点数遥测数值',
+    nameEn: 'Float Metric Value',
     iconName: 'Binary',
-    description: '高精度工业浮点数遥测卡片，支持小数位数、单位后缀与实时波动',
-    defaultWidth: 180,
-    defaultHeight: 80,
+    description: '纯净浮点数遥测数值，支持小数位与数据源绑定，100%全比例边界缩放贴合',
+    defaultWidth: 140,
+    defaultHeight: 48,
     defaultStyle: {
       decimals: 2,
-      suffix: ' kV',
-      fontSize: 24,
       textColor: '#00f2ff',
-      stroke: '#00f2ff',
-      fill: 'rgba(0, 242, 255, 0.1)'
+      fill: 'transparent'
     },
     defaultData: {
       datasetId: 'ds-scada-station',
@@ -807,6 +804,67 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         valueKey: 'DEV_101_DD_1'
       }
     }
+  },
+  {
+    type: 'metric-clock-analog',
+    category: 'metrics',
+    name: '模拟表盘时钟',
+    nameEn: 'Analog Dial Clock',
+    iconName: 'Clock',
+    description: '极简工控模拟圆形表盘时钟，秒针/分针/时针实时旋转，100%自适应贴合边界缩放',
+    defaultWidth: 120,
+    defaultHeight: 120,
+    defaultStyle: {
+      textColor: '#00f2ff',
+      stroke: '#00f2ff',
+      fill: '#040a18'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'metric-clock',
+    category: 'metrics',
+    name: '实时数字时钟',
+    nameEn: 'Digital Clock',
+    iconName: 'Clock',
+    description: '纯净LED数字时钟，时分秒动态跳动，支持自由拉伸全比例自适应',
+    defaultWidth: 160,
+    defaultHeight: 44,
+    defaultStyle: {
+      textColor: '#00f2ff',
+      fill: 'transparent'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'metric-time-banner',
+    category: 'metrics',
+    name: '日期星期显示',
+    nameEn: 'Date & Week Display',
+    iconName: 'Calendar',
+    description: '纯净年月日及星期文本显示，自动同步系统日期',
+    defaultWidth: 180,
+    defaultHeight: 36,
+    defaultStyle: {
+      textColor: '#00f2ff',
+      fill: 'transparent'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'metric-countdown',
+    category: 'metrics',
+    name: '安全运行时长计',
+    nameEn: 'Runtime Counter',
+    iconName: 'Timer',
+    description: '纯净安全无故障累计运行天数与时钟显示',
+    defaultWidth: 200,
+    defaultHeight: 44,
+    defaultStyle: {
+      textColor: '#00f2ff',
+      fill: 'transparent'
+    },
+    defaultData: { mapping: {} }
   },
 
   // ==========================================

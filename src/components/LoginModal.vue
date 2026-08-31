@@ -147,7 +147,7 @@ const handleLogoutToLoginScreen = () => {
           @click="handleLogoutToLoginScreen"
           class="w-full py-2 rounded-xl bg-slate-900 border border-slate-700 hover:border-amber-500/50 hover:bg-amber-950/20 text-amber-300 text-xs font-mono transition-all cursor-pointer"
         >
-          注销当前账号 / 返回光伏登录界面
+          注销当前账号 / 返回 SCADA 登录界面
         </button>
       </form>
     </div>

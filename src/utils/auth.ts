@@ -9,7 +9,7 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
     name: '系统管理员',
     role: 'system_admin',
     roleName: '系统管理员 (全权限)',
-    description: '具备大屏监控、画布编辑、图元工坊、测点管理等所有权限',
+    description: '具备 SCADA 监控、画布编辑、图元工坊、测点管理等所有权限',
     permissions: ['view_preview', 'edit_canvas', 'custom_symbol', 'scada_control', 'batch_points', 'export_schema', 'history_curves']
   },
   {
@@ -18,8 +18,8 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
     passwordHash: '123456',
     name: '普通用户',
     role: 'viewer',
-    roleName: '普通用户 (仅大屏)',
-    description: '具备大屏实时监视、遥控置数与历史曲线调阅权限',
+    roleName: '普通用户 (仅监控)',
+    description: '具备 SCADA 实时监视、遥控置数与历史曲线调阅权限',
     permissions: ['view_preview', 'scada_control', 'history_curves']
   },
   {
@@ -29,7 +29,7 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
     name: '运维工程师',
     role: 'viewer',
     roleName: '运维工程师',
-    description: '具备大屏监控、告警巡检与历史曲线调阅权限',
+    description: '具备 SCADA 监控、告警巡检与历史曲线调阅权限',
     permissions: ['view_preview', 'scada_control', 'history_curves']
   },
   {
@@ -39,12 +39,12 @@ export const PRESET_USERS: Array<UserProfile & { passwordHash: string }> = [
     name: '调度值班员',
     role: 'viewer',
     roleName: '调度值班员',
-    description: '具备大屏实时监视、遥测遥信监视与置数权限',
+    description: '具备 SCADA 实时监视、遥测遥信监视与置数权限',
     permissions: ['view_preview', 'scada_control', 'history_curves']
   }
 ];
 
-const AUTH_STORAGE_KEY = 'datav_scada_current_user_v1';
+const AUTH_STORAGE_KEY = 'ge_scada_current_user_v1';
 
 // Get initial user from local storage or default to system admin
 const getInitialUser = (): UserProfile => {

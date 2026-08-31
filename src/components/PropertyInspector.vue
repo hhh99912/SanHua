@@ -643,6 +643,18 @@ const updateComponentCustomProps = (customPropsUpdates: Record<string, any>) => 
   });
 };
 
+const handleTextTitleChange = (newVal: string) => {
+  if (!props.component) return;
+  if (props.component.type === 'ctrl-button') {
+    updateComponentStyle({ buttonText: newVal });
+  } else if (['metric-clock', 'metric-time-banner', 'metric-clock-analog', 'metric-countdown', 'nav-tabs'].includes(props.component.type)) {
+    updateComponentCustomProps({ title: newVal });
+  } else {
+    updateComponentProps({ name: newVal });
+    updateComponentStyle({ text: newVal });
+  }
+};
+
 const updateComponentData = (dataUpdates: Partial<ScreenComponent['data']>) => {
   if (!props.component) return;
   emit('update:component', {
@@ -1033,12 +1045,12 @@ const toggleBatchLock = () => {
             </div>
 
             <!-- Text Content -->
-            <div v-if="component.type === 'draw-text' || component.type === 'ctrl-button' || component.type === 'metric-header'">
-              <label class="text-xs font-semibold text-slate-200 block mb-1">展示文本内容</label>
+            <div v-if="component.type === 'draw-text' || component.type === 'ctrl-button' || component.type === 'metric-header' || component.type === 'metric-clock' || component.type === 'metric-time-banner' || component.type === 'metric-clock-analog' || component.type === 'metric-countdown' || component.type === 'nav-tabs'">
+              <label class="text-xs font-semibold text-slate-200 block mb-1">展示标题 / 文本内容</label>
               <input
                 type="text"
-                :value="component.type === 'ctrl-button' ? (component.style.buttonText || component.name) : (component.style.text || component.name)"
-                @input="component.type === 'ctrl-button' ? updateComponentStyle({ buttonText: ($event.target as HTMLInputElement).value }) : (updateComponentProps({ name: ($event.target as HTMLInputElement).value }), updateComponentStyle({ text: ($event.target as HTMLInputElement).value }))"
+                :value="component.customProps?.title || (component.type === 'ctrl-button' ? (component.style.buttonText || component.name) : (component.style.text || component.name))"
+                @input="handleTextTitleChange(($event.target as HTMLInputElement).value)"
                 class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 outline-hidden text-xs font-bold"
               />
             </div>
@@ -1891,7 +1903,7 @@ const toggleBatchLock = () => {
                   class="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 hover:from-cyan-900 hover:to-indigo-900 border border-cyan-500/40 text-cyan-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all"
                 >
                   <Sparkles class="w-3.5 h-3.5 text-cyan-400" />
-                  <span>打开批量遥测/遥信关联与大屏生成</span>
+                  <span>打开批量遥测/遥信关联与生成</span>
                 </button>
               </div>
             </div>
@@ -1986,25 +1998,25 @@ const toggleBatchLock = () => {
               class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 outline-hidden cursor-pointer font-bold text-xs"
             >
               <option value="none">无交互事件</option>
-              <option value="jump-screen">🔗 切换跳转至子大屏页面</option>
+              <option value="jump-screen">🔗 切换跳转至目标子画面</option>
               <option value="link">🌐 打开外部系统链接</option>
             </select>
           </div>
 
           <!-- Target Screen Selector -->
           <div v-if="component.data.action?.type === 'jump-screen' || component.data.action?.type === 'switch-screen'" class="space-y-2 p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40">
-            <label class="text-xs text-cyan-300 font-bold block">选择目标子大屏</label>
+            <label class="text-xs text-cyan-300 font-bold block">选择目标子画面</label>
             <select
               :value="component.data.action?.targetScreenId || ''"
               @change="updateComponentAction({ targetScreenId: ($event.target as HTMLSelectElement).value })"
               class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-200 font-semibold outline-hidden cursor-pointer text-xs"
             >
-              <option value="" disabled>请选择要跳转的大屏...</option>
+              <option value="" disabled>请选择要跳转的画面...</option>
               <option v-for="sc in screens" :key="sc.id" :value="sc.id">
                 {{ sc.name }} ({{ sc.screen.width }} × {{ sc.screen.height }})
               </option>
             </select>
-            <p class="text-[11px] text-slate-300 leading-relaxed">设置后，在大屏预览演示或点击按钮时将自动平滑切换至目标大屏。</p>
+            <p class="text-[11px] text-slate-300 leading-relaxed">设置后，在 SCADA 预览演示或点击按钮时将自动平滑切换至目标画面。</p>
           </div>
 
           <!-- External Link Input -->

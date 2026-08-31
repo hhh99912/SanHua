@@ -2,7 +2,7 @@ export type ComponentCategory =
   | 'basic'        // 基础图元与控制器 (矩形/圆形/多边形/星形/菱形/文本/按钮/指示灯等)
   | 'electrical'   // 电力一次系统图元 (断路器/手车/隔离开关/主变/互感器/避雷器/母线/电表)
   | 'industrial'   // 工业SCADA与流体 (储罐/管道/泵阀/电机/矩阵/报警)
-  | 'charts'       // 统计图表与大屏仪表
+  | 'charts'       // 统计图表与监控仪表
   | 'metrics'      // 测控遥测与数据显示
   | 'decoration'   // 科技边框与修饰
   | 'custom'       // 复合组合图元与自定义资产
@@ -76,12 +76,16 @@ export type ComponentType =
   | 'ind-alarm-list'
   | 'ind-matrix'
 
-  // 6. Metrics
+  // 6. Metrics & Time Widgets
   | 'metric-float'
   | 'metric-flipper'
   | 'metric-card'
   | 'metric-title'
   | 'metric-progress'
+  | 'metric-clock'
+  | 'metric-time-banner'
+  | 'metric-clock-analog'
+  | 'metric-countdown'
 
   // 7. Navigation
   | 'nav-tabs'

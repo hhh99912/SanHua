@@ -83,8 +83,8 @@ const platform = detectPlatform();
 
 const handleDownload = async () => {
   const fileName = exportScope.value === 'multi-screen' 
-    ? `datav-multi-screen-project-${Date.now()}.json`
-    : `${props.screen.name || 'datav-screen'}-${Date.now()}.json`;
+    ? `ge-scada-project-${Date.now()}.json`
+    : `${props.screen.name || 'scada-screen'}-${Date.now()}.json`;
   
   const res = await exportProjectFile(jsonText.value, fileName);
   if (res.success && res.path) {
@@ -156,7 +156,7 @@ const handleImport = () => {
               </span>
             </div>
             <p class="text-[10px] font-mono text-slate-400">
-              支持多大屏完整工程结构、关联数据集、自定义图元库一并导出与恢复
+              支持多画面完整工程结构、关联数据集、自定义图元库一并导出与恢复
             </p>
           </div>
         </div>
@@ -194,8 +194,8 @@ const handleImport = () => {
             v-model="exportScope" 
             class="bg-slate-900 border border-slate-700 text-cyan-300 text-xs rounded px-2 py-1 focus:outline-hidden"
           >
-            <option value="multi-screen">📁 导出全套多大屏工程 (含全部 {{ screens.length }} 个页面)</option>
-            <option value="current-screen">📄 仅导出当前单屏页面</option>
+            <option value="multi-screen">📁 导出全套 SCADA 工程 (含全部 {{ screens.length }} 个画面)</option>
+            <option value="current-screen">📄 仅导出当前画面</option>
           </select>
         </div>
       </div>

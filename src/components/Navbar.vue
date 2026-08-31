@@ -144,10 +144,10 @@ const handleSelectTemplate = (id: string) => {
           </div>
           <div class="flex items-center gap-1.5">
             <span class="font-mono font-black text-xs tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-sky-100 to-blue-300">
-              DATAV SCADA
+              GE-SCADA
             </span>
             <span class="text-[9px] font-mono px-1 py-0.2 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-semibold">
-              工业组态
+              SCADA
             </span>
           </div>
         </div>
@@ -159,7 +159,7 @@ const handleSelectTemplate = (id: string) => {
           <button
             @click="showResolutionMenu = !showResolutionMenu"
             class="flex items-center gap-1.5 px-2 py-1 rounded bg-slate-900/90 border border-cyan-500/30 hover:border-cyan-400 text-[11px] font-mono text-cyan-200 transition-all cursor-pointer shadow-xs"
-            title="选择预设大屏分辨率"
+            title="选择预设画面分辨率"
           >
             <span class="text-slate-400">尺寸:</span>
             <span class="font-bold text-white">{{ screen.width }}×{{ screen.height }}</span>
@@ -172,7 +172,7 @@ const handleSelectTemplate = (id: string) => {
             class="absolute top-full left-0 mt-1 w-60 bg-[#0a1122] border border-cyan-500/40 rounded-xl shadow-2xl p-1 z-50 backdrop-blur-md"
           >
             <div class="text-[10px] font-mono text-slate-400 px-2 py-0.5 border-b border-slate-800">
-              大屏分辨率预设
+              SCADA 分辨率预设
             </div>
             <div class="space-y-0.5 mt-1">
               <button
@@ -200,7 +200,7 @@ const handleSelectTemplate = (id: string) => {
           <button
             @click="showTemplateMenu = !showTemplateMenu"
             class="flex items-center gap-1 px-2 py-1 rounded bg-slate-900/90 border border-slate-700 hover:border-cyan-400 text-[11px] font-mono text-slate-200 transition-all cursor-pointer"
-            title="载入官方工业与科技大屏预设"
+            title="载入官方 SCADA 工程预设"
           >
             <LayoutTemplate class="w-3 h-3 text-cyan-400" />
             <span>模版</span>
@@ -212,7 +212,7 @@ const handleSelectTemplate = (id: string) => {
             class="absolute top-full left-0 mt-1 w-64 bg-[#0a1122] border border-cyan-500/40 rounded-xl shadow-2xl p-1 z-50 backdrop-blur-md"
           >
             <div class="text-[10px] font-mono text-slate-400 px-2 py-0.5 border-b border-slate-800">
-              载入官方大屏预设
+              载入官方 SCADA 预设
             </div>
             <div class="space-y-0.5 mt-1">
               <button
@@ -312,14 +312,14 @@ const handleSelectTemplate = (id: string) => {
           <span class="max-w-[70px] truncate text-[11px]">{{ currentUser.name }}</span>
         </button>
 
-        <!-- Big Screen Full Preview -->
+        <!-- SCADA Full Preview -->
         <button
           @click="emit('open:preview')"
           class="flex items-center gap-1 px-3 py-1 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs font-mono shadow-[0_0_12px_rgba(0,242,255,0.4)] transition-all cursor-pointer"
-          title="全屏运行大屏组态与实时动态监控"
+          title="全屏运行 SCADA 组态与实时动态监控"
         >
           <Eye class="w-3.5 h-3.5" />
-          <span>大屏预览</span>
+          <span>SCADA 预览</span>
         </button>
       </div>
     </div>
@@ -462,7 +462,7 @@ const handleSelectTemplate = (id: string) => {
           <button
             @click="emit('crop:minimal')"
             class="p-1 rounded bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/50 cursor-pointer transition-colors"
-            title="截取最小画布：根据所有图元外接边界，自动裁剪大屏尺寸并位移规整"
+            title="截取最小画布：根据所有图元外接边界，自动裁剪画面尺寸并位移规整"
           >
             <Crop class="w-3.5 h-3.5 text-emerald-400" />
           </button>

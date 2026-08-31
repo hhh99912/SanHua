@@ -73,7 +73,7 @@ const showDatasetsModal = ref(false);
 const showControlModal = ref(false);
 const controlInitialDeviceId = ref<string | undefined>(undefined);
 const showJsonModal = ref(false);
-const showPreviewModal = ref(true); // Automatically enter Big Screen Dashboard on startup
+const showPreviewModal = ref(true); // Automatically enter SCADA Dashboard on startup
 const showSymbolModal = ref(false);
 const showSaveSymbolModal = ref(false);
 const showPlatformModal = ref(false);
@@ -112,7 +112,7 @@ const handleSwitchScreen = (screenId: string) => {
 
 // Helper to enforce strictly unique screen names across the system
 const getUniqueScreenName = (baseName: string, excludeId?: string): string => {
-  let name = baseName.trim() || '新建大屏';
+  let name = baseName.trim() || '新建画面';
   let counter = 1;
   const exists = (n: string) => screens.value.some(s => s.id !== excludeId && s.name.trim().toLowerCase() === n.trim().toLowerCase());
   
@@ -140,7 +140,7 @@ const handleAddScreen = (payload: { name: string; width: number; height: number 
       backgroundColor: '#040914',
       backgroundGrid: true,
       gridSize: 20,
-      gridColor: 'rgba(0, 242, 255, 0.05)',
+      gridColor: 'rgba(0, 242, 255, 0.22)',
       theme: 'cyber-dark',
       version: '2.0.0',
       updatedAt: new Date().toISOString()
@@ -148,7 +148,7 @@ const handleAddScreen = (payload: { name: string; width: number; height: number 
     components: [
       {
         id: `comp-nav-${Date.now()}`,
-        name: '大屏导航条',
+        name: 'SCADA 导航条',
         type: 'nav-tabs',
         category: 'custom',
         x: 60,
@@ -204,7 +204,7 @@ const handleRenameScreen = (payload: { screenId: string; newName: string }) => {
     if (!trimmed) return;
     const isTaken = screens.value.some(s => s.id !== payload.screenId && s.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (isTaken) {
-      alert(`大屏画面「${trimmed}」已存在，大屏画面名称为唯一识别标识，不可重复！`);
+      alert(`画面「${trimmed}」已存在，画面名称为唯一识别标识，不可重复！`);
       return;
     }
     target.name = trimmed;
@@ -218,10 +218,10 @@ const handleRenameScreen = (payload: { screenId: string; newName: string }) => {
 // Delete screen
 const handleDeleteScreen = (screenId: string) => {
   if (screens.value.length <= 1) {
-    alert('至少需要保留一个大屏页面。');
+    alert('至少需要保留一个画面。');
     return;
   }
-  if (!confirm('确定要删除该大屏页面及其所有组件吗？')) return;
+  if (!confirm('确定要删除该画面及其所有组件吗？')) return;
 
   screens.value = screens.value.filter(s => s.id !== screenId);
   if (activeScreenId.value === screenId) {
@@ -511,7 +511,7 @@ const handleDeleteBatch = (ids: string[]) => {
 };
 
 const handleClearCanvas = () => {
-  if (window.confirm('确定要清空当前大屏中的所有组件吗？')) {
+  if (window.confirm('确定要清空当前画面中的所有组件吗？')) {
     components.value = [];
     selectedIds.value = [];
     recordHistory();
@@ -800,7 +800,7 @@ const handleImportProject = (data: any) => {
     screens.value = [
       {
         id: data.screen.id || `screen-${Date.now()}`,
-        name: data.screen.name || '导入的大屏工程',
+        name: data.screen.name || '导入的 SCADA 工程',
         screen: JSON.parse(JSON.stringify(data.screen)),
         components: JSON.parse(JSON.stringify(data.components))
       }
@@ -904,7 +904,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- 1. LeaferJS Industrial Photovoltaic SCADA Login Interface (Startup view) -->
+  <!-- 1. GE-SCADA Industrial Login Interface (Startup view) -->
   <ScadaPvLogin
     v-if="!isLoggedIn"
     @login:success="handleLoginSuccess"

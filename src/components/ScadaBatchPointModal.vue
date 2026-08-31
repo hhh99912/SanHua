@@ -270,7 +270,7 @@ const handleBatchBindToSelectedCanvasWidgets = () => {
     return;
   }
   if (!props.selectedComponents?.length) {
-    showToast('当前大屏画布上未选中任何图元，无法批量关联');
+    showToast('当前画布上未选中任何图元，无法批量关联');
     return;
   }
 
@@ -634,7 +634,7 @@ const handleExecuteBatchGenerate = () => {
 
   emit('batch:generate', generatedComps);
   showBatchGenDialog.value = false;
-  showToast(`✓ 已成功在大屏生成 ${generatedComps.length} 个工业 SCADA 联动组件！`);
+  showToast(`✓ 已成功在画布生成 ${generatedComps.length} 个工业 SCADA 联动组件！`);
   emit('close');
 };
 
@@ -674,7 +674,7 @@ const handleDirectControlClick = (p: FlatScadaPoint) => {
               </span>
             </h2>
             <p class="text-[11px] text-slate-400 font-mono">
-              工业级测控点阵列管理，支持批量勾选一键生成大屏看板组件、快速映射与遥控闭环校核
+              工业级测控点阵列管理，支持批量勾选一键生成 SCADA 看板组件、快速映射与遥控闭环校核
             </p>
           </div>
         </div>
@@ -697,7 +697,7 @@ const handleDirectControlClick = (p: FlatScadaPoint) => {
             class="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 text-xs font-mono font-bold cursor-pointer shadow-[0_0_15px_rgba(0,242,255,0.4)] transition-all"
           >
             <Sparkles class="w-3.5 h-3.5" />
-            <span>一键批量生成大屏看板 ({{ selectedPointsList.length > 0 ? selectedPointsList.length : '全部' }})</span>
+            <span>一键批量生成 SCADA 看板 ({{ selectedPointsList.length > 0 ? selectedPointsList.length : '全部' }})</span>
           </button>
 
           <!-- Close Modal -->
@@ -969,7 +969,7 @@ const handleDirectControlClick = (p: FlatScadaPoint) => {
         <div class="flex items-center justify-between border-b border-slate-800 pb-3">
           <h3 class="text-sm font-bold text-white flex items-center gap-2">
             <Sparkles class="w-4 h-4 text-cyan-400" />
-            <span>配置一键批量生成大屏看板</span>
+            <span>配置一键批量生成 SCADA 看板</span>
           </h3>
           <button @click="showBatchGenDialog = false" class="text-slate-400 hover:text-white cursor-pointer"><X class="w-4 h-4" /></button>
         </div>
@@ -1036,7 +1036,7 @@ const handleDirectControlClick = (p: FlatScadaPoint) => {
 
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
           <button @click="showBatchGenDialog = false" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 cursor-pointer">取消</button>
-          <button @click="handleExecuteBatchGenerate" class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold cursor-pointer">立即生成到大屏画布</button>
+          <button @click="handleExecuteBatchGenerate" class="px-4 py-1.5 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold cursor-pointer">立即生成到画布</button>
         </div>
       </div>
     </div>

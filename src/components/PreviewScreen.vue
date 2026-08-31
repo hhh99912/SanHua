@@ -193,7 +193,7 @@ const handleExitPreview = () => {
   if (canEditCanvas()) {
     emit('close');
   } else {
-    loginNotice.value = '当前为【普通用户】角色，仅限大屏实时监视。请登录【系统用户】以进入画布设计与编辑模式。';
+    loginNotice.value = '当前为【普通用户】角色，仅限 SCADA 实时监视。请登录【系统用户】以进入画布设计与编辑模式。';
     showLoginModal.value = true;
   }
 };
@@ -482,11 +482,7 @@ onBeforeUnmount(() => {
         height: `${contentBounds.height}px`,
         transform: `scale(${scaleRatio.scaleX}, ${scaleRatio.scaleY})`,
         backgroundColor: screen.backgroundColor || '#040810',
-        backgroundImage: screen.backgroundGrid 
-          ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.15)'} 1.5px, transparent 1.5px)` 
-          : 'none',
-        backgroundPosition: `-${(screen.gridSize || 30) / 2}px -${(screen.gridSize || 30) / 2}px`,
-        backgroundSize: `${screen.gridSize || 30}px ${screen.gridSize || 30}px`,
+        backgroundImage: 'none',
         boxShadow: '0 0 60px rgba(0,0,0,0.95)'
       }"
     >
@@ -628,7 +624,7 @@ onBeforeUnmount(() => {
       <div v-if="screens && screens.length > 1" class="py-1">
         <div class="px-3 py-1 text-[10px] text-slate-400 font-mono font-bold flex items-center gap-1">
           <Layout class="w-3 h-3 text-cyan-400" />
-          <span>切换大屏画面:</span>
+          <span>切换 SCADA 画面:</span>
         </div>
         <div class="max-h-28 overflow-y-auto custom-scrollbar">
           <button
@@ -714,14 +710,14 @@ onBeforeUnmount(() => {
           </span>
         </button>
 
-        <!-- Return to LeaferJS Solar PV Login Screen -->
+        <!-- Return to SCADA Login Screen -->
         <button
           @click="emit('logout'); closeContextMenu();"
           class="w-full px-3 py-1.5 text-left hover:bg-amber-950/40 text-amber-300 flex items-center justify-between cursor-pointer"
         >
           <span class="flex items-center gap-2">
             <UserCheck class="w-3.5 h-3.5 text-amber-400" />
-            <span>注销 / 返回光伏登录界面</span>
+            <span>注销 / 返回 SCADA 登录界面</span>
           </span>
           <span class="text-[10px] text-amber-500 font-mono">Login</span>
         </button>
@@ -733,7 +729,7 @@ onBeforeUnmount(() => {
         >
           <span class="flex items-center gap-2">
             <LogOut class="w-3.5 h-3.5 text-rose-400" />
-            <span>退出大屏 / 进入编辑模式</span>
+            <span>退出监控 / 进入编辑模式</span>
           </span>
           <span class="text-[10px] text-rose-500 font-mono">ESC</span>
         </button>

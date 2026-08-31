@@ -219,6 +219,15 @@ const isBorderComponent = (comp: ScreenComponent) => {
          comp.type.startsWith('deco-border');
 };
 
+// Soft, Comfortable SCADA Dot Grid (Pleasantly visible without glare)
+const effectiveGridColor = computed(() => {
+  const col = props.screen.gridColor;
+  if (!col || col.includes('0.05') || col.includes('0.08') || col.includes('0.45') || col.includes('0.75')) {
+    return 'rgba(0, 242, 255, 0.22)';
+  }
+  return col;
+});
+
 // Context Menu
 const contextMenu = ref<{ visible: boolean; x: number; y: number; canvasX: number; canvasY: number; targetCompId: string | null }>({
   visible: false,
@@ -1180,7 +1189,7 @@ defineExpose({
       :style="{
         backgroundColor: screen.backgroundColor || '#040810',
         backgroundImage: showGrid 
-          ? `radial-gradient(circle, ${screen.gridColor || 'rgba(0, 242, 255, 0.75)'} 2.2px, transparent 2.2px)` 
+          ? `radial-gradient(circle, ${effectiveGridColor} 1.2px, transparent 1.2px)` 
           : 'none',
         backgroundPosition: `${panOffset.x - (gridSize * zoom) / 2}px ${panOffset.y - (gridSize * zoom) / 2}px`,
         backgroundSize: `${gridSize * zoom}px ${gridSize * zoom}px`
@@ -1770,7 +1779,7 @@ defineExpose({
         </div>
         <div class="h-3 w-[1px] bg-slate-800" />
         <div>
-          <span class="text-slate-500">大屏尺寸:</span>
+          <span class="text-slate-500">画面尺寸:</span>
           <span class="text-slate-300 ml-1">{{ screen.width }} × {{ screen.height }}</span>
         </div>
         <div v-if="selectedIds.length > 0" class="flex items-center gap-2">

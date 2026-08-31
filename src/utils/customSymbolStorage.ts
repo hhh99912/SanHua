@@ -1,6 +1,6 @@
 import { CustomSymbolDef, ScreenComponent } from '../types';
 
-const STORAGE_KEY = 'datav_custom_symbols_v4';
+const STORAGE_KEY = 'ge_scada_custom_symbols_v4';
 
 export const PRESET_CUSTOM_SYMBOLS: CustomSymbolDef[] = [
   // 1. 真空断路器手车 (KYN28高压手车 QF，多态多位置标准图元)
@@ -2196,7 +2196,7 @@ export function saveCustomSymbols(symbols: CustomSymbolDef[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('datav:custom-symbols-updated'));
+      window.dispatchEvent(new CustomEvent('scada:custom-symbols-updated'));
     }
   } catch (e) {
     console.error('Failed to save custom symbols:', e);

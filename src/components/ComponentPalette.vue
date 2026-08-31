@@ -43,7 +43,11 @@ import {
   MessageSquare,
   Disc,
   ArrowLeftRight,
-  CornerDownRight
+  CornerDownRight,
+  Clock,
+  Calendar,
+  Timer,
+  Radio
 } from 'lucide-vue-next';
 import { ComponentCategory, ComponentType, CustomSymbolDef } from '../types';
 import { COMPONENT_DEFINITIONS, ComponentDefinition } from '../data/componentLibrary';
@@ -64,7 +68,7 @@ const refreshCustomSymbols = () => {
 
 onMounted(() => {
   refreshCustomSymbols();
-  window.addEventListener('datav:custom-symbols-updated', refreshCustomSymbols);
+  window.addEventListener('scada:custom-symbols-updated', refreshCustomSymbols);
 });
 
 const categories: { id: ComponentCategory | 'all'; label: string }[] = [
@@ -118,7 +122,11 @@ const iconMap: Record<string, any> = {
   ArrowLeftRight,
   CornerDownRight,
   Sparkles,
-  Plus
+  Plus,
+  Clock,
+  Calendar,
+  Timer,
+  Radio
 };
 
 const getIcon = (iconName?: string) => {
