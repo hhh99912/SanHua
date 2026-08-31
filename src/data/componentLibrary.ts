@@ -553,17 +553,20 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     type: 'ctrl-indicator',
     category: 'basic',
-    name: '状态指示灯 (0/1/2)',
-    nameEn: 'LED Status Indicator',
+    name: '状态指示灯 (0:绿/1:红)',
+    nameEn: 'LED Status Indicator (0:Green/1:Red)',
     iconName: 'CircleDot',
-    description: '工业LED状态信号灯，支持 0:分闸/停止(绿/灰), 1:合闸/运行(红/绿), 2:故障/告警(黄/红闪烁)',
-    defaultWidth: 130,
-    defaultHeight: 36,
+    description: '纯原子化工业LED信号灯(无文字)，0:绿色，1:红色，支持多形态与闪烁',
+    defaultWidth: 44,
+    defaultHeight: 44,
     defaultStyle: {
       indicatorShape: 'circle',
-      indicatorState: 'normal',
-      indicatorBlinkSpeed: 'none',
-      indicatorLabel: '1#进线状态'
+      indicatorState: 0,
+      indicatorBlinkSpeed: 'none'
+    },
+    defaultCustomProps: {
+      state: 0,
+      indicatorStyle: 'bezel-circle'
     },
     defaultData: {
       datasetId: 'ds-scada-station',
@@ -736,29 +739,6 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       voltageLevel: '10kV'
     },
     defaultData: { mapping: {} }
-  },
-  {
-    type: 'elec-multimeter',
-    category: 'electrical',
-    name: '多功能电力测控电表',
-    nameEn: 'Multifunctional Power Meter',
-    iconName: 'Cpu',
-    description: '微机三相交流多功能数显电表，实时展示Ua/Ub/Uc、Ia/Ib/Ic、P、Q、CosΦ与kWh',
-    defaultWidth: 160,
-    defaultHeight: 180,
-    defaultStyle: {
-      stroke: '#00f2ff',
-      strokeWidth: 1.5,
-      borderRadius: 6
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        voltageKey: 'DEV_101_YC_1',
-        currentKey: 'DEV_101_YC_4',
-        powerKey: 'DEV_101_YC_7'
-      }
-    }
   },
 
   // ==========================================

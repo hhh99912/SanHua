@@ -42,7 +42,11 @@ import {
   LocateFixed,
   Link2,
   Unlink,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  ListPlus,
+  Gauge,
+  Clock
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
 
@@ -558,7 +562,7 @@ const handleUnbindPoint = () => {
   });
 };
 
-// Chart Preset Binding Helpers
+// Chart Preset & Standard Template Binding Helpers
 const handleBindChartPreset = (presetType: 'power-trend' | 'voltage-trend' | 'load-bar') => {
   if (!props.component) return;
   const datasetId = boundDataset.value?.id || 'ds-substation-scada';
@@ -594,6 +598,85 @@ const handleBindChartPreset = (presetType: 'power-trend' | 'voltage-trend' | 'lo
       }
     });
   }
+};
+
+// Big Screen Standard Formatted Template Injection
+const handleApplyStandardTemplate = (templateType: 'timeseries-power' | 'multiseries-voltage' | 'bar-efficiency' | 'pie-energy-mix' | 'radar-health' | 'alarm-events') => {
+  if (!props.component) return;
+
+  if (templateType === 'timeseries-power') {
+    const data = {
+      categories: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
+      series: [
+        { name: '10kV #1进线负荷', data: [42.5, 38.2, 51.0, 78.6, 92.4, 88.0, 95.2, 64.1], color: '#00f2ff', unit: 'kW' },
+        { name: '10kV #2进线负荷', data: [31.0, 29.5, 40.2, 65.4, 81.0, 76.5, 83.2, 52.0], color: '#3b82f6', unit: 'kW' }
+      ],
+      unit: 'kW'
+    };
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  } else if (templateType === 'multiseries-voltage') {
+    const data = {
+      categories: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'],
+      series: [
+        { name: 'A相母线电压 Ua', data: [10.22, 10.18, 10.25, 10.30, 10.20, 10.15, 10.28], color: '#f59e0b', unit: 'kV' },
+        { name: 'B相母线电压 Ub', data: [10.20, 10.15, 10.22, 10.28, 10.18, 10.12, 10.25], color: '#00e5a3', unit: 'kV' },
+        { name: 'C相母线电压 Uc', data: [10.25, 10.20, 10.27, 10.32, 10.23, 10.18, 10.30], color: '#ef4444', unit: 'kV' }
+      ],
+      unit: 'kV'
+    };
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  } else if (templateType === 'bar-efficiency') {
+    const data = {
+      categories: ['1#变压器', '2#变压器', '无功补偿柜', '储能舱A', '光伏逆变器', '柴发备用'],
+      series: [
+        { name: '当前负荷率', data: [85.4, 72.1, 91.5, 64.0, 78.8, 12.0], color: '#00f2ff', unit: '%' }
+      ],
+      unit: '%'
+    };
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  } else if (templateType === 'pie-energy-mix') {
+    const data = [
+      { name: '市网主供电', value: 58.5, color: '#00f2ff' },
+      { name: '屋顶光伏发电', value: 24.2, color: '#00e5a3' },
+      { name: '储能削峰放电', value: 12.8, color: '#3b82f6' },
+      { name: '柴油备用应急', value: 4.5, color: '#f59e0b' }
+    ];
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  } else if (templateType === 'radar-health') {
+    const data = {
+      indicators: [
+        { name: '绝缘裕度', max: 100 },
+        { name: '温升受控', max: 100 },
+        { name: '触头寿命', max: 100 },
+        { name: '局放抑制', max: 100 },
+        { name: '气压稳定', max: 100 },
+        { name: '分合机构', max: 100 }
+      ],
+      series: [
+        { name: '#1主变健康度', data: [94, 88, 92, 96, 90, 85], color: '#00f2ff' },
+        { name: '全站平均基准', data: [85, 80, 85, 88, 82, 80], color: '#3b82f6' }
+      ]
+    };
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  } else if (templateType === 'alarm-events') {
+    const data = [
+      { id: 'ALM-101', level: 'CRITICAL', title: '10kV 101开关 过流II段速断动作跳闸', time: '14:23:05', device: '10kV配电主进线柜', value: '1450A (整定值: 1200A)' },
+      { id: 'ALM-102', level: 'WARNING', title: '1#主变压器 B相绕组高温预警', time: '14:18:42', device: '1#主变压器', value: '88.5℃ (警戒线: 85℃)' },
+      { id: 'ALM-103', level: 'WARNING', title: '10kV 母线A相瞬时电压低跌', time: '14:02:11', device: '10kV一段母线', value: '9.42kV (额定: 10.0kV)' },
+      { id: 'ALM-104', level: 'INFO', title: '储能电池舱 #1 启动削峰放电循环', time: '13:55:00', device: '储能BMS测控系统', value: '放电功率 250kW' },
+      { id: 'ALM-105', level: 'INFO', title: '防孤岛保护装置自检通讯恢复正常', time: '13:40:19', device: '光伏防孤岛保护屏', value: '链路心跳 12ms' }
+    ];
+    updateComponentData({ useStatic: true, staticData: data });
+    staticJsonInput.value = JSON.stringify(data, null, 2);
+  }
+
+  staticJsonMsg.value = '✓ 已填充标准大屏数据格式规范';
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3500);
 };
 
 // Apply Static JSON
@@ -1333,6 +1416,301 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
+          <!-- SPECIAL: Status Indicator Atomic Style Controls -->
+          <div v-if="component.type === 'ctrl-indicator'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <CircleDot class="w-4 h-4 text-cyan-400" />
+              <span>纯原子化指示灯配置 (0:绿 / 1:红)</span>
+            </div>
+
+            <!-- State Toggle 0:Green vs 1:Red -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">静态调试状态 (0=绿, 1=红)</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button
+                  @click="updateComponentCustomProps({ state: 0 })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                  :class="(component.customProps?.state ?? 0) === 0 ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-900 text-emerald-400 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                  <span>0: 绿色</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ state: 1 })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                  :class="component.customProps?.state === 1 ? 'bg-red-500 text-white font-bold border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-slate-900 text-red-400 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
+                  <span>1: 红色</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ state: 2 })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                  :class="component.customProps?.state === 2 ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-slate-900 text-amber-400 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  <span>2: 黄色</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Indicator Style Preset -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">指示灯图元形态</label>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'bezel-circle' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="(component.customProps?.indicatorStyle || 'bezel-circle') === 'bezel-circle' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full border border-current"></span>
+                  <span>金属高光圆灯</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'flat-led' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'flat-led' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-full bg-current"></span>
+                  <span>扁平发光LED</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'square-lamp' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'square-lamp' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rounded-xs bg-current"></span>
+                  <span>方型工业信号灯</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'pill-tag' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'pill-tag' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-4 h-2 rounded-full border border-current"></span>
+                  <span>胶囊指示灯</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Blink Animation -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">闪烁动画速率</label>
+              <select
+                :value="component.customProps?.blink || 'none'"
+                @change="updateComponentCustomProps({ blink: ($event.target as HTMLSelectElement).value })"
+                class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+              >
+                <option value="none">常亮不闪烁</option>
+                <option value="slow">慢闪 (1.0 Hz)</option>
+                <option value="fast">急闪 (2.5 Hz)</option>
+                <option value="auto">1或2状态时自动闪烁</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- SPECIAL: Alarm Feed Style Controls -->
+          <div v-if="component.type === 'ind-alarm-list'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <AlertTriangle class="w-4 h-4 text-amber-400" />
+              <span>实时告警事件滚屏组件配置</span>
+            </div>
+
+            <!-- Display Mode -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">展示滚屏模式</label>
+              <div class="grid grid-cols-3 gap-1.5">
+                <button
+                  @click="updateComponentCustomProps({ mode: 'ticker' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-center cursor-pointer transition-all"
+                  :class="(component.customProps?.mode || 'ticker') === 'ticker' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  无缝连续滚屏
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ mode: 'table' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-center cursor-pointer transition-all"
+                  :class="component.customProps?.mode === 'table' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  工控列表表格
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ mode: 'marquee' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-center cursor-pointer transition-all"
+                  :class="component.customProps?.mode === 'marquee' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  单行横向跑马灯
+                </button>
+              </div>
+            </div>
+
+            <!-- Scroll Speed -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">滚动速度</label>
+              <select
+                :value="component.customProps?.scrollSpeed || 'normal'"
+                @change="updateComponentCustomProps({ scrollSpeed: ($event.target as HTMLSelectElement).value })"
+                class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-200 text-xs outline-hidden cursor-pointer"
+              >
+                <option value="slow">慢速 (24秒循环)</option>
+                <option value="normal">中速标准 (14秒循环)</option>
+                <option value="fast">快速 (8秒循环)</option>
+              </select>
+            </div>
+
+            <!-- Column Visibility Toggles -->
+            <div class="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-slate-800">
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showHeader !== false"
+                  @change="updateComponentCustomProps({ showHeader: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示列表表头</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showLevelBadge !== false"
+                  @change="updateComponentCustomProps({ showLevelBadge: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示告警级别徽章</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showTime !== false"
+                  @change="updateComponentCustomProps({ showTime: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示发生时间</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showDevice !== false"
+                  @change="updateComponentCustomProps({ showDevice: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示装置名称</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- SPECIAL: ECharts Advanced Style & Threshold Lines Controls -->
+          <div v-if="isChartComponent" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <TrendingUp class="w-4 h-4 text-cyan-400" />
+              <span>图表视觉与告警标线配置</span>
+            </div>
+
+            <!-- Visual Toggles -->
+            <div class="grid grid-cols-2 gap-2 text-xs">
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.smooth !== false"
+                  @change="updateComponentCustomProps({ smooth: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>平滑曲线 (Smooth)</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showArea || false"
+                  @change="updateComponentCustomProps({ showArea: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>渐变面积填充</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showDataLabels || false"
+                  @change="updateComponentCustomProps({ showDataLabels: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示数值标签</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white">
+                <input
+                  type="checkbox"
+                  :checked="component.customProps?.showLegend !== false"
+                  @change="updateComponentCustomProps({ showLegend: ($event.target as HTMLInputElement).checked })"
+                  class="accent-cyan-400 rounded"
+                />
+                <span>显示图表图例</span>
+              </label>
+            </div>
+
+            <!-- Threshold Alarm Lines (MarkLines) -->
+            <div class="pt-2 border-t border-slate-800 space-y-2">
+              <div class="flex items-center justify-between text-xs font-semibold text-slate-200">
+                <span class="flex items-center gap-1 text-amber-300">
+                  <AlertTriangle class="w-3.5 h-3.5" />
+                  <span>上限/下限预警参考标线 (MarkLine)</span>
+                </span>
+              </div>
+
+              <!-- Upper Threshold -->
+              <div class="grid grid-cols-3 gap-1.5 items-center">
+                <label class="flex items-center gap-1 cursor-pointer text-xs text-red-300 col-span-1">
+                  <input
+                    type="checkbox"
+                    :checked="component.customProps?.enableUpperLimit || false"
+                    @change="updateComponentCustomProps({ enableUpperLimit: ($event.target as HTMLInputElement).checked })"
+                    class="accent-red-500 rounded"
+                  />
+                  <span>上限报警线</span>
+                </label>
+                <input
+                  type="number"
+                  placeholder="阈值(如:90)"
+                  :value="component.customProps?.upperLimitValue ?? 90"
+                  @input="updateComponentCustomProps({ upperLimitValue: Number(($event.target as HTMLInputElement).value) })"
+                  class="bg-[#081026] border border-slate-700 focus:border-red-400 rounded px-2 py-1 text-slate-100 text-xs font-mono outline-hidden col-span-1"
+                />
+                <input
+                  type="text"
+                  placeholder="标签(如:过载上限)"
+                  :value="component.customProps?.upperLimitLabel || '上限预警'"
+                  @input="updateComponentCustomProps({ upperLimitLabel: ($event.target as HTMLInputElement).value })"
+                  class="bg-[#081026] border border-slate-700 focus:border-red-400 rounded px-2 py-1 text-slate-100 text-xs outline-hidden col-span-1"
+                />
+              </div>
+
+              <!-- Lower Threshold -->
+              <div class="grid grid-cols-3 gap-1.5 items-center">
+                <label class="flex items-center gap-1 cursor-pointer text-xs text-blue-300 col-span-1">
+                  <input
+                    type="checkbox"
+                    :checked="component.customProps?.enableLowerLimit || false"
+                    @change="updateComponentCustomProps({ enableLowerLimit: ($event.target as HTMLInputElement).checked })"
+                    class="accent-blue-500 rounded"
+                  />
+                  <span>下限报警线</span>
+                </label>
+                <input
+                  type="number"
+                  placeholder="阈值(如:20)"
+                  :value="component.customProps?.lowerLimitValue ?? 20"
+                  @input="updateComponentCustomProps({ lowerLimitValue: Number(($event.target as HTMLInputElement).value) })"
+                  class="bg-[#081026] border border-slate-700 focus:border-blue-400 rounded px-2 py-1 text-slate-100 text-xs font-mono outline-hidden col-span-1"
+                />
+                <input
+                  type="text"
+                  placeholder="标签(如:低压下限)"
+                  :value="component.customProps?.lowerLimitLabel || '下限预警'"
+                  @input="updateComponentCustomProps({ lowerLimitLabel: ($event.target as HTMLInputElement).value })"
+                  class="bg-[#081026] border border-slate-700 focus:border-blue-400 rounded px-2 py-1 text-slate-100 text-xs outline-hidden col-span-1"
+                />
+              </div>
+            </div>
+          </div>
+
           <!-- 6. Streamer & Dynamic Glow Effect (流光动效) -->
           <div class="p-3 rounded-lg bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
             <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
@@ -1912,17 +2290,16 @@ const toggleBatchLock = () => {
             <div v-if="isChartComponent" class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
               <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
                 <BarChart2 class="w-4 h-4 text-cyan-400" />
-                <span>图表数据绑定生效指南</span>
+                <span>图表数据绑定生效指南与预设</span>
               </div>
 
               <div class="text-[11px] text-slate-300 leading-relaxed space-y-1">
-                <p>💡 <strong class="text-white">绑定生效机制：</strong> 图表数据由 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">X轴分类 (categoriesKey)</code> 与 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">Y轴系列 (seriesKey)</code> 决定。</p>
-                <p class="text-slate-400">数据源为当前 SCADA 实时数据集中的全站时序曲线或多装置横向负荷。</p>
+                <p>💡 <strong class="text-white">SCADA 绑定机制：</strong> 图表数据由 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">X轴 (categoriesKey)</code> 与 <code class="text-cyan-300 bg-slate-900 px-1 py-0.5 rounded">Y轴系列 (seriesKey)</code> 自动关联全站时序曲线或装置负荷。</p>
               </div>
 
               <!-- Quick Presets for Charts -->
               <div class="space-y-1.5 pt-1 border-t border-slate-800">
-                <label class="text-[11px] font-semibold text-cyan-300 block">一键绑定全站时序与负荷曲线：</label>
+                <label class="text-[11px] font-semibold text-cyan-300 block">一键绑定 SCADA 实时时序与负荷曲线：</label>
                 <div class="grid grid-cols-1 gap-1.5">
                   <button
                     @click="handleBindChartPreset('power-trend')"
@@ -1950,12 +2327,92 @@ const toggleBatchLock = () => {
                 </div>
               </div>
             </div>
+
+            <!-- SPECIAL SECTION: Alarm Feed Binding & Filter -->
+            <div v-if="component.type === 'ind-alarm-list'" class="p-3 rounded-xl bg-cyan-950/30 border border-cyan-500/40 space-y-2.5">
+              <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+                <AlertTriangle class="w-4 h-4 text-amber-400" />
+                <span>实时告警事件源过滤</span>
+              </div>
+
+              <!-- Device Filter -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-200 block mb-1">告警来源装置过滤</label>
+                <select
+                  :value="component.data.mapping?.deviceId || 'ALL'"
+                  @change="updateComponentData({ mapping: { ...component.data.mapping, deviceId: ($event.target as HTMLSelectElement).value } })"
+                  class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-100 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="ALL">全部装置 (全站综合事件流)</option>
+                  <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
+                    [{{ dev.deviceId }}] {{ dev.name }}
+                  </option>
+                </select>
+              </div>
+
+              <!-- Severity Filter -->
+              <div>
+                <label class="text-[11px] font-semibold text-slate-200 block mb-1">告警级别过滤</label>
+                <select
+                  :value="component.data.mapping?.severityLevel || 'ALL'"
+                  @change="updateComponentData({ mapping: { ...component.data.mapping, severityLevel: ($event.target as HTMLSelectElement).value } })"
+                  class="w-full bg-[#060b17] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1 text-slate-100 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="ALL">全部级别 (严重事故 + 异常预警 + 运行提示)</option>
+                  <option value="CRITICAL_ONLY">仅紧急事故 (CRITICAL 跳闸/过流/短路)</option>
+                  <option value="WARNING_PLUS">预警及以上 (CRITICAL + WARNING)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
           <!-- ================= STATIC JSON DATA MODE ================= -->
           <div v-else-if="dataBindingSource === 'static'" class="space-y-3">
             <div class="p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
-              <span>📋 静态数据模式：组件将直接解析下方输入的 JSON 对象或数组，不从 SCADA 实时点表中获取更新。</span>
+              <span>📋 静态数据模式：组件将直接解析下方输入的标准 JSON 结构，方便快速填充常规大屏项目数据。</span>
+            </div>
+
+            <!-- Big Screen Standard Templates Injector -->
+            <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-2">
+              <label class="text-xs font-semibold text-cyan-300 block">常规大屏标准格式一键注入：</label>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  @click="handleApplyStandardTemplate('timeseries-power')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  📈 24h时序负荷折线
+                </button>
+                <button
+                  @click="handleApplyStandardTemplate('multiseries-voltage')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  📉 三相电压多曲线
+                </button>
+                <button
+                  @click="handleApplyStandardTemplate('bar-efficiency')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  📊 装置负荷对比柱图
+                </button>
+                <button
+                  @click="handleApplyStandardTemplate('pie-energy-mix')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  🍩 厂区能源占比饼图
+                </button>
+                <button
+                  @click="handleApplyStandardTemplate('radar-health')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  🕸️ 设备健康度雷达
+                </button>
+                <button
+                  @click="handleApplyStandardTemplate('alarm-events')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                >
+                  ⚡ 实时事故告警事件
+                </button>
+              </div>
             </div>
 
             <div>
@@ -1965,7 +2422,7 @@ const toggleBatchLock = () => {
                   @click="staticJsonInput = JSON.stringify(component.data.staticData || { value: 125.6, unit: 'kV', label: '静态测量' }, null, 2)"
                   class="text-[10px] text-cyan-400 hover:underline cursor-pointer"
                 >
-                  填入当前默认值
+                  填入当前组件数据
                 </button>
               </div>
               <textarea

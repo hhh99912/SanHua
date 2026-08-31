@@ -1150,49 +1150,6 @@ defineExpose({
       :cursorPos="mousePos"
     />
 
-    <!-- Floating Multi-Selection Quick Tools Toolbar -->
-    <div 
-      v-if="selectedIds.length > 1"
-      class="fixed top-16 left-1/2 -translate-x-1/2 z-40 bg-[#080e1c]/95 border border-cyan-500/60 backdrop-blur-md rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.8)] px-3 py-1.5 flex items-center gap-2 text-xs font-mono select-none"
-    >
-      <div class="flex items-center gap-1.5 text-cyan-300 font-bold pr-2 border-r border-slate-700/80">
-        <Layers class="w-3.5 h-3.5 text-cyan-400" />
-        <span>多选 ({{ selectedIds.length }})</span>
-      </div>
-
-      <!-- Alignment buttons -->
-      <div class="flex items-center gap-1">
-        <button @click="emit('align', 'left')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="左对齐"><AlignLeft class="w-3.5 h-3.5" /></button>
-        <button @click="emit('align', 'center')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="水平居中"><AlignCenter class="w-3.5 h-3.5" /></button>
-        <button @click="emit('align', 'right')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="右对齐"><AlignRight class="w-3.5 h-3.5" /></button>
-        <div class="w-[1px] h-4 bg-slate-700 mx-0.5" />
-        <button @click="emit('align', 'top')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="顶对齐"><AlignVerticalJustifyStart class="w-3.5 h-3.5" /></button>
-        <button @click="emit('align', 'middle')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="垂直居中"><AlignVerticalJustifyCenter class="w-3.5 h-3.5" /></button>
-        <button @click="emit('align', 'bottom')" class="p-1.5 rounded-lg bg-slate-900/80 hover:bg-cyan-500/20 text-slate-200 hover:text-cyan-300 border border-slate-700/80 cursor-pointer" title="底对齐"><AlignVerticalJustifyEnd class="w-3.5 h-3.5" /></button>
-      </div>
-
-      <div class="w-[1px] h-4 bg-slate-700 mx-1" />
-
-      <!-- Group / Symbol Actions -->
-      <div class="flex items-center gap-1.5">
-        <button 
-          @click="emit('group', selectedComponents)"
-          class="px-2.5 py-1 rounded-lg bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/40 cursor-pointer font-bold transition-all shadow-xs"
-          title="将选中的多个图元合并为组合群组 (Ctrl+G)"
-        >
-          🧩 组合为群组
-        </button>
-        <button 
-          @click="emit('save:symbol', selectedComponents)"
-          class="px-2.5 py-1 rounded-lg bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 cursor-pointer font-bold transition-all shadow-xs"
-          title="将选中的图元封装保存为自定义图元"
-        >
-          <BookmarkPlus class="w-3 h-3 inline mr-1" />
-          保存为自定义图元
-        </button>
-      </div>
-    </div>
-
     <!-- Infinite Canvas Viewport Stage -->
     <div 
       ref="infinitePlaneRef"

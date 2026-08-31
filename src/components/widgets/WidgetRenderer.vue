@@ -18,7 +18,6 @@ import ElectricalDisconnector from './ElectricalDisconnector.vue';
 import ElectricalTransformer from './ElectricalTransformer.vue';
 import ElectricalSensor from './ElectricalSensor.vue';
 import ElectricalBusbar from './ElectricalBusbar.vue';
-import ElectricalMultiMeter from './ElectricalMultiMeter.vue';
 import MultiScreenNavWidget from './MultiScreenNavWidget.vue';
 import ControlButton from './ControlButton.vue';
 import StraightLine from './StraightLine.vue';
@@ -141,11 +140,6 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       />
       <ElectricalBusbar
         v-else-if="component.type === 'elec-busbar'"
-        :component="component"
-        :datasets="datasets"
-      />
-      <ElectricalMultiMeter
-        v-else-if="component.type === 'elec-multimeter'"
         :component="component"
         :datasets="datasets"
       />

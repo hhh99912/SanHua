@@ -55,7 +55,6 @@ export type ComponentType =
   | 'elec-pt'               // 电压互感器 TV / PT
   | 'elec-arrester'         // 氧化锌避雷器 F
   | 'elec-busbar'           // 高低压母线段 Busbar
-  | 'elec-multimeter'       // 多功能电力电表
 
   // 3. Composite Symbols
   | 'composite-symbol'      // 复合组合图元
@@ -181,9 +180,9 @@ export interface StyleConfig {
 
   // Status Indicator
   indicatorShape?: 'circle' | 'square' | 'ring' | 'pill';
-  indicatorState?: 'normal' | 'alarm' | 'warning' | 'standby' | 'offline';
+  indicatorState?: 'normal' | 'alarm' | 'warning' | 'standby' | 'offline' | number | string;
   indicatorColor?: string;
-  indicatorBlinkSpeed?: 'none' | 'slow' | 'fast';
+  indicatorBlinkSpeed?: 'none' | 'slow' | 'fast' | 'auto';
   indicatorLabel?: string;
 }
 

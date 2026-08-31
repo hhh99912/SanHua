@@ -172,32 +172,30 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         }
       },
 
-      // 6. 101 测控仪表
+      // 6. 101 测控遥测浮点读数
       {
         id: 'comp-meter-101',
-        name: '101 进线多功能测控表',
-        type: 'elec-multimeter',
-        category: 'electrical',
+        name: '101 进线有功功率 (P)',
+        type: 'metric-float',
+        category: 'metrics',
         x: 120,
         y: 530,
-        width: 320,
-        height: 180,
+        width: 240,
+        height: 80,
         rotation: 0,
         zIndex: 4,
         style: {
           fill: 'rgba(6, 14, 28, 0.92)',
-          stroke: '#00f2ff',
-          feederName: '101 进线多功能仪表'
-        },
-        customProps: {
-          name: '101 进线测控'
+          stroke: '#00f2ff'
         },
         data: {
           datasetId: 'ds-scada-station',
           mapping: {
-            voltageKey: 'DEV-101_YC_1',
-            currentKey: 'DEV-101_YC_4',
-            powerKey: 'DEV-101_YC_7'
+            deviceId: 'DEV-101',
+            pointCategory: 'telemetry',
+            pointId: 7,
+            valueKey: 'DEV-101_YC_7',
+            unitKey: 'kW'
           }
         }
       },
@@ -491,13 +489,13 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
       },
       {
         id: 'comp-low-meter',
-        name: '201 低压总进线多功能电表',
-        type: 'elec-multimeter',
-        category: 'electrical',
+        name: '201 低压总进线总有功 (P)',
+        type: 'metric-float',
+        category: 'metrics',
         x: 120,
         y: 240,
-        width: 320,
-        height: 200,
+        width: 240,
+        height: 80,
         rotation: 0,
         zIndex: 3,
         style: {
@@ -507,9 +505,11 @@ export const PRESET_MULTI_SCREENS: ScreenItem[] = [
         data: {
           datasetId: 'ds-scada-station',
           mapping: {
-            voltageKey: 'DEV-201_YC_1',
-            currentKey: 'DEV-201_YC_2',
-            powerKey: 'DEV-201_YC_3'
+            deviceId: 'DEV-201',
+            pointCategory: 'telemetry',
+            pointId: 1,
+            valueKey: 'DEV-201_YC_1',
+            unitKey: 'kW'
           }
         }
       }

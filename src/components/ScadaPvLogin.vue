@@ -172,26 +172,26 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Real-time SCADA Clock -->
-      <div class="flex items-center gap-2 font-mono px-3 py-1 rounded-lg bg-slate-900/80 border border-slate-800">
-        <Clock class="w-3.5 h-3.5 text-cyan-400" />
-        <div class="text-right">
-          <div class="text-xs sm:text-sm font-bold text-slate-200 tracking-wider leading-none">
-            {{ currentTime }}
-          </div>
-          <div class="text-[10px] text-slate-400 font-medium tracking-wide flex items-center justify-end gap-1 mt-0.5">
-            <span>{{ currentDate }}</span>
-            <span class="text-slate-300">{{ currentWeekDay }}</span>
-          </div>
+      <!-- Real-time SCADA Clock (Prominent Single-Line Display) -->
+      <div class="flex items-center gap-3 font-mono px-4 py-2 rounded-xl bg-[#041226]/90 border border-cyan-500/60 shadow-[0_0_25px_rgba(0,242,255,0.3)]">
+        <div class="relative flex items-center justify-center">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping absolute opacity-75"></span>
+          <span class="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00f2ff]"></span>
+        </div>
+        <Clock class="w-4 h-4 text-cyan-300" />
+        <div class="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm font-bold whitespace-nowrap">
+          <span class="text-white font-mono tracking-wider">{{ currentDate }}</span>
+          <span class="px-2 py-0.5 rounded-md bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 text-xs font-semibold">{{ currentWeekDay }}</span>
+          <span class="text-cyan-300 font-black font-mono text-sm sm:text-base tracking-widest drop-shadow-[0_0_12px_rgba(0,242,255,0.8)]">{{ currentTime }}</span>
         </div>
       </div>
     </header>
 
     <!-- Main Content Area: Centered Login Card -->
     <main class="relative z-10 flex-1 w-full flex items-center justify-center p-4">
-      <div class="w-full max-w-sm sm:max-w-md bg-[#0a1224]/95 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden backdrop-blur-xl">
+      <div class="w-full max-w-sm sm:max-w-md bg-[#0a1224]/95 border border-cyan-500/30 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative overflow-hidden backdrop-blur-xl">
         <!-- Top Accent Strip -->
-        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-600 to-blue-600" />
+        <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-cyan-400 shadow-[0_0_10px_rgba(0,242,255,0.5)]" />
 
         <!-- Form Title Header -->
         <div class="mb-5 text-center">
