@@ -3,6 +3,7 @@ import { ref, onMounted, watch, onBeforeUnmount, nextTick } from 'vue';
 import * as echarts from 'echarts';
 import { ScreenComponent, DatasetItem } from '../../types';
 import { withAlpha } from '../../utils/color';
+import { resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -19,7 +20,8 @@ const defaultColors = ['#00f2ff', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#
 const buildChartOptions = () => {
   const { type, data, style, customProps } = props.component;
   const boundDataset = props.datasets?.find(d => d.id === data.datasetId);
-  const activeData = boundDataset?.data || data.staticData || {};
+  const dynamicPayload = resolveComponentDynamicData(props.component, props.datasets);
+  const activeData = { ...(boundDataset?.data || {}), ...(data.staticData || {}), ...dynamicPayload };
 
   const themeColor = style.fill || style.stroke || '#00f2ff';
   const subColor = style.stroke || '#3b82f6';
@@ -32,7 +34,7 @@ const buildChartOptions = () => {
   const markLines: any[] = [];
   if (customProps?.showUpperLimit && customProps?.upperLimit !== undefined) {
     markLines.push({
-      yAxis: Number(customProps.upperLimit),
+      yAxis: parseStrictNumber(customProps.upperLimit, 100),
       name: customProps.upperLimitLabel || '上限告警',
       lineStyle: { color: '#ef4444', width: 1.5, type: 'dashed' },
       label: {
@@ -46,7 +48,7 @@ const buildChartOptions = () => {
   }
   if (customProps?.showLowerLimit && customProps?.lowerLimit !== undefined) {
     markLines.push({
-      yAxis: Number(customProps.lowerLimit),
+      yAxis: parseStrictNumber(customProps.lowerLimit, 0),
       name: customProps.lowerLimitLabel || '下限预警',
       lineStyle: { color: '#f59e0b', width: 1.5, type: 'dashed' },
       label: {

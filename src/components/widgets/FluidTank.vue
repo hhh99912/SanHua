@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
 import { withAlpha } from '../../utils/color';
 
 interface Props {
@@ -11,26 +12,21 @@ interface Props {
 const props = defineProps<Props>();
 
 const tankState = computed(() => {
-  const { data, style, customProps } = props.component;
-  const boundDataset = props.datasets?.find(d => d.id === data.datasetId);
-  const activeData = boundDataset?.data || data.staticData || {};
+  const { style, customProps } = props.component;
+  const dynamic = resolveComponentDynamicData(props.component, props.datasets);
 
-  const level = Number(
-    (data.mapping.valueKey && activeData[data.mapping.valueKey]) ?? 
-    activeData.tank_a_level ?? 
-    customProps?.level ?? 
-    68
-  );
+  const rawLevel = dynamic.level ?? dynamic.value ?? customProps?.level ?? 68;
+  const level = parseStrictNumber(rawLevel, 68);
 
-  const capacity = customProps?.capacity || 10000;
-  const currentVolume = Math.round((level / 100) * capacity);
+  const capacity = parseStrictNumber(dynamic.capacity ?? customProps?.capacity ?? 10000, 10000);
+  const currentVolume = Math.round((Math.max(0, Math.min(100, level)) / 100) * capacity);
   const themeColor = style.fill || style.stroke || '#00f2ff';
 
   const isWarning = level > 85 || level < 15;
   const liquidColor = isWarning ? '#ef4444' : themeColor;
 
   return {
-    level: Math.max(0, Math.min(100, level)),
+    level: Math.max(0, Math.min(100, Math.round(level))),
     capacity,
     currentVolume,
     themeColor,

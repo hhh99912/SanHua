@@ -153,62 +153,113 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     isPanning.value = false;
   };
 
+  // Calculate Strict Content Bounding Box of all visible components (accounting for rotation)
+  const calculateComponentsBoundingBox = (
+    components?: Array<{ x: number; y: number; width: number; height: number; rotation?: number; visible?: boolean }>
+  ) => {
+    const visible = (components || []).filter(c => c.visible !== false);
+    if (!visible || visible.length === 0) {
+      return null;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+
+    visible.forEach(c => {
+      const x = c.x ?? 0;
+      const y = c.y ?? 0;
+      const w = Math.max(1, c.width ?? 0);
+      const h = Math.max(1, c.height ?? 0);
+
+      let left = x;
+      let top = y;
+      let right = x + w;
+      let bottom = y + h;
+
+      if (c.rotation) {
+        const rad = (c.rotation * Math.PI) / 180;
+        const cos = Math.abs(Math.cos(rad));
+        const sin = Math.abs(Math.sin(rad));
+        const rotatedHalfW = (w / 2) * cos + (h / 2) * sin;
+        const rotatedHalfH = (w / 2) * sin + (h / 2) * cos;
+        const centerX = x + w / 2;
+        const centerY = y + h / 2;
+
+        left = centerX - rotatedHalfW;
+        top = centerY - rotatedHalfH;
+        right = centerX + rotatedHalfW;
+        bottom = centerY + rotatedHalfH;
+      }
+
+      if (left < minX) minX = left;
+      if (top < minY) minY = top;
+      if (right > maxX) maxX = right;
+      if (bottom > maxY) maxY = bottom;
+    });
+
+    if (!isFinite(minX)) minX = 0;
+    if (!isFinite(minY)) minY = 0;
+    if (!isFinite(maxX)) maxX = 1920;
+    if (!isFinite(maxY)) maxY = 1080;
+
+    const width = Math.max(20, Math.round(maxX - minX));
+    const height = Math.max(20, Math.round(maxY - minY));
+
+    return {
+      minX: Math.round(minX),
+      minY: Math.round(minY),
+      maxX: Math.round(maxX),
+      maxY: Math.round(maxY),
+      width,
+      height
+    };
+  };
+
   // Reset Pan & Center View
   const centerCanvasInViewport = (
     canvasWidth: number,
     canvasHeight: number,
-    containerElement: HTMLElement | null
+    containerElement: HTMLElement | null,
+    components?: Array<{ x: number; y: number; width: number; height: number; rotation?: number; visible?: boolean }>,
+    onZoomChange?: (newZoom: number) => void
   ) => {
-    if (!containerElement) return;
-    const rect = containerElement.getBoundingClientRect();
-    const availableW = Math.max(100, rect.width - 24);
-    const availableH = Math.max(100, rect.height - 24);
-
-    // Calculate fit zoom
-    const zoomW = availableW / (canvasWidth || 1920);
-    const zoomH = availableH / (canvasHeight || 1080);
-    const fitZoom = Math.min(3.0, Math.max(0.1, Number(Math.min(zoomW, zoomH).toFixed(2))));
-
-    zoom.value = fitZoom;
-    panOffset.value = { x: 24, y: 24 };
+    fitCanvasToViewport(canvasWidth, canvasHeight, containerElement, components, onZoomChange);
   };
 
-  // Fit canvas starting from (0, 0) and scaling to neatly fill the editing viewport,
-  // encompassing all components with optimal scale and no excessive blank space.
+  // Fit canvas: calculates strict minimal bounding box containing all components,
+  // scales to tightly fill the editing viewport from (0,0) with no wasted blank space.
   const fitCanvasToViewport = (
     canvasWidth: number,
     canvasHeight: number,
     containerElement: HTMLElement | null,
-    components?: Array<{ x: number; y: number; width: number; height: number; visible?: boolean }>,
+    components?: Array<{ x: number; y: number; width: number; height: number; rotation?: number; visible?: boolean }>,
     onZoomChange?: (newZoom: number) => void
   ) => {
     if (!containerElement) return;
     const rect = containerElement.getBoundingClientRect();
     if (!rect || rect.width <= 0 || rect.height <= 0) return;
 
-    // Available viewport space (accounting for 24px top & left rulers and tight 4px buffer)
-    const availableW = Math.max(100, rect.width - 24 - 4);
-    const availableH = Math.max(100, rect.height - 24 - 4);
+    // Available viewport space (minus 24px top & left rulers and 8px margin)
+    const availableW = Math.max(100, rect.width - 24 - 8);
+    const availableH = Math.max(100, rect.height - 24 - 8);
 
-    const visibleComps = (components || []).filter(c => c.visible !== false);
+    const bbox = calculateComponentsBoundingBox(components);
     let targetW = canvasWidth || 1920;
     let targetH = canvasHeight || 1080;
 
-    if (visibleComps.length > 0) {
-      // Find maximum extent of components starting from origin (0, 0)
-      const maxX = Math.max(...visibleComps.map(c => Math.max(0, (c.x || 0) + (c.width || 0))));
-      const maxY = Math.max(...visibleComps.map(c => Math.max(0, (c.y || 0) + (c.height || 0))));
-      
-      // If components occupy space, fit to the maximal extent
-      if (maxX > 50 && maxY > 50) {
-        targetW = Math.max(maxX, 100);
-        targetH = Math.max(maxY, 100);
-      }
+    if (bbox && bbox.width > 20 && bbox.height > 20) {
+      targetW = bbox.width;
+      targetH = bbox.height;
     }
 
     const zoomW = availableW / targetW;
     const zoomH = availableH / targetH;
-    const fitZoom = Math.min(3.5, Math.max(0.1, Number(Math.min(zoomW, zoomH).toFixed(2))));
+    const rawZoom = Math.min(zoomW, zoomH);
+    
+    // Fit zoom ensures all components neatly fill the available viewport
+    const fitZoom = Math.min(3.5, Math.max(0.05, Number((Math.floor(rawZoom * 100) / 100).toFixed(2))));
 
     zoom.value = fitZoom;
     if (onZoomChange) {
@@ -332,6 +383,69 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     }));
   };
 
+  // Shift any components that have negative coordinates into the positive quadrant (x >= 0, y >= 0)
+  const normalizeNegativeCoordinates = <T extends { x: number; y: number; width?: number; height?: number; rotation?: number; visible?: boolean }>(
+    components: T[]
+  ): { components: T[]; shifted: boolean; shiftX: number; shiftY: number } => {
+    if (!components || components.length === 0) {
+      return { components, shifted: false, shiftX: 0, shiftY: 0 };
+    }
+
+    let minX = 0;
+    let minY = 0;
+    let hasNegative = false;
+
+    components.forEach(c => {
+      if (c.visible !== false) {
+        let left = c.x ?? 0;
+        let top = c.y ?? 0;
+
+        if (c.rotation) {
+          const rad = (c.rotation * Math.PI) / 180;
+          const cos = Math.abs(Math.cos(rad));
+          const sin = Math.abs(Math.sin(rad));
+          const w = c.width || 0;
+          const h = c.height || 0;
+          const rotatedHalfW = (w / 2) * cos + (h / 2) * sin;
+          const rotatedHalfH = (w / 2) * sin + (h / 2) * cos;
+          const centerX = left + w / 2;
+          const centerY = top + h / 2;
+          left = centerX - rotatedHalfW;
+          top = centerY - rotatedHalfH;
+        }
+
+        if (left < minX) {
+          minX = left;
+          hasNegative = true;
+        }
+        if (top < minY) {
+          minY = top;
+          hasNegative = true;
+        }
+      }
+    });
+
+    if (!hasNegative) {
+      return { components, shifted: false, shiftX: 0, shiftY: 0 };
+    }
+
+    const shiftX = minX < 0 ? Math.ceil(-minX) : 0;
+    const shiftY = minY < 0 ? Math.ceil(-minY) : 0;
+
+    const shiftedComponents = components.map(c => ({
+      ...c,
+      x: Math.round(c.x + shiftX),
+      y: Math.round(c.y + shiftY)
+    }));
+
+    return {
+      components: shiftedComponents,
+      shifted: true,
+      shiftX,
+      shiftY
+    };
+  };
+
   // Fit and Center All Content in Viewport (自动计算所有图形最大缩放与居中视口坐标)
   const fitAndCenterContentInViewport = <T extends { x: number; y: number; width: number; height: number }>(
     components: T[],
@@ -407,10 +521,12 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     centerCanvasInViewport,
     fitCanvasToViewport,
     getContentBoundingBox,
+    calculateComponentsBoundingBox,
     fitAndCenterContentInViewport,
     snapAllToGrid,
     centerAllInCanvas,
     alignContentToOrigin,
+    normalizeNegativeCoordinates,
     cropCanvasToContent
   };
 }

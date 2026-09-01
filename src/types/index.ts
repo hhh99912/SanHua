@@ -349,6 +349,7 @@ export interface ComponentDataConfig {
   datasetId?: string;
   useStatic?: boolean;
   staticData?: any;
+  bindings?: Record<string, string>; // Dynamic property-to-point bindings (e.g. { "value": "DEV-101_YC_1", "state": "DEV-101_YX_1" })
   mapping: DataFieldMapping;
   autoRefreshInterval?: number;
   action?: ComponentAction;

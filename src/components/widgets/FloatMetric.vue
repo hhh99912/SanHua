@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
-import { resolveDataPointValue } from '../../utils/scadaResolver';
+import { resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
 import { withAlpha } from '../../utils/color';
 
 interface Props {
@@ -12,57 +12,20 @@ interface Props {
 const props = defineProps<Props>();
 
 const metricState = computed(() => {
-  const { data, style, customProps } = props.component;
+  const { style, customProps } = props.component;
+  const dynamic = resolveComponentDynamicData(props.component, props.datasets);
 
   const decimals = typeof style?.decimals === 'number' 
     ? style.decimals 
-    : (typeof customProps?.decimals === 'number' ? customProps.decimals : 2);
+    : (typeof customProps?.decimals === 'number' ? customProps.decimals : (typeof dynamic.decimals === 'number' ? dynamic.decimals : 2));
 
-  let rawVal: any = customProps?.value ?? 0.0;
-  let pointUnit = customProps?.unit ?? style?.unit ?? '';
-  let pointLabel = customProps?.label || '';
-  
-  // 1. If staticData is explicitly populated or useStatic is enabled
-  if (data?.staticData !== undefined && data?.staticData !== null) {
-    if (typeof data.staticData === 'number') {
-      rawVal = data.staticData;
-    } else if (typeof data.staticData === 'object') {
-      if (data.staticData.value !== undefined) rawVal = data.staticData.value;
-      if (data.staticData.unit !== undefined && !customProps?.unit) pointUnit = data.staticData.unit;
-      if (data.staticData.label !== undefined && !customProps?.label) pointLabel = data.staticData.label;
-    }
-  }
+  // Strict numeric resolution: strictly numeric, no text
+  const rawVal = dynamic.value !== undefined ? dynamic.value : (customProps?.value ?? 0.0);
+  const num = parseStrictNumber(rawVal, 0.0);
+  const formattedVal = num.toFixed(Math.max(0, Math.min(6, decimals)));
 
-  // 2. If SCADA point mapping is active (and not in purely static override mode)
-  if (data?.useStatic !== true) {
-    const vKey = data?.mapping?.valueKey || data?.mapping?.voltageKey || data?.mapping?.currentKey || data?.mapping?.powerKey;
-    if (vKey) {
-      const val = resolveDataPointValue(props.datasets, data?.datasetId, vKey);
-      if (val !== undefined) {
-        rawVal = val;
-      }
-    } else if (data?.datasetId) {
-      const boundDs = props.datasets?.find(d => d.id === data?.datasetId);
-      if (boundDs && typeof boundDs.data === 'number') {
-        rawVal = boundDs.data;
-      }
-    }
-  }
-
-  // 3. Strict numeric parsing: strictly reject text and force clean number
-  let num = 0;
-  if (typeof rawVal === 'number') {
-    num = isNaN(rawVal) ? 0 : rawVal;
-  } else if (typeof rawVal === 'string') {
-    // Strip non-numeric characters (except minus and dot)
-    const sanitized = rawVal.replace(/[^0-9.-]/g, '');
-    const parsed = parseFloat(sanitized);
-    num = isNaN(parsed) ? 0 : parsed;
-  } else if (typeof rawVal === 'boolean') {
-    num = rawVal ? 1 : 0;
-  }
-
-  const formattedVal = num.toFixed(decimals);
+  const pointUnit = dynamic.unit ?? customProps?.unit ?? style?.unit ?? '';
+  const pointLabel = dynamic.label ?? customProps?.label ?? '';
 
   const textColor = style.textColor || style.fill || customProps?.textColor || '#00f2ff';
   const bgColor = style.fill === 'transparent' || !style.fill ? (customProps?.bgColor || 'transparent') : style.fill;
@@ -72,8 +35,8 @@ const metricState = computed(() => {
   const displayStyle = customProps?.displayStyle || customProps?.metricStyle || style.displayStyle || style.metricStyle || 'pure-digital';
 
   // Progress Bar min / max computation
-  const minVal = Number(customProps?.min ?? 0);
-  const maxVal = Number(customProps?.max ?? 100);
+  const minVal = parseStrictNumber(dynamic.min ?? customProps?.min ?? 0, 0);
+  const maxVal = parseStrictNumber(dynamic.max ?? customProps?.max ?? 100, 100);
   const progressRatio = Math.min(1, Math.max(0, (num - minVal) / Math.max(1, maxVal - minVal)));
   const progressPercent = Math.round(progressRatio * 100);
 

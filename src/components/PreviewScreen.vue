@@ -108,9 +108,67 @@ const handleResize = () => {
   windowHeight.value = window.innerHeight;
 };
 
-// Screen dimensions based on active screen resolution
-const canvasWidth = computed(() => props.screen.width || 1920);
-const canvasHeight = computed(() => props.screen.height || 1080);
+// Strict Content Bounding Box Calculation for Preview
+const contentBBox = computed(() => {
+  const visible = (props.components || []).filter(c => c.visible !== false);
+  if (visible.length === 0) {
+    return { minX: 0, minY: 0, width: props.screen.width || 1920, height: props.screen.height || 1080 };
+  }
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  visible.forEach(c => {
+    const x = c.x ?? 0;
+    const y = c.y ?? 0;
+    const w = Math.max(1, c.width ?? 0);
+    const h = Math.max(1, c.height ?? 0);
+
+    let left = x;
+    let top = y;
+    let right = x + w;
+    let bottom = y + h;
+
+    if (c.rotation) {
+      const rad = (c.rotation * Math.PI) / 180;
+      const cos = Math.abs(Math.cos(rad));
+      const sin = Math.abs(Math.sin(rad));
+      const rotatedHalfW = (w / 2) * cos + (h / 2) * sin;
+      const rotatedHalfH = (w / 2) * sin + (h / 2) * cos;
+      const centerX = x + w / 2;
+      const centerY = y + h / 2;
+      left = centerX - rotatedHalfW;
+      top = centerY - rotatedHalfH;
+      right = centerX + rotatedHalfW;
+      bottom = centerY + rotatedHalfH;
+    }
+
+    if (left < minX) minX = left;
+    if (top < minY) minY = top;
+    if (right > maxX) maxX = right;
+    if (bottom > maxY) maxY = bottom;
+  });
+
+  if (!isFinite(minX)) minX = 0;
+  if (!isFinite(minY)) minY = 0;
+  if (!isFinite(maxX)) maxX = 1920;
+  if (!isFinite(maxY)) maxY = 1080;
+
+  return {
+    minX: Math.round(minX),
+    minY: Math.round(minY),
+    width: Math.max(20, Math.round(maxX - minX)),
+    height: Math.max(20, Math.round(maxY - minY))
+  };
+});
+
+// Tight canvas dimensions based on minimal bounding box of content
+const canvasWidth = computed(() => contentBBox.value.width);
+const canvasHeight = computed(() => contentBBox.value.height);
+const offsetX = computed(() => -contentBBox.value.minX);
+const offsetY = computed(() => -contentBBox.value.minY);
 
 // Calculate scale factor
 const scaleRatio = computed(() => {
@@ -456,8 +514,8 @@ onBeforeUnmount(() => {
           'cursor-pointer': comp.data?.action && comp.data.action.type !== 'none'
         }"
         :style="{
-          left: `${comp.x}px`,
-          top: `${comp.y}px`,
+          left: `${(comp.x || 0) + offsetX}px`,
+          top: `${(comp.y || 0) + offsetY}px`,
           width: `${comp.width}px`,
           height: `${comp.height}px`,
           transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'none',

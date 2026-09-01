@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
-import { resolveTeleSignalState } from '../../utils/scadaResolver';
+import { resolveTeleSignalState, resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -14,13 +14,21 @@ const style = computed(() => props.component.style || {});
 const customProps = computed(() => props.component.customProps || {});
 const mapping = computed(() => props.component.data?.mapping || {});
 
+// Dynamic resolved data via unified resolver
+const dynamicData = computed(() => resolveComponentDynamicData(props.component, props.datasets));
+
 // Resolve strictly 0 (Green) vs 1 (Red) state
 const indicatorState = computed(() => {
   const sKey = mapping.value.statusKey || mapping.value.stateKey || mapping.value.valueKey;
+  const dyn = dynamicData.value;
   
-  // 1. Resolve raw base state from staticData, activeState, customProps, or style
+  // 1. Resolve raw base state from unified dynamicData, staticData, activeState, customProps, or style
   let rawState: any = 0;
-  if (props.component.data?.staticData?.state !== undefined) {
+  if (dyn.state !== undefined) {
+    rawState = dyn.state;
+  } else if (dyn.value !== undefined) {
+    rawState = dyn.value;
+  } else if (props.component.data?.staticData?.state !== undefined) {
     rawState = props.component.data.staticData.state;
   } else if (props.component.data?.staticData?.value !== undefined) {
     rawState = props.component.data.staticData.value;
@@ -35,11 +43,11 @@ const indicatorState = computed(() => {
   let effectiveState = 0;
 
   // 2. If SCADA live telemetry point is bound and not static override
-  if (props.component.data?.useStatic !== true && sKey) {
+  if (props.component.data?.useStatic !== true && sKey && (dyn.state === undefined && dyn.value === undefined)) {
     const resolved = resolveTeleSignalState(props.datasets, props.component.data?.datasetId, sKey, rawState);
     effectiveState = resolved.numericValue;
   } else {
-    // 3. Static or direct JSON injection parsing
+    // 3. Static or direct JSON injection parsing with strict numeric safety
     if (typeof rawState === 'number') {
       effectiveState = isNaN(rawState) ? 0 : rawState;
     } else if (typeof rawState === 'boolean') {
@@ -55,21 +63,20 @@ const indicatorState = computed(() => {
       } else if (lower === '3' || lower.includes('试') || lower.includes('test') || lower.includes('offline')) {
         effectiveState = 3;
       } else {
-        const parsed = parseInt(lower, 10);
-        effectiveState = isNaN(parsed) ? 0 : parsed;
+        effectiveState = Math.round(parseStrictNumber(lower, 0));
       }
     }
   }
 
   // Custom 0-state color (default: #00e676 green) and 1-state color (default: #ff2233 red)
-  const color0 = customProps.value.color0 || style.value.color0 || props.component.data?.staticData?.color0 || '#00e676';
-  const color1 = customProps.value.color1 || style.value.color1 || props.component.data?.staticData?.color1 || '#ff2233';
-  const color2 = customProps.value.color2 || style.value.color2 || '#ffaa00';
-  const color3 = customProps.value.color3 || style.value.color3 || '#64748b';
+  const color0 = dyn.color0 || customProps.value.color0 || style.value.color0 || props.component.data?.staticData?.color0 || '#00e676';
+  const color1 = dyn.color1 || customProps.value.color1 || style.value.color1 || props.component.data?.staticData?.color1 || '#ff2233';
+  const color2 = dyn.color2 || customProps.value.color2 || style.value.color2 || '#ffaa00';
+  const color3 = dyn.color3 || customProps.value.color3 || style.value.color3 || '#64748b';
 
-  const text0 = customProps.value.text0 || props.component.data?.staticData?.text0 || '分闸 0';
-  const text1 = customProps.value.text1 || props.component.data?.staticData?.text1 || '合闸 1';
-  const text2 = customProps.value.text2 || '故障 2';
+  const text0 = dyn.text0 || customProps.value.text0 || props.component.data?.staticData?.text0 || '分闸 0';
+  const text1 = dyn.text1 || customProps.value.text1 || props.component.data?.staticData?.text1 || '合闸 1';
+  const text2 = dyn.text2 || customProps.value.text2 || '故障 2';
 
   // 0: Green (分闸/停止/正常0状态), 1: Red (合闸/运行/带电1状态), 2: Yellow/Warning, 3/other: Gray
   let color = color0; // Default 0: Green

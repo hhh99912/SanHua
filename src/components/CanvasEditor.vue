@@ -86,10 +86,12 @@ const {
   centerCanvasInViewport,
   fitCanvasToViewport,
   getContentBoundingBox,
+  calculateComponentsBoundingBox,
   fitAndCenterContentInViewport,
   snapAllToGrid,
   centerAllInCanvas,
   alignContentToOrigin,
+  normalizeNegativeCoordinates,
   cropCanvasToContent
 } = useCanvasEngine({
   initialZoom: props.zoom || 1,
@@ -285,19 +287,57 @@ const onWheelWorkspace = (e: WheelEvent) => {
   }
 };
 
-// 一键居中 / 铺满画布：将画布从 (0,0) 开始以最佳比例铺满整个编辑界面视口，包含所有组件
+// 一键居中 / 铺满画布：严格计算包含所有可见组件的最小外接矩形，将整体平移至 (0,0)，并自适应缩放铺满整个编辑界面（消除多余留白）
 const handleFitAndCenter = () => {
   const container = infinitePlaneRef.value || containerRef.value;
   if (!container) return;
-  fitCanvasToViewport(
-    props.screen.width || 1920,
-    props.screen.height || 1080,
-    container,
-    props.components,
-    (newZoom) => {
-      emit('update:zoom', newZoom);
+
+  const activeComps = props.components || [];
+  const bbox = calculateComponentsBoundingBox(activeComps);
+
+  if (bbox && activeComps.length > 0) {
+    const dx = -bbox.minX;
+    const dy = -bbox.minY;
+    
+    let updatedComps = activeComps;
+    if (dx !== 0 || dy !== 0) {
+      updatedComps = activeComps.map(c => ({
+        ...c,
+        x: Math.round((c.x || 0) + dx),
+        y: Math.round((c.y || 0) + dy)
+      }));
+      emit('update:components', updatedComps);
     }
-  );
+
+    // 动态调整画面尺寸为所有组件的最小外接矩形，彻底消除扩大或缩小后的留白区域
+    if (bbox.width !== props.screen.width || bbox.height !== props.screen.height) {
+      emit('update:screen', {
+        ...props.screen,
+        width: bbox.width,
+        height: bbox.height
+      });
+    }
+
+    fitCanvasToViewport(
+      bbox.width,
+      bbox.height,
+      container,
+      updatedComps,
+      (newZoom) => {
+        emit('update:zoom', newZoom);
+      }
+    );
+  } else {
+    fitCanvasToViewport(
+      props.screen.width || 1920,
+      props.screen.height || 1080,
+      container,
+      activeComps,
+      (newZoom) => {
+        emit('update:zoom', newZoom);
+      }
+    );
+  }
 };
 
 // 视口复位至标尺原点坐标 (0, 0)
@@ -308,10 +348,6 @@ const handleResetViewport = () => {
 // 一键定位：平移全图图元左上角至 (0, 0) 原点坐标，并复位视口及铺满自适应
 const handleAlignToOrigin = () => {
   handleFitAndCenter();
-  if (props.components && props.components.length > 0) {
-    const updated = alignContentToOrigin(props.components, 0, 0);
-    emit('update:components', updated);
-  }
 };
 
 // Whenever screen id or dimensions change or on mounted, auto-fit and center to (0,0)

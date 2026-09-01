@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
+import { resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -10,42 +11,15 @@ interface Props {
 const props = defineProps<Props>();
 
 const counterState = computed(() => {
-  const { data, style, customProps, type } = props.component;
-  const boundDataset = props.datasets?.find(d => d.id === data?.datasetId);
-  const activeData = (data?.useStatic !== false && data?.staticData) 
-    ? data.staticData 
-    : (boundDataset?.data || data?.staticData || {});
-
-  let rawValue: any = customProps?.value ?? 89420;
-
-  if (data?.staticData !== undefined && data?.staticData !== null) {
-    if (typeof data.staticData === 'number') {
-      rawValue = data.staticData;
-    } else if (typeof data.staticData === 'object' && data.staticData.value !== undefined) {
-      rawValue = data.staticData.value;
-    }
-  }
-
-  if (data?.useStatic !== true) {
-    if (data?.mapping?.valueKey && activeData[data.mapping.valueKey] !== undefined) {
-      rawValue = activeData[data.mapping.valueKey];
-    } else if (activeData.daily_output !== undefined) {
-      rawValue = activeData.daily_output;
-    }
-  }
+  const { style, customProps, type } = props.component;
+  const dynamic = resolveComponentDynamicData(props.component, props.datasets);
 
   // Strict numeric conversion (reject text strings, format cleanly)
-  let cleanNum = 0;
-  if (typeof rawValue === 'number') {
-    cleanNum = isNaN(rawValue) ? 0 : rawValue;
-  } else if (typeof rawValue === 'string') {
-    const sanitized = rawValue.replace(/[^0-9.-]/g, '');
-    const parsed = parseFloat(sanitized);
-    cleanNum = isNaN(parsed) ? 0 : parsed;
-  }
+  const rawValue = dynamic.value !== undefined ? dynamic.value : (customProps?.value ?? 89420);
+  const cleanNum = parseStrictNumber(rawValue, 0);
 
-  const unit = data?.mapping?.unitKey ?? customProps?.unit ?? (data?.staticData?.unit || (type === 'metric-progress' ? '%' : ''));
-  const title = (data?.mapping?.titleKey && activeData[data.mapping.titleKey]) ?? props.component.name;
+  const unit = dynamic.unit ?? customProps?.unit ?? (type === 'metric-progress' ? '%' : '');
+  const title = dynamic.label ?? dynamic.title ?? customProps?.title ?? props.component.name;
   const themeColor = style?.textColor || style?.stroke || style?.fill || '#00f2ff';
   const prefix = customProps?.prefix || '';
   const isFlipper = type === 'metric-flipper';

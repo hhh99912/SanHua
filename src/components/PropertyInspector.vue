@@ -66,6 +66,7 @@ import {
   getFormattedTimestamp,
   ComponentJsonSchemaInfo
 } from '../data/componentJsonSchemas';
+import { resolveComponentDynamicData, parseStrictNumber } from '../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent | null;
@@ -94,8 +95,9 @@ const emit = defineEmits<{
 
 const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry');
 
-// SCADA & JSON Data Association State
-const dataBindingSource = ref<'json-schema' | 'scada'>('json-schema');
+// Unified SCADA & JSON Data Association State
+const targetBindProperty = ref<string>('value');
+const dataInspectTab = ref<'live' | 'schema'>('live');
 const selectedDeviceId = ref<string>('DEV-101');
 const selectedTeleCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
 const pointSearchQuery = ref<string>('');
@@ -103,17 +105,98 @@ const staticJsonInput = ref<string>('');
 const staticJsonMsg = ref<string>('');
 
 // JSON Schema & Ingestion Controls
-const isSchemaDocOpen = ref<boolean>(true);
+const isSchemaDocOpen = ref<boolean>(false);
 const isScadaPointInjectorOpen = ref<boolean>(false);
 const scadaInjectorDeviceId = ref<string>('DEV-101');
 const scadaInjectorCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
 const jsonValidationStatus = ref<'valid' | 'invalid' | 'empty'>('valid');
 const jsonErrorMessage = ref<string>('');
 
+// Live dynamically resolved JSON payload for current component
+const liveDynamicData = computed(() => {
+  if (!props.component) return {};
+  return resolveComponentDynamicData(props.component, props.datasets);
+});
+
 // Current Component's JSON Schema Framework
 const currentSchemaInfo = computed<ComponentJsonSchemaInfo>(() => {
   if (!props.component) return COMPONENT_JSON_SCHEMAS['generic'];
   return getComponentSchemaInfo(props.component.type, props.component.category);
+});
+
+// Available component properties for target binding
+const availableProperties = computed(() => {
+  const schema = currentSchemaInfo.value;
+  const set = new Set<string>();
+  if (schema.fields) {
+    schema.fields.forEach(f => set.add(f.field));
+  }
+  // Standard properties for SCADA
+  ['value', 'state', 'unit', 'level', 'activeState', 'label', 'min', 'max', 'color', 'capacity', 'title'].forEach(k => set.add(k));
+  return Array.from(set);
+});
+
+// Active dynamic property bindings list with live resolved values
+const activeBindingsList = computed(() => {
+  const comp = props.component;
+  if (!comp || !comp.data) return [];
+  const bindings = comp.data.bindings || {};
+  const entries = Object.entries(bindings);
+  
+  // If no explicit bindings but mapping exists, include mapping as 'value' or 'state'
+  if (entries.length === 0 && comp.data.mapping) {
+    const m = comp.data.mapping;
+    const targetKey = m.stateKey ? 'state' : 'value';
+    const pointKey = m.valueKey || m.stateKey || (m.deviceId && m.pointId ? `${m.deviceId}_YC_${m.pointId}` : '');
+    if (pointKey) {
+      entries.push([targetKey, pointKey]);
+    }
+  }
+
+  return entries.map(([propKey, pointKey]) => {
+    const match = String(pointKey).match(/^([A-Za-z0-9_-]+)_(YC|YX|DD|YK|YT)_(\d+)/i);
+    let devId = match ? match[1] : (comp.data.mapping?.deviceId || 'DEV-101');
+    let cat = match ? match[2].toLowerCase() : (comp.data.mapping?.pointCategory || 'yc');
+    let ptId = match ? match[3] : (comp.data.mapping?.pointId || '');
+
+    const dev = currentDatasetDevices.value.find(d => d.deviceId === devId);
+    let pointName = `${devId}_${cat.toUpperCase()}_${ptId}`;
+    let liveVal: any = liveDynamicData.value[propKey] ?? '--';
+    let unit = '';
+
+    if (dev) {
+      if (cat === 'yc') {
+        const pt = dev.telemetries?.find((m: any) => String(m.pointId) === String(ptId));
+        if (pt) {
+          pointName = pt.name;
+          unit = pt.unit || '';
+        }
+      } else if (cat === 'yx') {
+        const pt = dev.teleSignals?.find((s: any) => String(s.pointId) === String(ptId));
+        if (pt) {
+          pointName = pt.name;
+          liveVal = pt.statusText || (pt.value === 1 ? '合闸 (1)' : '分闸 (0)');
+        }
+      } else if (cat === 'dd') {
+        const pt = dev.energies?.find((e: any) => String(e.pointId) === String(ptId));
+        if (pt) {
+          pointName = pt.name;
+          unit = pt.unit || 'kWh';
+        }
+      }
+    }
+
+    return {
+      propKey,
+      pointKey,
+      devId,
+      cat,
+      ptId,
+      pointName,
+      liveVal,
+      unit
+    };
+  });
 });
 
 const themeColors = [
@@ -457,7 +540,7 @@ watch(
   }
 );
 
-// Direct Smart Point Binding Action (严格遵循 SCADA 规范：遥控遥调本身无采样值，状态来自校验点)
+// Direct Smart Point Binding Action (严格遵循 SCADA 规范：自动将测点与目标属性如 value, state, level, unit 等关联)
 const handleBindPointToComponent = (point: any) => {
   if (!props.component) return;
   const dev = selectedDevice.value;
@@ -483,6 +566,16 @@ const handleBindPointToComponent = (point: any) => {
   } else if (cat === 'yt') {
     pointKey = `${dev.deviceId}_YT_${point.pointId}`;
     pointCat = 'teleRegulation';
+  }
+
+  // Determine property to bind
+  const propToBind = targetBindProperty.value || (cat === 'yx' ? 'state' : 'value');
+  const currentBindings = { ...(props.component.data?.bindings || {}) };
+  currentBindings[propToBind] = pointKey;
+
+  // Auto-bind unit property if present and not explicitly overridden
+  if (point.unit && !currentBindings['unit']) {
+    currentBindings['unit'] = `${pointKey}_unit`;
   }
 
   const mappingUpdates: Record<string, any> = {
@@ -542,11 +635,28 @@ const handleBindPointToComponent = (point: any) => {
   updateComponentData({
     datasetId,
     useStatic: false,
+    bindings: currentBindings,
     mapping: {
       ...props.component.data.mapping,
       ...mappingUpdates
     },
     action: newAction
+  });
+};
+
+// Quick Unbind Specific Property
+const handleUnbindProperty = (propKey: string) => {
+  if (!props.component) return;
+  const currentBindings = { ...(props.component.data?.bindings || {}) };
+  delete currentBindings[propKey];
+
+  // If no bindings left, clean up mapping
+  const remainingKeys = Object.keys(currentBindings);
+  const mapping = remainingKeys.length === 0 ? {} : props.component.data?.mapping;
+
+  updateComponentData({
+    bindings: currentBindings,
+    mapping: mapping
   });
 };
 
@@ -593,11 +703,12 @@ const handleSetVerificationPoint = (verifyPointId: number | string) => {
   }
 };
 
-// Quick Unbind Point
+// Quick Unbind All Points
 const handleUnbindPoint = () => {
   if (!props.component) return;
   updateComponentData({
     useStatic: false,
+    bindings: {},
     mapping: {},
     action: undefined
   });
@@ -2343,186 +2454,102 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- Data Source Switcher: JSON Schema Framework vs SCADA Direct Binding -->
-          <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-slate-200 block">数据关联与驱动方式</label>
-            <div class="grid grid-cols-2 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800">
+          <!-- 1. 目标属性选择 (Target Property to Dynamically Bind) -->
+          <div class="p-3 rounded-xl bg-[#060b17] border border-cyan-500/30 space-y-2.5">
+            <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+              <span class="flex items-center gap-1.5">
+                <Crosshair class="w-4 h-4 text-cyan-400" />
+                <span>绑定目标属性 (Target Property)</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-mono">点表点击后将绑定到此属性</span>
+            </div>
+
+            <!-- Quick property tags -->
+            <div class="flex flex-wrap gap-1">
               <button
-                @click="dataBindingSource = 'json-schema'"
-                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                :class="dataBindingSource === 'json-schema' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
+                v-for="propKey in ['value', 'state', 'unit', 'level', 'activeState', 'label', 'min', 'max']"
+                :key="propKey"
+                @click="targetBindProperty = propKey"
+                class="px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-all"
+                :class="targetBindProperty === propKey
+                  ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400 shadow-xs'
+                  : 'bg-slate-900 text-slate-300 border-slate-800 hover:border-cyan-500/40 hover:text-white'"
               >
-                <FileCode class="w-3.5 h-3.5" />
-                <span>图元专属 JSON 契约</span>
+                {{ propKey }}
               </button>
-              <button
-                @click="dataBindingSource = 'scada'"
-                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                :class="dataBindingSource === 'scada' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
-              >
-                <Cpu class="w-3.5 h-3.5" />
-                <span>SCADA 四遥测点直连</span>
-              </button>
+            </div>
+
+            <div class="flex items-center gap-1.5 pt-1">
+              <label class="text-[11px] text-slate-400 shrink-0 font-medium">指定属性键名:</label>
+              <input
+                type="text"
+                v-model="targetBindProperty"
+                placeholder="例如: value, level, state..."
+                class="flex-1 bg-[#030712] border border-slate-700/80 focus:border-cyan-400 rounded px-2 py-1 text-cyan-200 font-mono text-xs outline-hidden"
+              />
             </div>
           </div>
 
-          <!-- ================= SCADA FOUR-TELEMETRY MODE ================= -->
-          <div v-if="dataBindingSource === 'scada'" class="space-y-4">
-            <!-- 1. SCADA 测点关联全景卡片 (Already Bound Details & Quick Locating) -->
-            <div
-              class="p-3 rounded-xl border transition-all"
-              :class="currentBindingDetails.isBound ? 'bg-[#050e1f] border-cyan-500/50 shadow-[0_0_20px_rgba(0,242,255,0.08)]' : 'bg-[#060b17] border-slate-800'"
-            >
-              <div class="flex items-center justify-between pb-2 border-b border-slate-800/80">
-                <div class="flex items-center gap-2">
-                  <div
-                    class="w-2 h-2 rounded-full"
-                    :class="currentBindingDetails.isBound ? 'bg-emerald-400 shadow-[0_0_8px_#10b981]' : 'bg-slate-600'"
-                  ></div>
-                  <span class="font-bold text-xs" :class="currentBindingDetails.isBound ? 'text-cyan-300' : 'text-slate-400'">
-                    {{ currentBindingDetails.isBound ? '已关联 SCADA 测点' : '未关联 SCADA 实时测点' }}
-                  </span>
-                </div>
-                
-                <span
-                  v-if="currentBindingDetails.isBound"
-                  class="px-2 py-0.5 rounded text-[10px] font-mono font-bold border"
-                  :class="currentBindingDetails.categoryBadgeColor"
-                >
-                  {{ currentBindingDetails.categoryLabel }}
+          <!-- 2. 当前已生效的动态关联列表 (Active Dynamic Bindings) -->
+          <div class="p-3 rounded-xl bg-[#050e1f] border border-cyan-500/40 space-y-2.5 shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div class="flex items-center gap-2">
+                <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#10b981] animate-pulse"></div>
+                <span class="font-bold text-xs text-cyan-300">
+                  动态属性关联表 ({{ activeBindingsList.length }})
                 </span>
-                <span v-else class="text-[10px] text-slate-500 font-mono">处于仿真默认模式</span>
               </div>
+              <button
+                v-if="activeBindingsList.length > 0"
+                @click="handleUnbindPoint"
+                class="text-[10px] text-rose-400 hover:text-rose-300 flex items-center gap-1 cursor-pointer font-bold"
+                title="清除所有动态绑定"
+              >
+                <Unlink class="w-3 h-3" />
+                <span>全部解绑</span>
+              </button>
+            </div>
 
-              <!-- Bound Details Display -->
-              <div v-if="currentBindingDetails.isBound" class="pt-2.5 space-y-2 text-xs">
-                <!-- Device & Point Meta -->
-                <div class="grid grid-cols-2 gap-2 text-[11px]">
-                  <div class="bg-[#030712]/80 p-2 rounded-lg border border-slate-800/80">
-                    <span class="text-slate-400 block text-[10px]">关联测控装置</span>
-                    <span class="font-bold text-slate-200 truncate block mt-0.5" :title="currentBindingDetails.deviceName">
-                      [{{ currentBindingDetails.deviceId }}] {{ currentBindingDetails.deviceName }}
+            <!-- Dynamic bindings cards -->
+            <div v-if="activeBindingsList.length > 0" class="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar pr-0.5">
+              <div
+                v-for="b in activeBindingsList"
+                :key="b.propKey"
+                class="p-2 rounded-lg bg-[#030712]/90 border border-slate-800 hover:border-cyan-500/50 flex items-center justify-between gap-2 transition-colors font-mono text-xs"
+              >
+                <div class="min-w-0 flex-1 space-y-0.5">
+                  <div class="flex items-center gap-1.5 truncate">
+                    <span class="px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-500/30 text-[10px] font-bold">
+                      .{{ b.propKey }}
+                    </span>
+                    <span class="text-slate-400 text-[10px]">➔</span>
+                    <span class="text-slate-200 truncate font-semibold">{{ b.pointName }}</span>
+                  </div>
+                  <div class="flex items-center gap-2 text-[10px] text-slate-400">
+                    <span>测点: {{ b.pointKey }}</span>
+                    <span class="text-emerald-400 font-bold font-mono">
+                      实时值: {{ b.liveVal }} {{ b.unit }}
                     </span>
                   </div>
-                  <div class="bg-[#030712]/80 p-2 rounded-lg border border-slate-800/80">
-                    <span class="text-slate-400 block text-[10px]">关联点号与名称</span>
-                    <span class="font-bold text-cyan-300 truncate block mt-0.5" :title="currentBindingDetails.pointName">
-                      #{{ currentBindingDetails.pointId }} {{ currentBindingDetails.pointName }}
-                    </span>
-                  </div>
                 </div>
 
-                <!-- Strict Telemetry / Tele-control Real-time Value Box -->
-                <div class="p-2.5 rounded-lg border" :class="currentBindingDetails.isControl ? 'bg-purple-950/20 border-purple-500/40' : (currentBindingDetails.isRegulation ? 'bg-blue-950/20 border-blue-500/40' : 'bg-cyan-950/20 border-cyan-500/40')">
-                  <!-- Case 1: Tele-Control (YK) - Explicitly state it has NO raw sampled value, displays verification point -->
-                  <template v-if="currentBindingDetails.isControl">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-[10px] font-bold text-purple-300 flex items-center gap-1">
-                        <ShieldCheck class="w-3 h-3 text-purple-400" />
-                        <span>遥控通道性质: 控制输出 (无现场采样值)</span>
-                      </span>
-                      <span class="text-[9px] px-1.5 py-0.2 rounded bg-purple-900/60 text-purple-200 border border-purple-400/30 font-mono">
-                        双位置控制
-                      </span>
-                    </div>
-                    <div class="flex items-baseline justify-between pt-1">
-                      <span class="text-[11px] text-slate-300">图元状态显示 (取自校验遥信):</span>
-                      <div class="text-right">
-                        <span class="font-mono font-bold text-emerald-400 text-sm">
-                          {{ currentBindingDetails.currentDisplayValue }}
-                        </span>
-                        <span v-if="currentBindingDetails.verificationPoint" class="block text-[10px] text-purple-300 font-mono">
-                          来自: [YX_{{ currentBindingDetails.verificationPoint.pointId }}] {{ currentBindingDetails.verificationPoint.pointName }}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="mt-1.5 pt-1.5 border-t border-purple-500/20 text-[10px] text-purple-300/80 leading-tight">
-                      💡 严谨 SCADA 规约：遥控本身无测量数据值，画面图元分合状态由闭环校验遥信实时驱动。
-                    </div>
-                  </template>
-
-                  <!-- Case 2: Tele-Regulation (YT) - Explicitly state it displays verification telemetry -->
-                  <template v-else-if="currentBindingDetails.isRegulation">
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-[10px] font-bold text-blue-300 flex items-center gap-1">
-                        <ShieldCheck class="w-3 h-3 text-blue-400" />
-                        <span>遥调通道性质: 定值输出 (无现场采样值)</span>
-                      </span>
-                      <span class="text-[9px] px-1.5 py-0.2 rounded bg-blue-900/60 text-blue-200 border border-blue-400/30 font-mono">
-                        模拟量整定
-                      </span>
-                    </div>
-                    <div class="flex items-baseline justify-between pt-1">
-                      <span class="text-[11px] text-slate-300">图元数值显示 (取自校验遥测):</span>
-                      <div class="text-right">
-                        <span class="font-mono font-bold text-cyan-300 text-sm">
-                          {{ currentBindingDetails.currentDisplayValue }}
-                        </span>
-                        <span v-if="currentBindingDetails.verificationPoint" class="block text-[10px] text-blue-300 font-mono">
-                          来自: [YC_{{ currentBindingDetails.verificationPoint.pointId }}] {{ currentBindingDetails.verificationPoint.pointName }}
-                        </span>
-                      </div>
-                    </div>
-                    <div class="mt-1.5 pt-1.5 border-t border-blue-500/20 text-[10px] text-blue-300/80 leading-tight">
-                      💡 严谨 SCADA 规约：遥调本身无测量数据值，画面图元实时读数由闭环校验遥测实测值驱动。
-                    </div>
-                  </template>
-
-                  <!-- Case 3: Standard Telemetry (YC), Tele-Signal (YX), Energy (DD) -->
-                  <template v-else>
-                    <div class="flex items-center justify-between mb-1">
-                      <span class="text-[10px] font-bold text-slate-400">现场实时采样值</span>
-                      <span class="text-[9px] text-emerald-400 font-mono">质量码: 0x00 优</span>
-                    </div>
-                    <div class="flex items-baseline justify-between">
-                      <span class="text-[10px] text-slate-400 font-mono">采样通道键:</span>
-                      <span class="font-mono font-bold text-cyan-300 text-sm">
-                        {{ currentBindingDetails.currentDisplayValue }}
-                      </span>
-                    </div>
-                  </template>
-                </div>
-
-                <!-- Bound Action Toolbar: Locate in Table, Control Test, Unbind -->
-                <div class="flex items-center gap-1.5 pt-1">
-                  <button
-                    @click="handleLocateBoundPoint"
-                    class="flex-1 py-1.5 px-2 rounded-lg bg-cyan-950/80 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 font-bold text-[11px] flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                    title="在下方点表库中快速定位并聚焦此测点"
-                  >
-                    <Crosshair class="w-3.5 h-3.5 text-cyan-400" />
-                    <span>在点表中定位</span>
-                  </button>
-
-                  <button
-                    v-if="currentBindingDetails.isControl || currentBindingDetails.isRegulation"
-                    @click="emit('open:control', currentBindingDetails.deviceId || 'DEV-101')"
-                    class="py-1.5 px-2.5 rounded-lg bg-purple-950/80 hover:bg-purple-900 text-purple-300 border border-purple-500/50 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all shadow-xs"
-                    title="在控制台下发遥控/遥调预演指令"
-                  >
-                    <Zap class="w-3.5 h-3.5 text-purple-400" />
-                    <span>控制台预演</span>
-                  </button>
-
-                  <button
-                    @click="handleUnbindPoint"
-                    class="py-1.5 px-2 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 font-bold text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-all"
-                    title="解除当前图元与此测点的关联"
-                  >
-                    <Unlink class="w-3 h-3 text-rose-400" />
-                    <span>解绑</span>
-                  </button>
-                </div>
-              </div>
-
-              <!-- Empty prompt -->
-              <div v-else class="pt-2 text-[11px] text-slate-400 leading-relaxed">
-                当前图元尚未关联集控系统的实时点表。请在下方依次按【厂站/装置 ➔ 四遥分类 ➔ 规约测点】流程选择并建立严谨的规约映射。
+                <button
+                  @click="handleUnbindProperty(b.propKey)"
+                  class="p-1 rounded bg-slate-900 hover:bg-rose-950/80 text-slate-400 hover:text-rose-300 border border-slate-800 hover:border-rose-500/50 cursor-pointer shrink-0"
+                  :title="`解绑属性 .${b.propKey}`"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                </button>
               </div>
             </div>
 
-            <!-- ================= TRADITIONAL SCADA 4-STEP BINDING WORKFLOW ================= -->
-            <div class="space-y-3 pt-1">
+            <div v-else class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800/80 text-center text-slate-400 text-xs">
+              暂未关联测点，点击下方点表行即可自动绑定至目标属性
+            </div>
+          </div>
+
+          <!-- 3. SCADA 点表与四遥通道选择 (Point Selector) -->
+          <div class="space-y-3 pt-1">
               <!-- Step 1: Substation & IED Device -->
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between">
@@ -2856,326 +2883,116 @@ const toggleBatchLock = () => {
                 </select>
               </div>
             </div>
-          </div>
 
-          <!-- ================= JSON SCHEMA DATA CONTRACT MODE ================= -->
-          <div v-else-if="dataBindingSource === 'json-schema'" class="space-y-4">
-            <!-- 1. Component Specific JSON Schema Contract Card -->
-            <div class="p-3.5 rounded-xl bg-[#050e1f] border border-cyan-500/40 shadow-[0_0_20px_rgba(0,242,255,0.06)] space-y-3">
-              <div class="flex items-center justify-between pb-2 border-b border-slate-800">
-                <div class="flex items-center gap-2">
-                  <div class="p-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50">
-                    <Code2 class="w-4 h-4 text-cyan-400" />
-                  </div>
-                  <div>
-                    <span class="font-bold text-xs text-cyan-200 block">{{ currentSchemaInfo.title }}</span>
-                    <span class="text-[10px] text-slate-400 font-mono">契约规范: {{ currentSchemaInfo.schemaName }}</span>
-                  </div>
-                </div>
+          <!-- 4. 实时动态数据响应与契约结构 (Live JSON & Schema Specification) -->
+          <div class="p-3 rounded-xl bg-[#060b17] border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-1 bg-[#030712] p-0.5 rounded-lg border border-slate-800">
+                <button
+                  @click="dataInspectTab = 'live'"
+                  class="py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="dataInspectTab === 'live' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'"
+                >
+                  <Activity class="w-3 h-3" />
+                  <span>实时动态数据</span>
+                </button>
+                <button
+                  @click="dataInspectTab = 'schema'"
+                  class="py-1 px-2 rounded text-[11px] font-bold cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="dataInspectTab === 'schema' ? 'bg-cyan-500 text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'"
+                >
+                  <FileCode class="w-3 h-3" />
+                  <span>标准契约 / 模板</span>
+                </button>
+              </div>
 
+              <div v-if="dataInspectTab === 'live'" class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <span class="text-[10px] text-emerald-400 font-mono font-bold">LIVE SYNC</span>
+              </div>
+            </div>
+
+            <!-- TAB A: Live Dynamic JSON (Fully resolved with SCADA points in real-time) -->
+            <div v-if="dataInspectTab === 'live'" class="space-y-2">
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>实时运算所得的图元数据结构 (自动注入四遥测点)：</span>
+                <button
+                  @click="handleCopyJson"
+                  class="text-[10px] text-cyan-400 hover:text-cyan-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 cursor-pointer"
+                >
+                  复制 JSON
+                </button>
+              </div>
+
+              <pre class="w-full max-h-56 overflow-y-auto bg-[#030712] border border-cyan-500/30 rounded-lg p-2.5 text-[11px] font-mono text-cyan-200 custom-scrollbar leading-relaxed">{{ JSON.stringify(liveDynamicData, null, 2) }}</pre>
+            </div>
+
+            <!-- TAB B: Schema Contract & Static Fallback Template Editor -->
+            <div v-else class="space-y-3">
+              <div class="flex items-center justify-between text-xs font-bold text-slate-200">
+                <span>标准契约规范: {{ currentSchemaInfo.title }}</span>
                 <button
                   @click="isSchemaDocOpen = !isSchemaDocOpen"
-                  class="text-[11px] px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700/80 flex items-center gap-1 cursor-pointer transition-colors"
+                  class="text-[10px] text-cyan-400 hover:text-cyan-300 cursor-pointer"
                 >
-                  <span>{{ isSchemaDocOpen ? '收起规范' : '查看规范' }}</span>
-                  <ChevronDown v-if="isSchemaDocOpen" class="w-3 h-3" />
-                  <ChevronRight v-else class="w-3 h-3" />
+                  {{ isSchemaDocOpen ? '收起字段' : '展开字段' }}
                 </button>
               </div>
-
-              <p class="text-[11px] text-slate-300 leading-relaxed">
-                {{ currentSchemaInfo.description }}
-              </p>
 
               <!-- Schema Fields Specification Table -->
-              <div v-if="isSchemaDocOpen" class="space-y-1.5 pt-1">
-                <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                  <span>支持的标准字段 (Schema Fields)</span>
-                  <span>{{ currentSchemaInfo.fields.length }} 个字段定义</span>
-                </div>
-                <div class="max-h-44 overflow-y-auto rounded-lg border border-slate-800/90 bg-[#030712]/90 divide-y divide-slate-800/60 font-mono text-[11px]">
-                  <div
-                    v-for="field in currentSchemaInfo.fields"
-                    :key="field.field"
-                    class="p-2 flex flex-col gap-0.5 hover:bg-slate-900/60 transition-colors"
-                  >
-                    <div class="flex items-center justify-between">
-                      <span class="font-bold text-cyan-300">{{ field.field }}</span>
-                      <span class="text-[10px] px-1 rounded bg-slate-800 text-slate-300 border border-slate-700">{{ field.type }}</span>
-                    </div>
-                    <div class="flex items-center justify-between text-[10px] text-slate-400 font-sans">
-                      <span class="text-slate-300">{{ field.description }}</span>
-                      <span v-if="field.required" class="text-amber-400 font-bold font-mono">必填</span>
-                      <span v-else class="text-slate-500 font-mono">选填</span>
-                    </div>
-                    <div v-if="field.sample" class="text-[9px] text-slate-500 font-mono truncate">
-                      示例: <span class="text-emerald-400">{{ field.sample }}</span>
-                    </div>
+              <div v-if="isSchemaDocOpen" class="space-y-1 max-h-40 overflow-y-auto custom-scrollbar border border-slate-800 rounded-lg bg-[#030712] p-1.5 text-[11px] font-mono">
+                <div v-for="field in currentSchemaInfo.fields" :key="field.field" class="p-1.5 border-b border-slate-800/60 last:border-0 flex flex-col gap-0.5">
+                  <div class="flex items-center justify-between">
+                    <span class="text-cyan-300 font-bold">{{ field.field }}</span>
+                    <span class="text-[9px] px-1 rounded bg-slate-800 text-slate-400">{{ field.type }}</span>
                   </div>
+                  <div class="text-[10px] text-slate-400 font-sans">{{ field.description }}</div>
                 </div>
               </div>
-            </div>
 
-            <!-- 2. Smart Data Ingestion Toolbar -->
-            <div class="p-3 rounded-xl bg-[#060b17] border border-slate-800 space-y-2.5">
-              <div class="flex items-center justify-between text-xs font-bold text-slate-200">
-                <span class="flex items-center gap-1.5">
-                  <Wand2 class="w-4 h-4 text-cyan-400" />
-                  <span>智能数据注入与填充工具</span>
-                </span>
-                <span class="text-[10px] text-slate-500 font-mono">Data Injectors</span>
-              </div>
-
-              <!-- Quick Injection Actions -->
+              <!-- Reset to default schema button -->
               <div class="grid grid-cols-2 gap-1.5 text-xs">
-                <!-- Action 1: Toggle SCADA Point Injector -->
-                <button
-                  @click="isScadaPointInjectorOpen = !isScadaPointInjectorOpen"
-                  class="py-2 px-2.5 rounded-lg border font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                  :class="isScadaPointInjectorOpen ? 'bg-cyan-500 text-slate-950 border-cyan-400' : 'bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border-cyan-500/40'"
-                >
-                  <Cpu class="w-3.5 h-3.5" />
-                  <span>⚡ 注入 SCADA 四遥</span>
-                </button>
-
-                <!-- Action 2: Reset to Standard Schema -->
                 <button
                   @click="handleResetToDefaultSchema"
-                  class="py-2 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                  title="重置为当前图元标准契约框架"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold flex items-center justify-center gap-1 cursor-pointer"
                 >
-                  <RefreshCw class="w-3.5 h-3.5 text-cyan-400" />
-                  <span>🔄 恢复标准框架</span>
+                  <RefreshCw class="w-3 h-3 text-cyan-400" />
+                  <span>恢复标准结构</span>
                 </button>
-
-                <!-- Action 3: Inject Current Timestamp -->
                 <button
                   @click="handleInjectTimestamp"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <Clock class="w-3 h-3 text-emerald-400" />
-                  <span>🕒 注入实时时间戳</span>
-                </button>
-
-                <!-- Action 4: Inject Quality Code -->
-                <button
-                  @click="handleInjectQuality('0x00 (GOOD 优)')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                >
-                  <ShieldCheck class="w-3 h-3 text-purple-400" />
-                  <span>🏷️ 注入通信质量码</span>
-                </button>
-
-                <!-- Action 5: Inject 24h Waveform (if chart or metric) -->
-                <button
-                  v-if="isChartComponent || component.category === 'metrics'"
-                  @click="handleInject24hWaveform"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors col-span-2"
-                >
-                  <TrendingUp class="w-3 h-3 text-amber-400" />
-                  <span>📈 注入 24h 双峰负荷时序时段数据</span>
-                </button>
-
-                <!-- Action 6: Simulate Dynamic Condition -->
-                <button
-                  @click="handleInjectRandomSim"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                  :class="(isChartComponent || component.category === 'metrics') ? 'col-span-2' : 'col-span-2'"
-                >
-                  <Play class="w-3 h-3 text-emerald-400" />
-                  <span>🎲 随机工况仿真采样注入</span>
+                  <span>注入当前时戳</span>
                 </button>
               </div>
 
-              <!-- Interactive SCADA Point Injector Drawer -->
-              <div
-                v-if="isScadaPointInjectorOpen"
-                class="p-3 rounded-xl bg-[#030712] border border-cyan-500/50 space-y-2.5 mt-2 shadow-inner"
-              >
-                <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
-                  <span class="flex items-center gap-1.5">
-                    <Cpu class="w-3.5 h-3.5 text-cyan-400" />
-                    <span>选择四遥测点以注入 JSON:</span>
-                  </span>
-                  <button @click="isScadaPointInjectorOpen = false" class="text-slate-400 hover:text-white p-0.5 cursor-pointer">
-                    <X class="w-3.5 h-3.5" />
-                  </button>
-                </div>
-
-                <!-- Device Selector in Injector -->
-                <div class="grid grid-cols-2 gap-1.5 text-xs">
-                  <div>
-                    <label class="text-[10px] text-slate-400 block mb-0.5">装置:</label>
-                    <select
-                      v-model="scadaInjectorDeviceId"
-                      class="w-full bg-[#060b17] border border-slate-700/80 rounded px-2 py-1 text-slate-100 text-xs outline-hidden"
-                    >
-                      <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
-                        [{{ dev.deviceId }}] {{ dev.name }}
-                      </option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="text-[10px] text-slate-400 block mb-0.5">规约类别:</label>
-                    <select
-                      v-model="scadaInjectorCategory"
-                      class="w-full bg-[#060b17] border border-slate-700/80 rounded px-2 py-1 text-slate-100 text-xs outline-hidden"
-                    >
-                      <option value="yc">YC 遥测 (模拟量)</option>
-                      <option value="yx">YX 遥信 (开关量)</option>
-                      <option value="dd">DD 遥脉 (电能量)</option>
-                      <option value="yk">YK 遥控 (控制令)</option>
-                      <option value="yt">YT 遥调 (定值)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <!-- Points List to Click-and-Inject -->
-                <div class="max-h-40 overflow-y-auto space-y-1 rounded border border-slate-800 bg-[#060b17] p-1 text-xs">
-                  <template v-if="scadaInjectorCategory === 'yc'">
-                    <button
-                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.telemetries || [])"
-                      :key="p.pointId"
-                      @click="handleInjectPointToJson(p, 'yc')"
-                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
-                    >
-                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
-                      <span class="text-emerald-400 font-mono text-[11px] shrink-0 font-bold">{{ p.value }} {{ p.unit }}</span>
-                    </button>
-                  </template>
-
-                  <template v-else-if="scadaInjectorCategory === 'yx'">
-                    <button
-                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleSignals || [])"
-                      :key="p.pointId"
-                      @click="handleInjectPointToJson(p, 'yx')"
-                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
-                    >
-                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
-                      <span class="font-mono text-[11px] shrink-0 font-bold" :class="p.value === 1 ? 'text-red-400' : 'text-emerald-400'">
-                        {{ p.value }} ({{ p.statusText || (p.value === 1 ? '合闸' : '分闸') }})
-                      </span>
-                    </button>
-                  </template>
-
-                  <template v-else-if="scadaInjectorCategory === 'dd'">
-                    <button
-                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleEnergies || [])"
-                      :key="p.pointId"
-                      @click="handleInjectPointToJson(p, 'dd')"
-                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
-                    >
-                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
-                      <span class="text-amber-400 font-mono text-[11px] shrink-0 font-bold">{{ p.value }} {{ p.unit }}</span>
-                    </button>
-                  </template>
-
-                  <template v-else-if="scadaInjectorCategory === 'yk'">
-                    <button
-                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleControls || [])"
-                      :key="p.pointId"
-                      @click="handleInjectPointToJson(p, 'yk')"
-                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-purple-950 border border-slate-800 hover:border-purple-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
-                    >
-                      <span class="truncate text-slate-200 group-hover:text-purple-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
-                      <span class="text-purple-400 font-mono text-[10px] shrink-0 font-bold">遥控对象</span>
-                    </button>
-                  </template>
-
-                  <template v-else-if="scadaInjectorCategory === 'yt'">
-                    <button
-                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleRegulations || [])"
-                      :key="p.pointId"
-                      @click="handleInjectPointToJson(p, 'yt')"
-                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-blue-950 border border-slate-800 hover:border-blue-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
-                    >
-                      <span class="truncate text-slate-200 group-hover:text-blue-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
-                      <span class="text-blue-400 font-mono text-[10px] shrink-0 font-bold">定值: {{ p.currentValue }} {{ p.unit }}</span>
-                    </button>
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <!-- 3. Component Specific Standard Presets -->
-            <div v-if="currentSchemaInfo.templates && currentSchemaInfo.templates.length > 0" class="p-3 rounded-xl bg-[#060b17] border border-slate-800 space-y-2">
-              <label class="text-xs font-semibold text-cyan-300 block">标准业务场景模板一键加载：</label>
-              <div class="grid grid-cols-1 gap-1.5">
-                <button
-                  v-for="tpl in currentSchemaInfo.templates"
-                  :key="tpl.name"
-                  @click="handleApplySchemaTemplate(tpl.payload)"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer flex items-center justify-between transition-colors"
-                >
-                  <span>{{ tpl.name }}</span>
-                  <span class="text-[10px] text-slate-500 font-mono">加载此模板</span>
-                </button>
-              </div>
-            </div>
-
-            <!-- 4. Interactive Live JSON Code Editor -->
-            <div class="space-y-1.5">
-              <div class="flex items-center justify-between">
-                <label class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                  <Code2 class="w-3.5 h-3.5 text-cyan-400" />
-                  <span>实时 JSON 契约数据编辑器</span>
-                </label>
-
-                <div class="flex items-center gap-1.5 text-xs">
+              <!-- Static JSON Fallback Editor -->
+              <div class="space-y-1.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label class="text-slate-300 font-semibold">静态缺省模板数据 (Fallback Defaults)</label>
                   <button
                     @click="handleFormatJson"
-                    class="text-[11px] text-cyan-400 hover:text-cyan-300 bg-slate-900 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                    title="格式化 JSON 排版"
+                    class="text-[10px] text-cyan-400 hover:text-cyan-300 cursor-pointer"
                   >
-                    ✨ 排版
-                  </button>
-                  <button
-                    @click="handleCopyJson"
-                    class="text-[11px] text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
-                    title="复制 JSON"
-                  >
-                    📋 复制
+                    格式化
                   </button>
                 </div>
+                <textarea
+                  :value="staticJsonInput"
+                  @input="handleJsonInput(($event.target as HTMLTextAreaElement).value)"
+                  placeholder="请输入静态缺省 JSON 数据..."
+                  rows="7"
+                  class="w-full bg-[#030712] border focus:border-cyan-400 rounded-lg p-2 text-xs font-mono outline-hidden resize-y leading-relaxed"
+                  :class="jsonValidationStatus === 'invalid' ? 'border-red-500 text-red-300' : 'border-slate-800 text-slate-200'"
+                ></textarea>
               </div>
 
-              <!-- Syntax & Validation Status Banner -->
-              <div
-                v-if="jsonValidationStatus === 'invalid'"
-                class="p-2 rounded-lg bg-red-950/40 border border-red-500/60 text-xs text-red-300 font-mono leading-tight flex items-start gap-1.5"
-              >
-                <AlertTriangle class="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
-                <span>{{ jsonErrorMessage }}</span>
+              <div v-if="staticJsonMsg" class="text-xs font-semibold" :class="staticJsonMsg.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'">
+                {{ staticJsonMsg }}
               </div>
-              <div
-                v-else
-                class="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-mono flex items-center gap-1.5"
-              >
-                <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
-                <span>✓ JSON 结构合法，已实时响应并驱动图元</span>
-              </div>
-
-              <textarea
-                :value="staticJsonInput"
-                @input="handleJsonInput(($event.target as HTMLTextAreaElement).value)"
-                placeholder="请输入符合当前图元契约的 JSON 数据..."
-                rows="10"
-                class="w-full bg-[#030712] border focus:border-cyan-400 rounded-lg p-2.5 text-xs font-mono outline-hidden resize-y leading-relaxed transition-all"
-                :class="jsonValidationStatus === 'invalid' ? 'border-red-500/70 text-red-200' : 'border-slate-800 text-cyan-200'"
-              ></textarea>
             </div>
-
-            <div v-if="staticJsonMsg" class="text-xs font-semibold" :class="staticJsonMsg.startsWith('✓') ? 'text-emerald-400' : 'text-red-400'">
-              {{ staticJsonMsg }}
-            </div>
-
-            <button
-              @click="handleApplyStaticData"
-              class="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5"
-            >
-              <Check class="w-4 h-4" />
-              <span>立即确认并同步此 JSON 数据</span>
-            </button>
           </div>
         </div>
 

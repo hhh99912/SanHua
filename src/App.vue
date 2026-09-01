@@ -303,7 +303,7 @@ const handleRedo = () => {
 const canUndo = computed(() => historyIndex.value > 0);
 const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1);
 
-// 3. Auto Fit to Screen helper: 一键居中并以 (0,0) 为原点自适应铺满编辑界面
+// 3. Auto Fit to Screen helper: 严格计算包含所有组件的最小外接矩形，移至 (0,0) 并自适应缩放铺满视口
 const fitToScreen = () => {
   nextTick(() => {
     if (canvasEditorRef.value?.fitAndCenter) {
