@@ -163,15 +163,26 @@ function setupIpcHandlers() {
     import_electron.shell.openExternal(url);
   });
 }
-import_electron.app.whenReady().then(() => {
-  setupIpcHandlers();
-  createWindow();
-  import_electron.app.on("activate", () => {
-    if (import_electron.BrowserWindow.getAllWindows().length === 0) createWindow();
+var gotTheLock = import_electron.app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  import_electron.app.quit();
+} else {
+  import_electron.app.on("second-instance", () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
   });
-});
-import_electron.app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    import_electron.app.quit();
-  }
-});
+  import_electron.app.whenReady().then(() => {
+    setupIpcHandlers();
+    createWindow();
+    import_electron.app.on("activate", () => {
+      if (import_electron.BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  });
+  import_electron.app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      import_electron.app.quit();
+    }
+  });
+}

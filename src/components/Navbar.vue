@@ -98,7 +98,6 @@ const emit = defineEmits<{
   (e: 'ungroup'): void;
   (e: 'save:symbol'): void;
   (e: 'center:all'): void;
-  (e: 'crop:minimal'): void;
   (e: 'snap:all'): void;
 }>();
 
@@ -449,22 +448,14 @@ const handleSelectTemplate = (id: string) => {
 
         <div class="h-3.5 w-[1px] bg-slate-800 mx-0.5" />
 
-        <!-- Canvas Align / Crop Shortcuts -->
+        <!-- Canvas Align Shortcuts -->
         <div class="flex items-center bg-slate-900 p-0.5 rounded-md border border-slate-800 gap-1">
           <button
             @click="emit('center:all')"
             class="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 cursor-pointer transition-colors"
-            title="一键居中：将全图元件居中对齐到主画布"
+            title="一键定位：复位视口并将画布左上角对齐到原点坐标 (0, 0)"
           >
             <Crosshair class="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            @click="emit('crop:minimal')"
-            class="p-1 rounded bg-emerald-950/80 text-emerald-300 hover:bg-emerald-900 border border-emerald-500/50 cursor-pointer transition-colors"
-            title="截取最小画布：根据所有图元外接边界，自动裁剪画面尺寸并位移规整"
-          >
-            <Crop class="w-3.5 h-3.5 text-emerald-400" />
           </button>
         </div>
 

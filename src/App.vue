@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, reactive, onMounted, onBeforeUnmount, computed, watch } from 'vue';
+import { ref, reactive, onMounted, onBeforeUnmount, computed, watch, nextTick } from 'vue';
 import { 
   ScreenConfig, 
   ScreenComponent, 
@@ -313,6 +313,9 @@ const fitToScreen = () => {
   const scaleY = availableHeight / screen.value.height;
   const fitScale = Math.min(scaleX, scaleY);
   zoom.value = Number(Math.max(0.2, Math.min(1.5, fitScale)).toFixed(2));
+  nextTick(() => {
+    canvasEditorRef.value?.centerView?.();
+  });
 };
 
 // 4. Component Operations
@@ -950,7 +953,6 @@ onBeforeUnmount(() => {
       @group="handleGroup"
       @ungroup="handleUngroup"
       @save:symbol="() => handleOpenSaveSymbolModal(selectedComponents)"
-      @crop:minimal="canvasEditorRef?.cropMinimal?.()"
       @center:all="canvasEditorRef?.centerAll?.()"
       @snap:all="handleSnapAllToGrid"
     />

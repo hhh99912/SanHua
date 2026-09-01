@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { 
   Copy, Scissors, Clipboard, Trash2, Layers, CheckSquare, 
   ArrowUpToLine, ArrowDownToLine, ChevronUp, ChevronDown, 
   Lock, Unlock, BookmarkPlus, RotateCw, Radio,
   AlignLeft, AlignCenter, AlignRight, AlignVerticalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
-  Crosshair, Crop, Sliders, Workflow
+  Crosshair, Sliders, Workflow
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetConfig } from '../types';
 import WidgetRenderer from './widgets/WidgetRenderer.vue';
@@ -70,6 +70,7 @@ const mousePos = ref({ x: 0, y: 0, rawX: 0, rawY: 0 });
 
 // Shared Canvas Engine for Pan/Zoom, Grid Snapping & Crop
 const {
+  zoom,
   panOffset,
   isPanning,
   showGrid,
@@ -87,6 +88,7 @@ const {
   fitAndCenterContentInViewport,
   snapAllToGrid,
   centerAllInCanvas,
+  alignContentToOrigin,
   cropCanvasToContent
 } = useCanvasEngine({
   initialZoom: props.zoom || 1,
@@ -97,7 +99,11 @@ const {
 });
 
 // Sync prop changes into canvas engine
-watch(() => props.zoom, (val) => { if (val !== undefined && val > 0) { /* reactive zoom is passed directly to clientToCanvas */ } });
+watch(() => props.zoom, (val) => {
+  if (val !== undefined && val > 0 && val !== zoom.value) {
+    zoom.value = val;
+  }
+});
 watch(() => props.showGrid, (val) => { if (val !== undefined) showGrid.value = val; });
 watch(() => props.gridSize, (val) => { if (val !== undefined) gridSize.value = val; });
 watch(() => props.snapToGrid, (val) => { if (val !== undefined) snapToGrid.value = val; });
@@ -278,19 +284,31 @@ const onWheelWorkspace = (e: WheelEvent) => {
   }
 };
 
-// Auto-fit and center all content in viewport
-const handleFitAndCenter = () => {
-  fitAndCenterContentInViewport(
-    props.components,
-    props.screen.width,
-    props.screen.height,
-    containerRef.value,
-    (newZoom) => emit('update:zoom', newZoom)
-  );
+// 视口复位至标尺原点坐标 (0, 0)
+const handleResetViewport = () => {
+  panOffset.value = { x: 24, y: 24 };
 };
 
+// 一键定位：平移全图图元左上角至 (0, 0) 原点坐标，并复位视口
+const handleAlignToOrigin = () => {
+  panOffset.value = { x: 24, y: 24 };
+  if (props.components && props.components.length > 0) {
+    const updated = alignContentToOrigin(props.components, 0, 0);
+    emit('update:components', updated);
+  }
+};
+
+// Whenever screen id changes or on mounted, auto-position viewport to (0px, 0px)
+watch(() => props.screen.id, () => {
+  nextTick(() => {
+    handleResetViewport();
+  });
+}, { immediate: true });
+
 onMounted(() => {
-  handleFitAndCenter();
+  nextTick(() => {
+    handleResetViewport();
+  });
 });
 
 // Precision Operations
@@ -304,20 +322,6 @@ const handleCenterAllInCanvas = () => {
   if (props.components.length === 0) return;
   const updated = centerAllInCanvas(props.components, props.screen.width, props.screen.height);
   emit('update:components', updated);
-};
-
-// Crop to Minimal Canvas (按图元元素截取最小画布)
-const handleCropCanvasToContent = () => {
-  if (props.components.length === 0) return;
-  const res = cropCanvasToContent(props.components, 30, 100);
-  if (res) {
-    emit('update:screen', {
-      ...props.screen,
-      width: res.newWidth,
-      height: res.newHeight
-    });
-    emit('update:components', res.updatedComponents);
-  }
 };
 
 const handleMouseMoveWorkspace = (e: MouseEvent) => {
@@ -1123,10 +1127,11 @@ onBeforeUnmount(() => {
 });
 
 defineExpose({
-  cropMinimal: handleCropCanvasToContent,
   snapAllToGrid: handleSnapAllToGrid,
-  centerAll: handleFitAndCenter,
-  centerView: handleFitAndCenter
+  centerAll: handleAlignToOrigin,
+  centerView: handleResetViewport,
+  alignToOrigin: handleAlignToOrigin,
+  resetOrigin: handleAlignToOrigin
 });
 </script>
 
@@ -1717,22 +1722,12 @@ defineExpose({
           </button>
 
           <button
-            @click="centerCanvasInViewport(screen.width, screen.height, containerRef); closeContextMenu();"
+            @click="handleAlignToOrigin(); closeContextMenu();"
             class="w-full text-left px-2.5 py-1.5 hover:bg-cyan-500/20 rounded-md hover:text-cyan-200 cursor-pointer flex items-center justify-between group font-medium transition-colors"
           >
             <div class="flex items-center gap-2">
               <Crosshair class="w-3.5 h-3.5 text-cyan-400" />
-              <span>重置视图居中</span>
-            </div>
-          </button>
-
-          <button
-            @click="handleCropCanvasToContent(); closeContextMenu();"
-            class="w-full text-left px-2.5 py-1.5 hover:bg-emerald-500/20 rounded-md text-emerald-300 hover:text-emerald-200 cursor-pointer flex items-center justify-between group font-medium transition-colors"
-          >
-            <div class="flex items-center gap-2">
-              <Crop class="w-3.5 h-3.5 text-emerald-400" />
-              <span>按图元截取最小画布</span>
+              <span>一键定位原点 (0, 0)</span>
             </div>
           </button>
 

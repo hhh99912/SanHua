@@ -31,28 +31,40 @@ const activeTab = ref<'desktop' | 'docker'>('docker');
 
 const packagingCommands = [
   {
-    target: 'Windows 客户端打包',
+    target: 'Windows 本地直接运行 (开发模式)',
+    os: 'Windows 10 / 11 / Server',
+    cmd: 'npm run electron:dev',
+    desc: '启动 Vite 并自动调起 Electron 桌面窗口，支持热更新与 DevTools 调试'
+  },
+  {
+    target: 'Windows 离线独立运行 (生产预览)',
+    os: 'Windows 10 / 11 / Server',
+    cmd: 'npm run electron:preview',
+    desc: '编译生产代码后直接以独立客户端形式运行，无需浏览器或外网'
+  },
+  {
+    target: 'Windows 客户端打包 (全格式)',
     os: 'Windows 10 / 11 / Server (x64 / ia32)',
     cmd: 'npm run dist:win',
-    desc: '生成 NSIS 安装向导安装包 (.exe)、绿色免安装单文件 (.exe) 及 ZIP 便携压缩包'
+    desc: '一键生成 NSIS 安装向导安装包 (.exe) 与绿色免安装单文件 (.exe)，位于 release/ 目录'
+  },
+  {
+    target: 'Windows 免安装便携版打包',
+    os: 'Windows 10 / 11 / Server (x64)',
+    cmd: 'npm run dist:win-portable',
+    desc: '生成单文件绿色便携版 (.exe)，U盘插即用，无需安装'
   },
   {
     target: 'Linux 客户端打包',
-    os: 'Ubuntu / Debian / CentOS / RedHat / Arch',
+    os: 'Ubuntu / Debian / CentOS / RedHat / 凝思',
     cmd: 'npm run dist:linux',
-    desc: '生成全 Linux 发行版通用的 AppImage 独立可执行程序、.deb 安装包以及 tar.gz 压缩包'
+    desc: '生成全 Linux 发行版通用的 AppImage 独立可执行程序、.deb 安装包及绿色目录'
   },
   {
     target: '跨平台全量双端打包',
     os: 'Windows + Linux 双系统分发',
     cmd: 'npm run dist:all',
     desc: '一次性编译生成 Windows 与 Linux 全架构分发包，位于 release/ 目录'
-  },
-  {
-    target: '本地 Electron 调试运行',
-    os: '任意系统开发调试',
-    cmd: 'npm run electron:dev',
-    desc: '启动 Electron 33.2.1 桌面客户端调试窗口，附带开发者工具'
   }
 ];
 

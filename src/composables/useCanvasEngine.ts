@@ -269,6 +269,27 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     };
   };
 
+  // Translate all components so content top-left starts at (0, 0)
+  const alignContentToOrigin = <T extends { x: number; y: number; width: number; height: number }>(
+    components: T[],
+    targetOriginX: number = 0,
+    targetOriginY: number = 0
+  ): T[] => {
+    const bbox = getContentBoundingBox(components);
+    if (!bbox) return components;
+
+    const dx = targetOriginX - bbox.minX;
+    const dy = targetOriginY - bbox.minY;
+
+    if (dx === 0 && dy === 0) return components;
+
+    return components.map(c => ({
+      ...c,
+      x: Math.round(c.x + dx),
+      y: Math.round(c.y + dy)
+    }));
+  };
+
   // Fit and Center All Content in Viewport (自动计算所有图形最大缩放与居中视口坐标)
   const fitAndCenterContentInViewport = <T extends { x: number; y: number; width: number; height: number }>(
     components: T[],
@@ -346,6 +367,7 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     fitAndCenterContentInViewport,
     snapAllToGrid,
     centerAllInCanvas,
+    alignContentToOrigin,
     cropCanvasToContent
   };
 }
