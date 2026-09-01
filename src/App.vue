@@ -303,18 +303,14 @@ const handleRedo = () => {
 const canUndo = computed(() => historyIndex.value > 0);
 const canRedo = computed(() => historyIndex.value < historyStack.value.length - 1);
 
-// 3. Auto Fit to Screen helper
+// 3. Auto Fit to Screen helper: 一键居中并以 (0,0) 为原点自适应铺满编辑界面
 const fitToScreen = () => {
-  const availableWidth = window.innerWidth - 272 - 320 - 60; // Palette width + Inspector width + padding
-  const availableHeight = window.innerHeight - 56 - 40 - 60; // Navbar + ScreenBar + padding
-  if (availableWidth <= 0 || availableHeight <= 0) return;
-
-  const scaleX = availableWidth / screen.value.width;
-  const scaleY = availableHeight / screen.value.height;
-  const fitScale = Math.min(scaleX, scaleY);
-  zoom.value = Number(Math.max(0.2, Math.min(1.5, fitScale)).toFixed(2));
   nextTick(() => {
-    canvasEditorRef.value?.centerView?.();
+    if (canvasEditorRef.value?.fitAndCenter) {
+      canvasEditorRef.value.fitAndCenter();
+    } else if (canvasEditorRef.value?.centerView) {
+      canvasEditorRef.value.centerView();
+    }
   });
 };
 
@@ -953,7 +949,7 @@ onBeforeUnmount(() => {
       @group="handleGroup"
       @ungroup="handleUngroup"
       @save:symbol="() => handleOpenSaveSymbolModal(selectedComponents)"
-      @center:all="canvasEditorRef?.centerAll?.()"
+      @center:all="fitToScreen"
       @snap:all="handleSnapAllToGrid"
     />
 
@@ -1152,7 +1148,7 @@ onBeforeUnmount(() => {
       :isStreaming="isStreaming"
       :screens="screens"
       :activeScreenId="activeScreenId"
-      @close="showPreviewModal = false"
+      @close="showPreviewModal = false; nextTick(() => fitToScreen());"
       @toggle:streaming="isStreaming = !isStreaming"
       @switch:screen="handleSwitchScreen"
       @logout="handleLogout"

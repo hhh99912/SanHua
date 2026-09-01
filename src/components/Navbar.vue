@@ -453,7 +453,7 @@ const handleSelectTemplate = (id: string) => {
           <button
             @click="emit('center:all')"
             class="p-1 rounded hover:bg-slate-800 text-slate-300 hover:text-cyan-300 cursor-pointer transition-colors"
-            title="一键定位：复位视口并将画布左上角对齐到原点坐标 (0, 0)"
+            title="一键居中：从原点 (0, 0) 开始自适应铺满编辑界面"
           >
             <Crosshair class="w-3.5 h-3.5" />
           </button>
@@ -586,7 +586,7 @@ const handleSelectTemplate = (id: string) => {
           <button
             @click="emit('fit:screen')"
             class="p-1 rounded hover:bg-cyan-500/20 text-cyan-300 cursor-pointer transition-colors"
-            title="自适应画布大小到当前视口"
+            title="一键居中：自适应缩放并从原点 (0, 0) 铺满编辑界面"
           >
             <Maximize2 class="w-3.5 h-3.5" />
           </button>

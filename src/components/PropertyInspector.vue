@@ -46,9 +46,26 @@ import {
   TrendingUp,
   ListPlus,
   Gauge,
-  Clock
+  Clock,
+  Code2,
+  Wand2,
+  RefreshCw,
+  Play,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-vue-next';
 import { ScreenComponent, ScreenConfig, DatasetItem, ScreenItem, ScadaDeviceItem } from '../types';
+import {
+  COMPONENT_JSON_SCHEMAS,
+  getComponentSchemaInfo,
+  injectScadaPointToJson,
+  injectTimestampToJson,
+  injectQualityToJson,
+  generate24hWaveformPayload,
+  generateRandomSimulationData,
+  getFormattedTimestamp,
+  ComponentJsonSchemaInfo
+} from '../data/componentJsonSchemas';
 
 interface Props {
   component: ScreenComponent | null;
@@ -77,13 +94,27 @@ const emit = defineEmits<{
 
 const activeTab = ref<'geometry' | 'style' | 'data' | 'interaction'>('geometry');
 
-// SCADA Hierarchical Data Binding State
-const dataBindingSource = ref<'scada' | 'static'>('scada');
+// SCADA & JSON Data Association State
+const dataBindingSource = ref<'json-schema' | 'scada'>('json-schema');
 const selectedDeviceId = ref<string>('DEV-101');
 const selectedTeleCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
 const pointSearchQuery = ref<string>('');
 const staticJsonInput = ref<string>('');
 const staticJsonMsg = ref<string>('');
+
+// JSON Schema & Ingestion Controls
+const isSchemaDocOpen = ref<boolean>(true);
+const isScadaPointInjectorOpen = ref<boolean>(false);
+const scadaInjectorDeviceId = ref<string>('DEV-101');
+const scadaInjectorCategory = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt'>('yc');
+const jsonValidationStatus = ref<'valid' | 'invalid' | 'empty'>('valid');
+const jsonErrorMessage = ref<string>('');
+
+// Current Component's JSON Schema Framework
+const currentSchemaInfo = computed<ComponentJsonSchemaInfo>(() => {
+  if (!props.component) return COMPONENT_JSON_SCHEMAS['generic'];
+  return getComponentSchemaInfo(props.component.type, props.component.category);
+});
 
 const themeColors = [
   '#00f2ff', // Cyber Cyan
@@ -400,8 +431,18 @@ const syncCurrentComponentMapping = (autoScroll = false) => {
 watch(
   () => props.component?.id,
   (newId) => {
-    if (newId) {
+    if (newId && props.component) {
       syncCurrentComponentMapping(activeTab.value === 'data');
+      if (props.component.data?.staticData !== undefined && props.component.data.staticData !== null) {
+        staticJsonInput.value = typeof props.component.data.staticData === 'object'
+          ? JSON.stringify(props.component.data.staticData, null, 2)
+          : String(props.component.data.staticData);
+        jsonValidationStatus.value = 'valid';
+      } else {
+        const schema = getComponentSchemaInfo(props.component.type, props.component.category);
+        staticJsonInput.value = JSON.stringify(schema.defaultPayload, null, 2);
+        jsonValidationStatus.value = 'valid';
+      }
     }
   },
   { immediate: true }
@@ -600,86 +641,180 @@ const handleBindChartPreset = (presetType: 'power-trend' | 'voltage-trend' | 'lo
   }
 };
 
-// Big Screen Standard Formatted Template Injection
-const handleApplyStandardTemplate = (templateType: 'timeseries-power' | 'multiseries-voltage' | 'bar-efficiency' | 'pie-energy-mix' | 'radar-health' | 'alarm-events') => {
-  if (!props.component) return;
+// ================= JSON SCHEMA DATA INGESTION & BINDING HANDLERS =================
 
-  if (templateType === 'timeseries-power') {
-    const data = {
-      categories: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00'],
-      series: [
-        { name: '10kV #1进线负荷', data: [42.5, 38.2, 51.0, 78.6, 92.4, 88.0, 95.2, 64.1], color: '#00f2ff', unit: 'kW' },
-        { name: '10kV #2进线负荷', data: [31.0, 29.5, 40.2, 65.4, 81.0, 76.5, 83.2, 52.0], color: '#3b82f6', unit: 'kW' }
-      ],
-      unit: 'kW'
-    };
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
-  } else if (templateType === 'multiseries-voltage') {
-    const data = {
-      categories: ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'],
-      series: [
-        { name: 'A相母线电压 Ua', data: [10.22, 10.18, 10.25, 10.30, 10.20, 10.15, 10.28], color: '#f59e0b', unit: 'kV' },
-        { name: 'B相母线电压 Ub', data: [10.20, 10.15, 10.22, 10.28, 10.18, 10.12, 10.25], color: '#00e5a3', unit: 'kV' },
-        { name: 'C相母线电压 Uc', data: [10.25, 10.20, 10.27, 10.32, 10.23, 10.18, 10.30], color: '#ef4444', unit: 'kV' }
-      ],
-      unit: 'kV'
-    };
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
-  } else if (templateType === 'bar-efficiency') {
-    const data = {
-      categories: ['1#变压器', '2#变压器', '无功补偿柜', '储能舱A', '光伏逆变器', '柴发备用'],
-      series: [
-        { name: '当前负荷率', data: [85.4, 72.1, 91.5, 64.0, 78.8, 12.0], color: '#00f2ff', unit: '%' }
-      ],
-      unit: '%'
-    };
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
-  } else if (templateType === 'pie-energy-mix') {
-    const data = [
-      { name: '市网主供电', value: 58.5, color: '#00f2ff' },
-      { name: '屋顶光伏发电', value: 24.2, color: '#00e5a3' },
-      { name: '储能削峰放电', value: 12.8, color: '#3b82f6' },
-      { name: '柴油备用应急', value: 4.5, color: '#f59e0b' }
-    ];
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
-  } else if (templateType === 'radar-health') {
-    const data = {
-      indicators: [
-        { name: '绝缘裕度', max: 100 },
-        { name: '温升受控', max: 100 },
-        { name: '触头寿命', max: 100 },
-        { name: '局放抑制', max: 100 },
-        { name: '气压稳定', max: 100 },
-        { name: '分合机构', max: 100 }
-      ],
-      series: [
-        { name: '#1主变健康度', data: [94, 88, 92, 96, 90, 85], color: '#00f2ff' },
-        { name: '全站平均基准', data: [85, 80, 85, 88, 82, 80], color: '#3b82f6' }
-      ]
-    };
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
-  } else if (templateType === 'alarm-events') {
-    const data = [
-      { id: 'ALM-101', level: 'CRITICAL', title: '10kV 101开关 过流II段速断动作跳闸', time: '14:23:05', device: '10kV配电主进线柜', value: '1450A (整定值: 1200A)' },
-      { id: 'ALM-102', level: 'WARNING', title: '1#主变压器 B相绕组高温预警', time: '14:18:42', device: '1#主变压器', value: '88.5℃ (警戒线: 85℃)' },
-      { id: 'ALM-103', level: 'WARNING', title: '10kV 母线A相瞬时电压低跌', time: '14:02:11', device: '10kV一段母线', value: '9.42kV (额定: 10.0kV)' },
-      { id: 'ALM-104', level: 'INFO', title: '储能电池舱 #1 启动削峰放电循环', time: '13:55:00', device: '储能BMS测控系统', value: '放电功率 250kW' },
-      { id: 'ALM-105', level: 'INFO', title: '防孤岛保护装置自检通讯恢复正常', time: '13:40:19', device: '光伏防孤岛保护屏', value: '链路心跳 12ms' }
-    ];
-    updateComponentData({ useStatic: true, staticData: data });
-    staticJsonInput.value = JSON.stringify(data, null, 2);
+// Realtime non-blocking JSON validator & injector
+const handleJsonInput = (val: string) => {
+  staticJsonInput.value = val;
+  if (!val.trim()) {
+    jsonValidationStatus.value = 'empty';
+    jsonErrorMessage.value = '请输入有效的 JSON 数据对象或数组';
+    return;
   }
-
-  staticJsonMsg.value = '✓ 已填充标准大屏数据格式规范';
-  setTimeout(() => { staticJsonMsg.value = ''; }, 3500);
+  try {
+    const parsed = JSON.parse(val);
+    jsonValidationStatus.value = 'valid';
+    jsonErrorMessage.value = '';
+    
+    // Non-blocking real-time data update to component
+    if (props.component) {
+      updateComponentData({
+        useStatic: true,
+        staticData: parsed
+      });
+    }
+  } catch (err: any) {
+    jsonValidationStatus.value = 'invalid';
+    jsonErrorMessage.value = err.message || 'JSON 语法解析错误';
+  }
 };
 
-// Apply Static JSON
+// Reset to Default JSON Schema Framework
+const handleResetToDefaultSchema = () => {
+  const schema = currentSchemaInfo.value;
+  const payload = JSON.parse(JSON.stringify(schema.defaultPayload));
+  staticJsonInput.value = JSON.stringify(payload, null, 2);
+  jsonValidationStatus.value = 'valid';
+  jsonErrorMessage.value = '';
+  if (props.component) {
+    updateComponentData({
+      useStatic: true,
+      staticData: payload
+    });
+  }
+  staticJsonMsg.value = `✓ 已重置为【${schema.title}】标准规范契约`;
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Inject Selected SCADA Point into JSON Framework
+const handleInjectPointToJson = (point: any, cat: 'yc' | 'yx' | 'dd' | 'yk' | 'yt') => {
+  const dev = currentDatasetDevices.value.find(d => d.deviceId === scadaInjectorDeviceId.value) || selectedDevice.value;
+  const devId = dev?.deviceId || 'DEV-101';
+  let currentObj: any = {};
+  try {
+    currentObj = JSON.parse(staticJsonInput.value || '{}');
+  } catch {
+    currentObj = currentSchemaInfo.value.defaultPayload;
+  }
+  
+  const updated = injectScadaPointToJson(currentObj, point, cat, devId);
+  staticJsonInput.value = JSON.stringify(updated, null, 2);
+  jsonValidationStatus.value = 'valid';
+  jsonErrorMessage.value = '';
+  if (props.component) {
+    updateComponentData({
+      useStatic: true,
+      staticData: updated
+    });
+  }
+  isScadaPointInjectorOpen.value = false;
+  staticJsonMsg.value = `✓ 已将测点 [${point.name || point.pointId}] 注入图元 JSON 框架`;
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Inject Current Timestamp
+const handleInjectTimestamp = () => {
+  let currentObj: any = {};
+  try {
+    currentObj = JSON.parse(staticJsonInput.value || '{}');
+  } catch {
+    currentObj = currentSchemaInfo.value.defaultPayload;
+  }
+  const updated = injectTimestampToJson(currentObj);
+  staticJsonInput.value = JSON.stringify(updated, null, 2);
+  jsonValidationStatus.value = 'valid';
+  if (props.component) {
+    updateComponentData({ useStatic: true, staticData: updated });
+  }
+  staticJsonMsg.value = `✓ 已注入实时采样时间戳: ${getFormattedTimestamp()}`;
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Inject Quality Code
+const handleInjectQuality = (code: string = '0x00 (GOOD 优)') => {
+  let currentObj: any = {};
+  try {
+    currentObj = JSON.parse(staticJsonInput.value || '{}');
+  } catch {
+    currentObj = currentSchemaInfo.value.defaultPayload;
+  }
+  const updated = injectQualityToJson(currentObj, code);
+  staticJsonInput.value = JSON.stringify(updated, null, 2);
+  jsonValidationStatus.value = 'valid';
+  if (props.component) {
+    updateComponentData({ useStatic: true, staticData: updated });
+  }
+  staticJsonMsg.value = `✓ 已注入规约通信质量码: ${code}`;
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Inject 24h Waveform Data
+const handleInject24hWaveform = () => {
+  const payload = generate24hWaveformPayload();
+  staticJsonInput.value = JSON.stringify(payload, null, 2);
+  jsonValidationStatus.value = 'valid';
+  if (props.component) {
+    updateComponentData({ useStatic: true, staticData: payload });
+  }
+  staticJsonMsg.value = '✓ 已注入 24h 电力负荷双峰时序波形数据';
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Random SCADA Condition Simulation
+const handleInjectRandomSim = () => {
+  if (!props.component) return;
+  let currentObj: any = {};
+  try {
+    currentObj = JSON.parse(staticJsonInput.value || '{}');
+  } catch {
+    currentObj = currentSchemaInfo.value.defaultPayload;
+  }
+  const updated = generateRandomSimulationData(props.component.type, props.component.category, currentObj);
+  staticJsonInput.value = JSON.stringify(updated, null, 2);
+  jsonValidationStatus.value = 'valid';
+  updateComponentData({ useStatic: true, staticData: updated });
+  staticJsonMsg.value = '✓ 仿真工况采样已注入';
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Beautify / Format JSON
+const handleFormatJson = () => {
+  try {
+    const parsed = JSON.parse(staticJsonInput.value);
+    staticJsonInput.value = JSON.stringify(parsed, null, 2);
+    jsonValidationStatus.value = 'valid';
+    jsonErrorMessage.value = '';
+    staticJsonMsg.value = '✓ JSON 代码已格式化排版';
+    setTimeout(() => { staticJsonMsg.value = ''; }, 2000);
+  } catch (err: any) {
+    jsonValidationStatus.value = 'invalid';
+    jsonErrorMessage.value = err.message;
+  }
+};
+
+// Copy JSON to Clipboard
+const handleCopyJson = () => {
+  navigator.clipboard.writeText(staticJsonInput.value);
+  staticJsonMsg.value = '✓ 已复制 JSON 数据到剪贴板';
+  setTimeout(() => { staticJsonMsg.value = ''; }, 2000);
+};
+
+// Apply Standard Preset Template
+const handleApplySchemaTemplate = (payload: any) => {
+  staticJsonInput.value = JSON.stringify(payload, null, 2);
+  jsonValidationStatus.value = 'valid';
+  jsonErrorMessage.value = '';
+  if (props.component) {
+    updateComponentData({
+      useStatic: true,
+      staticData: payload
+    });
+  }
+  staticJsonMsg.value = '✓ 已应用预设业务模板';
+  setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
+};
+
+// Manual Apply Button Action
 const handleApplyStaticData = () => {
   if (!props.component) return;
   try {
@@ -688,9 +823,13 @@ const handleApplyStaticData = () => {
       useStatic: true,
       staticData: parsed
     });
-    staticJsonMsg.value = '✓ 静态数据已生效';
+    jsonValidationStatus.value = 'valid';
+    jsonErrorMessage.value = '';
+    staticJsonMsg.value = '✓ JSON 数据已生效并驱动图元渲染';
     setTimeout(() => { staticJsonMsg.value = ''; }, 3000);
   } catch (err: any) {
+    jsonValidationStatus.value = 'invalid';
+    jsonErrorMessage.value = err.message;
     staticJsonMsg.value = '❌ JSON 格式错误: ' + err.message;
   }
 };
@@ -1417,40 +1556,105 @@ const toggleBatchLock = () => {
           </div>
 
           <!-- SPECIAL: Status Indicator Atomic Style Controls -->
-          <div v-if="component.type === 'ctrl-indicator'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
-            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-              <CircleDot class="w-4 h-4 text-cyan-400" />
-              <span>纯原子化指示灯配置 (0:绿 / 1:红)</span>
+          <div v-if="component.type === 'ctrl-indicator' || component.category === 'status' || component.type.startsWith('elec-')" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+              <span class="flex items-center gap-1.5">
+                <CircleDot class="w-4 h-4 text-cyan-400" />
+                <span>0/1 状态模拟与双态颜色定制</span>
+              </span>
+              <span class="text-[10px] text-slate-400 font-mono">状态驱动</span>
             </div>
 
             <!-- State Toggle 0:Green vs 1:Red -->
             <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">静态调试状态 (0=绿, 1=红)</label>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">快速状态切换 (0=分闸绿, 1=合闸红)</label>
               <div class="grid grid-cols-3 gap-1.5">
                 <button
-                  @click="updateComponentCustomProps({ state: 0 })"
+                  @click="updateComponentCustomProps({ state: 0 }), updateComponentProps({ activeState: 0 })"
                   class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                  :class="(component.customProps?.state ?? 0) === 0 ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-900 text-emerald-400 border-slate-800'"
+                  :class="(component.customProps?.state === 0 || component.activeState === 0) ? 'bg-emerald-500 text-slate-950 font-bold border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-slate-900 text-emerald-400 border-slate-800'"
                 >
-                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
-                  <span>0: 绿色</span>
+                  <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: component.customProps?.color0 || '#00e676' }"></span>
+                  <span>0: {{ component.customProps?.text0 || '分闸' }}</span>
                 </button>
                 <button
-                  @click="updateComponentCustomProps({ state: 1 })"
+                  @click="updateComponentCustomProps({ state: 1 }), updateComponentProps({ activeState: 1 })"
                   class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                  :class="component.customProps?.state === 1 ? 'bg-red-500 text-white font-bold border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-slate-900 text-red-400 border-slate-800'"
+                  :class="(component.customProps?.state === 1 || component.activeState === 1) ? 'bg-red-500 text-white font-bold border-red-400 shadow-[0_0_10px_rgba(239,68,68,0.5)]' : 'bg-slate-900 text-red-400 border-slate-800'"
                 >
-                  <span class="w-2.5 h-2.5 rounded-full bg-red-400"></span>
-                  <span>1: 红色</span>
+                  <span class="w-2.5 h-2.5 rounded-full" :style="{ backgroundColor: component.customProps?.color1 || '#ff2233' }"></span>
+                  <span>1: {{ component.customProps?.text1 || '合闸' }}</span>
                 </button>
                 <button
-                  @click="updateComponentCustomProps({ state: 2 })"
+                  @click="updateComponentCustomProps({ state: 2 }), updateComponentProps({ activeState: 2 })"
                   class="py-1.5 px-2 rounded-lg text-xs font-bold border text-center cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                  :class="component.customProps?.state === 2 ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-slate-900 text-amber-400 border-slate-800'"
+                  :class="(component.customProps?.state === 2 || component.activeState === 2) ? 'bg-amber-500 text-slate-950 font-bold border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]' : 'bg-slate-900 text-amber-400 border-slate-800'"
                 >
                   <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                  <span>2: 黄色</span>
+                  <span>2: 故障</span>
                 </button>
+              </div>
+            </div>
+
+            <!-- Custom 0/1 State Colors -->
+            <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/80">
+              <div>
+                <label class="text-[11px] font-semibold text-emerald-400 block mb-1">🟢 0 态显示颜色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.customProps?.color0 || '#00e676'"
+                    @input="updateComponentCustomProps({ color0: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded border border-slate-700 bg-transparent cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    :value="component.customProps?.color0 || '#00e676'"
+                    @input="updateComponentCustomProps({ color0: ($event.target as HTMLInputElement).value })"
+                    class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label class="text-[11px] font-semibold text-red-400 block mb-1">🔴 1 态显示颜色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.customProps?.color1 || '#ff2233'"
+                    @input="updateComponentCustomProps({ color1: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded border border-slate-700 bg-transparent cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    :value="component.customProps?.color1 || '#ff2233'"
+                    @input="updateComponentCustomProps({ color1: ($event.target as HTMLInputElement).value })"
+                    class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded px-2 py-1 text-slate-200 text-xs font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Custom 0/1 State Text Labels -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[11px] font-semibold text-slate-300 block mb-1">0 态文本标签</label>
+                <input
+                  type="text"
+                  :value="component.customProps?.text0 || '分闸 0'"
+                  @input="updateComponentCustomProps({ text0: ($event.target as HTMLInputElement).value })"
+                  placeholder="如: 分闸 0, OFF"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded px-2 py-1 text-slate-200 text-xs"
+                />
+              </div>
+              <div>
+                <label class="text-[11px] font-semibold text-slate-300 block mb-1">1 态文本标签</label>
+                <input
+                  type="text"
+                  :value="component.customProps?.text1 || '合闸 1'"
+                  @input="updateComponentCustomProps({ text1: ($event.target as HTMLInputElement).value })"
+                  placeholder="如: 合闸 1, ON"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded px-2 py-1 text-slate-200 text-xs"
+                />
               </div>
             </div>
 
@@ -1490,6 +1694,54 @@ const toggleBatchLock = () => {
                   <span class="w-4 h-2 rounded-full border border-current"></span>
                   <span>胶囊指示灯</span>
                 </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'ring-pulse' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'ring-pulse' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-3 h-3 rounded-full border border-dashed border-current"></span>
+                  <span>科技脉冲光环</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'diamond-badge' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'diamond-badge' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-2.5 h-2.5 rotate-45 border border-current"></span>
+                  <span>菱形联锁灯</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'hexagon-pilot' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'hexagon-pilot' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-3 h-2.5 border border-current"></span>
+                  <span>蜂巢六角灯</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'crosshair-target' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'crosshair-target' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="text-xs font-mono font-bold">+</span>
+                  <span>拓扑准星定位</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'neon-dot' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'neon-dot' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-2 h-2 rounded-full bg-current shadow-[0_0_6px_currentColor]"></span>
+                  <span>荧光高亮微点</span>
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ indicatorStyle: 'status-plate' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all flex items-center gap-1.5"
+                  :class="component.customProps?.indicatorStyle === 'status-plate' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  <span class="w-3 h-2 rounded-xs border border-current"></span>
+                  <span>铭牌状态码</span>
+                </button>
               </div>
             </div>
 
@@ -1506,6 +1758,246 @@ const toggleBatchLock = () => {
                 <option value="fast">急闪 (2.5 Hz)</option>
                 <option value="auto">1或2状态时自动闪烁</option>
               </select>
+            </div>
+          </div>
+
+          <!-- SPECIAL: Float Metric (数值点) Style Controls -->
+          <div v-if="component.type === 'metric-float'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <Hash class="w-4 h-4 text-cyan-400" />
+              <span>遥测数值点样式与参数配置</span>
+            </div>
+
+            <!-- Display Style Presets -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">数值呈现样式 (Display Style)</label>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'pure-digital' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="(component.customProps?.displayStyle || 'pure-digital') === 'pure-digital' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  极简等宽数码
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'cyber-badge' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="component.customProps?.displayStyle === 'cyber-badge' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  科技微框胶囊
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'led-segment' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="component.customProps?.displayStyle === 'led-segment' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  7段工业数码管
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'neon-glow' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="component.customProps?.displayStyle === 'neon-glow' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  赛博霓虹双色
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'industrial-tag' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="component.customProps?.displayStyle === 'industrial-tag' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  工业测点卡片
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'progress-bar' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
+                  :class="component.customProps?.displayStyle === 'progress-bar' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  百分比光条数值
+                </button>
+                <button
+                  @click="updateComponentCustomProps({ displayStyle: 'meter-box' })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all col-span-2"
+                  :class="component.customProps?.displayStyle === 'meter-box' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  经典工业仪表黑匣
+                </button>
+              </div>
+            </div>
+
+            <!-- Value, Unit, Decimals, Label -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">物理单位 (如 kV, A, ℃)</label>
+                <input
+                  type="text"
+                  :value="component.customProps?.unit || component.style.unit || ''"
+                  @input="updateComponentCustomProps({ unit: ($event.target as HTMLInputElement).value })"
+                  placeholder="如: kV, A, MW, ℃"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-mono outline-hidden"
+                />
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">测点标签 / 简记名</label>
+                <input
+                  type="text"
+                  :value="component.customProps?.label || ''"
+                  @input="updateComponentCustomProps({ label: ($event.target as HTMLInputElement).value })"
+                  placeholder="如: 101_Ua, 主变"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs outline-hidden"
+                />
+              </div>
+            </div>
+
+            <!-- Decimals & Default Value -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">小数保留位数</label>
+                <select
+                  :value="component.customProps?.decimals ?? component.style.decimals ?? 2"
+                  @change="updateComponentCustomProps({ decimals: Number(($event.target as HTMLSelectElement).value) })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option :value="0">0 位 (整数如: 120)</option>
+                  <option :value="1">1 位 (如: 120.5)</option>
+                  <option :value="2">2 位 (如: 120.55)</option>
+                  <option :value="3">3 位 (如: 120.552)</option>
+                  <option :value="4">4 位 (如: 120.5521)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">默认模拟数值</label>
+                <input
+                  type="number"
+                  step="any"
+                  :value="component.customProps?.value ?? 0"
+                  @input="updateComponentCustomProps({ value: Number(($event.target as HTMLInputElement).value) })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-300 font-mono text-xs outline-hidden"
+                />
+              </div>
+            </div>
+
+            <!-- Custom Colors: Text Color & Background Color -->
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">数值文字颜色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.style.textColor || component.style.fill || component.customProps?.textColor || '#00f2ff'"
+                    @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ textColor: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    :value="component.style.textColor || component.style.fill || component.customProps?.textColor || '#00f2ff'"
+                    @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ textColor: ($event.target as HTMLInputElement).value })"
+                    class="flex-1 bg-[#081026] border border-slate-700/80 rounded px-2 py-1 text-slate-100 font-mono text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">组件背景底色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.style.fill && component.style.fill !== 'transparent' ? component.style.fill : (component.customProps?.bgColor || '#050c1c')"
+                    @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ bgColor: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                  />
+                  <button
+                    @click="updateComponentStyle({ fill: 'transparent' }), updateComponentCustomProps({ bgColor: 'transparent' })"
+                    class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 rounded border border-slate-700 cursor-pointer"
+                  >
+                    透明
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SPECIAL: Cyber Border & Frame Controls (科技边框配置) -->
+          <div v-if="component.category === 'decoration' || component.type.startsWith('deco-')" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+              <Frame class="w-4 h-4 text-cyan-400" />
+              <span>科技边框与容器外观 (Cyber Frame)</span>
+            </div>
+
+            <!-- Border Style Grid -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1.5">边框视觉样式 (11+ 工业科技风格)</label>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button
+                  v-for="bStyle in [
+                    { id: 'deco-border-neon', name: '霓虹四角标框' },
+                    { id: 'deco-border-tech', name: '科技切角装甲框' },
+                    { id: 'deco-border-mech', name: '重装机甲铆钉框' },
+                    { id: 'deco-border-hud-double', name: '双线流光HUD框' },
+                    { id: 'deco-border-cyber-corner', name: '四角发光斜切框' },
+                    { id: 'deco-border-gradient-pulse', name: '渐变律动发光框' },
+                    { id: 'deco-border-hazard', name: '工业警示斜纹框' },
+                    { id: 'deco-border-bracket', name: '极简对角卡尺框' },
+                    { id: 'deco-border-matrix-panel', name: '点阵发光机箱板' },
+                    { id: 'deco-border-quantum-box', name: '量子悬浮光条框' },
+                    { id: 'deco-border-scada-card', name: 'SCADA标准工控框' }
+                  ]"
+                  :key="bStyle.id"
+                  @click="updateComponentCustomProps({ borderStyle: bStyle.id }), updateComponentProps({ type: bStyle.id as any })"
+                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all truncate"
+                  :class="(component.customProps?.borderStyle || component.type) === bStyle.id ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                >
+                  {{ bStyle.name }}
+                </button>
+              </div>
+            </div>
+
+            <!-- Border Title -->
+            <div>
+              <label class="text-xs font-semibold text-slate-200 block mb-1">边框抬头标题 (Title)</label>
+              <input
+                type="text"
+                :value="component.customProps?.title || ''"
+                @input="updateComponentCustomProps({ title: ($event.target as HTMLInputElement).value })"
+                placeholder="如: #1主变压器监控单元"
+                class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs outline-hidden font-bold"
+              />
+            </div>
+
+            <!-- Border Main & Fill Color -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">科技线条颜色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.style.stroke || component.customProps?.color || '#00f2ff'"
+                    @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ color: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                  />
+                  <input
+                    type="text"
+                    :value="component.style.stroke || component.customProps?.color || '#00f2ff'"
+                    @input="updateComponentStyle({ stroke: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ color: ($event.target as HTMLInputElement).value })"
+                    class="flex-1 bg-[#081026] border border-slate-700/80 rounded px-2 py-1 text-slate-100 font-mono text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">容器背景底色</label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="color"
+                    :value="component.style.fill && component.style.fill !== 'transparent' ? component.style.fill : (component.customProps?.bgColor || '#040814')"
+                    @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ bgColor: ($event.target as HTMLInputElement).value })"
+                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
+                  />
+                  <button
+                    @click="updateComponentStyle({ fill: 'transparent' }), updateComponentCustomProps({ bgColor: 'transparent' })"
+                    class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 rounded border border-slate-700 cursor-pointer"
+                  >
+                    透明
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1851,25 +2343,25 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- Data Source Switcher: SCADA 4-Telemetry vs Static Data -->
+          <!-- Data Source Switcher: JSON Schema Framework vs SCADA Direct Binding -->
           <div class="space-y-1.5">
-            <label class="text-xs font-semibold text-slate-200 block">数据来源模式</label>
+            <label class="text-xs font-semibold text-slate-200 block">数据关联与驱动方式</label>
             <div class="grid grid-cols-2 gap-1 bg-[#060b17] p-1 rounded-lg border border-slate-800">
+              <button
+                @click="dataBindingSource = 'json-schema'"
+                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                :class="dataBindingSource === 'json-schema' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
+              >
+                <FileCode class="w-3.5 h-3.5" />
+                <span>图元专属 JSON 契约</span>
+              </button>
               <button
                 @click="dataBindingSource = 'scada'"
                 class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
                 :class="dataBindingSource === 'scada' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
               >
                 <Cpu class="w-3.5 h-3.5" />
-                <span>SCADA 四遥数据</span>
-              </button>
-              <button
-                @click="dataBindingSource = 'static'"
-                class="py-1.5 px-2 rounded-md text-xs font-bold cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                :class="dataBindingSource === 'static' ? 'bg-cyan-500 text-slate-950 shadow-sm' : 'text-slate-400 hover:text-white'"
-              >
-                <FileCode class="w-3.5 h-3.5" />
-                <span>静态 JSON 数据</span>
+                <span>SCADA 四遥测点直连</span>
               </button>
             </div>
           </div>
@@ -2366,69 +2858,310 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- ================= STATIC JSON DATA MODE ================= -->
-          <div v-else-if="dataBindingSource === 'static'" class="space-y-3">
-            <div class="p-2.5 rounded-lg bg-amber-950/20 border border-amber-500/30 text-xs text-amber-200 leading-relaxed">
-              <span>📋 静态数据模式：组件将直接解析下方输入的标准 JSON 结构，方便快速填充常规大屏项目数据。</span>
+          <!-- ================= JSON SCHEMA DATA CONTRACT MODE ================= -->
+          <div v-else-if="dataBindingSource === 'json-schema'" class="space-y-4">
+            <!-- 1. Component Specific JSON Schema Contract Card -->
+            <div class="p-3.5 rounded-xl bg-[#050e1f] border border-cyan-500/40 shadow-[0_0_20px_rgba(0,242,255,0.06)] space-y-3">
+              <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                <div class="flex items-center gap-2">
+                  <div class="p-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50">
+                    <Code2 class="w-4 h-4 text-cyan-400" />
+                  </div>
+                  <div>
+                    <span class="font-bold text-xs text-cyan-200 block">{{ currentSchemaInfo.title }}</span>
+                    <span class="text-[10px] text-slate-400 font-mono">契约规范: {{ currentSchemaInfo.schemaName }}</span>
+                  </div>
+                </div>
+
+                <button
+                  @click="isSchemaDocOpen = !isSchemaDocOpen"
+                  class="text-[11px] px-2 py-0.5 rounded bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-slate-700/80 flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <span>{{ isSchemaDocOpen ? '收起规范' : '查看规范' }}</span>
+                  <ChevronDown v-if="isSchemaDocOpen" class="w-3 h-3" />
+                  <ChevronRight v-else class="w-3 h-3" />
+                </button>
+              </div>
+
+              <p class="text-[11px] text-slate-300 leading-relaxed">
+                {{ currentSchemaInfo.description }}
+              </p>
+
+              <!-- Schema Fields Specification Table -->
+              <div v-if="isSchemaDocOpen" class="space-y-1.5 pt-1">
+                <div class="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <span>支持的标准字段 (Schema Fields)</span>
+                  <span>{{ currentSchemaInfo.fields.length }} 个字段定义</span>
+                </div>
+                <div class="max-h-44 overflow-y-auto rounded-lg border border-slate-800/90 bg-[#030712]/90 divide-y divide-slate-800/60 font-mono text-[11px]">
+                  <div
+                    v-for="field in currentSchemaInfo.fields"
+                    :key="field.field"
+                    class="p-2 flex flex-col gap-0.5 hover:bg-slate-900/60 transition-colors"
+                  >
+                    <div class="flex items-center justify-between">
+                      <span class="font-bold text-cyan-300">{{ field.field }}</span>
+                      <span class="text-[10px] px-1 rounded bg-slate-800 text-slate-300 border border-slate-700">{{ field.type }}</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[10px] text-slate-400 font-sans">
+                      <span class="text-slate-300">{{ field.description }}</span>
+                      <span v-if="field.required" class="text-amber-400 font-bold font-mono">必填</span>
+                      <span v-else class="text-slate-500 font-mono">选填</span>
+                    </div>
+                    <div v-if="field.sample" class="text-[9px] text-slate-500 font-mono truncate">
+                      示例: <span class="text-emerald-400">{{ field.sample }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <!-- Big Screen Standard Templates Injector -->
-            <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-2">
-              <label class="text-xs font-semibold text-cyan-300 block">常规大屏标准格式一键注入：</label>
-              <div class="grid grid-cols-2 gap-1.5">
+            <!-- 2. Smart Data Ingestion Toolbar -->
+            <div class="p-3 rounded-xl bg-[#060b17] border border-slate-800 space-y-2.5">
+              <div class="flex items-center justify-between text-xs font-bold text-slate-200">
+                <span class="flex items-center gap-1.5">
+                  <Wand2 class="w-4 h-4 text-cyan-400" />
+                  <span>智能数据注入与填充工具</span>
+                </span>
+                <span class="text-[10px] text-slate-500 font-mono">Data Injectors</span>
+              </div>
+
+              <!-- Quick Injection Actions -->
+              <div class="grid grid-cols-2 gap-1.5 text-xs">
+                <!-- Action 1: Toggle SCADA Point Injector -->
                 <button
-                  @click="handleApplyStandardTemplate('timeseries-power')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  @click="isScadaPointInjectorOpen = !isScadaPointInjectorOpen"
+                  class="py-2 px-2.5 rounded-lg border font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  :class="isScadaPointInjectorOpen ? 'bg-cyan-500 text-slate-950 border-cyan-400' : 'bg-cyan-950/60 hover:bg-cyan-900/80 text-cyan-300 border-cyan-500/40'"
                 >
-                  📈 24h时序负荷折线
+                  <Cpu class="w-3.5 h-3.5" />
+                  <span>⚡ 注入 SCADA 四遥</span>
                 </button>
+
+                <!-- Action 2: Reset to Standard Schema -->
                 <button
-                  @click="handleApplyStandardTemplate('multiseries-voltage')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  @click="handleResetToDefaultSchema"
+                  class="py-2 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700 font-bold flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-xs"
+                  title="重置为当前图元标准契约框架"
                 >
-                  📉 三相电压多曲线
+                  <RefreshCw class="w-3.5 h-3.5 text-cyan-400" />
+                  <span>🔄 恢复标准框架</span>
                 </button>
+
+                <!-- Action 3: Inject Current Timestamp -->
                 <button
-                  @click="handleApplyStandardTemplate('bar-efficiency')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  @click="handleInjectTimestamp"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
                 >
-                  📊 装置负荷对比柱图
+                  <Clock class="w-3 h-3 text-emerald-400" />
+                  <span>🕒 注入实时时间戳</span>
                 </button>
+
+                <!-- Action 4: Inject Quality Code -->
                 <button
-                  @click="handleApplyStandardTemplate('pie-energy-mix')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  @click="handleInjectQuality('0x00 (GOOD 优)')"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
                 >
-                  🍩 厂区能源占比饼图
+                  <ShieldCheck class="w-3 h-3 text-purple-400" />
+                  <span>🏷️ 注入通信质量码</span>
                 </button>
+
+                <!-- Action 5: Inject 24h Waveform (if chart or metric) -->
                 <button
-                  @click="handleApplyStandardTemplate('radar-health')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  v-if="isChartComponent || component.category === 'metrics'"
+                  @click="handleInject24hWaveform"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors col-span-2"
                 >
-                  🕸️ 设备健康度雷达
+                  <TrendingUp class="w-3 h-3 text-amber-400" />
+                  <span>📈 注入 24h 双峰负荷时序时段数据</span>
                 </button>
+
+                <!-- Action 6: Simulate Dynamic Condition -->
                 <button
-                  @click="handleApplyStandardTemplate('alarm-events')"
-                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer truncate"
+                  @click="handleInjectRandomSim"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                  :class="(isChartComponent || component.category === 'metrics') ? 'col-span-2' : 'col-span-2'"
                 >
-                  ⚡ 实时事故告警事件
+                  <Play class="w-3 h-3 text-emerald-400" />
+                  <span>🎲 随机工况仿真采样注入</span>
+                </button>
+              </div>
+
+              <!-- Interactive SCADA Point Injector Drawer -->
+              <div
+                v-if="isScadaPointInjectorOpen"
+                class="p-3 rounded-xl bg-[#030712] border border-cyan-500/50 space-y-2.5 mt-2 shadow-inner"
+              >
+                <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+                  <span class="flex items-center gap-1.5">
+                    <Cpu class="w-3.5 h-3.5 text-cyan-400" />
+                    <span>选择四遥测点以注入 JSON:</span>
+                  </span>
+                  <button @click="isScadaPointInjectorOpen = false" class="text-slate-400 hover:text-white p-0.5 cursor-pointer">
+                    <X class="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                <!-- Device Selector in Injector -->
+                <div class="grid grid-cols-2 gap-1.5 text-xs">
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-0.5">装置:</label>
+                    <select
+                      v-model="scadaInjectorDeviceId"
+                      class="w-full bg-[#060b17] border border-slate-700/80 rounded px-2 py-1 text-slate-100 text-xs outline-hidden"
+                    >
+                      <option v-for="dev in currentDatasetDevices" :key="dev.deviceId" :value="dev.deviceId">
+                        [{{ dev.deviceId }}] {{ dev.name }}
+                      </option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="text-[10px] text-slate-400 block mb-0.5">规约类别:</label>
+                    <select
+                      v-model="scadaInjectorCategory"
+                      class="w-full bg-[#060b17] border border-slate-700/80 rounded px-2 py-1 text-slate-100 text-xs outline-hidden"
+                    >
+                      <option value="yc">YC 遥测 (模拟量)</option>
+                      <option value="yx">YX 遥信 (开关量)</option>
+                      <option value="dd">DD 遥脉 (电能量)</option>
+                      <option value="yk">YK 遥控 (控制令)</option>
+                      <option value="yt">YT 遥调 (定值)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Points List to Click-and-Inject -->
+                <div class="max-h-40 overflow-y-auto space-y-1 rounded border border-slate-800 bg-[#060b17] p-1 text-xs">
+                  <template v-if="scadaInjectorCategory === 'yc'">
+                    <button
+                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.telemetries || [])"
+                      :key="p.pointId"
+                      @click="handleInjectPointToJson(p, 'yc')"
+                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
+                    >
+                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
+                      <span class="text-emerald-400 font-mono text-[11px] shrink-0 font-bold">{{ p.value }} {{ p.unit }}</span>
+                    </button>
+                  </template>
+
+                  <template v-else-if="scadaInjectorCategory === 'yx'">
+                    <button
+                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleSignals || [])"
+                      :key="p.pointId"
+                      @click="handleInjectPointToJson(p, 'yx')"
+                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
+                    >
+                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
+                      <span class="font-mono text-[11px] shrink-0 font-bold" :class="p.value === 1 ? 'text-red-400' : 'text-emerald-400'">
+                        {{ p.value }} ({{ p.statusText || (p.value === 1 ? '合闸' : '分闸') }})
+                      </span>
+                    </button>
+                  </template>
+
+                  <template v-else-if="scadaInjectorCategory === 'dd'">
+                    <button
+                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleEnergies || [])"
+                      :key="p.pointId"
+                      @click="handleInjectPointToJson(p, 'dd')"
+                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
+                    >
+                      <span class="truncate text-slate-200 group-hover:text-cyan-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
+                      <span class="text-amber-400 font-mono text-[11px] shrink-0 font-bold">{{ p.value }} {{ p.unit }}</span>
+                    </button>
+                  </template>
+
+                  <template v-else-if="scadaInjectorCategory === 'yk'">
+                    <button
+                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleControls || [])"
+                      :key="p.pointId"
+                      @click="handleInjectPointToJson(p, 'yk')"
+                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-purple-950 border border-slate-800 hover:border-purple-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
+                    >
+                      <span class="truncate text-slate-200 group-hover:text-purple-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
+                      <span class="text-purple-400 font-mono text-[10px] shrink-0 font-bold">遥控对象</span>
+                    </button>
+                  </template>
+
+                  <template v-else-if="scadaInjectorCategory === 'yt'">
+                    <button
+                      v-for="p in (currentDatasetDevices.find(d => d.deviceId === scadaInjectorDeviceId)?.teleRegulations || [])"
+                      :key="p.pointId"
+                      @click="handleInjectPointToJson(p, 'yt')"
+                      class="w-full p-1.5 rounded bg-slate-900/60 hover:bg-blue-950 border border-slate-800 hover:border-blue-500/60 text-left flex items-center justify-between group cursor-pointer transition-colors"
+                    >
+                      <span class="truncate text-slate-200 group-hover:text-blue-300 font-medium">[{{ p.pointId }}] {{ p.name }}</span>
+                      <span class="text-blue-400 font-mono text-[10px] shrink-0 font-bold">定值: {{ p.currentValue }} {{ p.unit }}</span>
+                    </button>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Component Specific Standard Presets -->
+            <div v-if="currentSchemaInfo.templates && currentSchemaInfo.templates.length > 0" class="p-3 rounded-xl bg-[#060b17] border border-slate-800 space-y-2">
+              <label class="text-xs font-semibold text-cyan-300 block">标准业务场景模板一键加载：</label>
+              <div class="grid grid-cols-1 gap-1.5">
+                <button
+                  v-for="tpl in currentSchemaInfo.templates"
+                  :key="tpl.name"
+                  @click="handleApplySchemaTemplate(tpl.payload)"
+                  class="py-1.5 px-2 rounded-lg bg-slate-900 hover:bg-cyan-950 border border-slate-800 hover:border-cyan-500/50 text-left text-xs font-medium text-slate-200 hover:text-cyan-300 cursor-pointer flex items-center justify-between transition-colors"
+                >
+                  <span>{{ tpl.name }}</span>
+                  <span class="text-[10px] text-slate-500 font-mono">加载此模板</span>
                 </button>
               </div>
             </div>
 
-            <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="text-xs font-semibold text-slate-200">静态 JSON 格式数据</label>
-                <button
-                  @click="staticJsonInput = JSON.stringify(component.data.staticData || { value: 125.6, unit: 'kV', label: '静态测量' }, null, 2)"
-                  class="text-[10px] text-cyan-400 hover:underline cursor-pointer"
-                >
-                  填入当前组件数据
-                </button>
+            <!-- 4. Interactive Live JSON Code Editor -->
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <Code2 class="w-3.5 h-3.5 text-cyan-400" />
+                  <span>实时 JSON 契约数据编辑器</span>
+                </label>
+
+                <div class="flex items-center gap-1.5 text-xs">
+                  <button
+                    @click="handleFormatJson"
+                    class="text-[11px] text-cyan-400 hover:text-cyan-300 bg-slate-900 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
+                    title="格式化 JSON 排版"
+                  >
+                    ✨ 排版
+                  </button>
+                  <button
+                    @click="handleCopyJson"
+                    class="text-[11px] text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 px-2 py-0.5 rounded border border-slate-700 cursor-pointer transition-colors"
+                    title="复制 JSON"
+                  >
+                    📋 复制
+                  </button>
+                </div>
               </div>
+
+              <!-- Syntax & Validation Status Banner -->
+              <div
+                v-if="jsonValidationStatus === 'invalid'"
+                class="p-2 rounded-lg bg-red-950/40 border border-red-500/60 text-xs text-red-300 font-mono leading-tight flex items-start gap-1.5"
+              >
+                <AlertTriangle class="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                <span>{{ jsonErrorMessage }}</span>
+              </div>
+              <div
+                v-else
+                class="p-1.5 rounded-lg bg-emerald-950/30 border border-emerald-500/40 text-[11px] text-emerald-300 font-mono flex items-center gap-1.5"
+              >
+                <CheckCircle2 class="w-3.5 h-3.5 text-emerald-400" />
+                <span>✓ JSON 结构合法，已实时响应并驱动图元</span>
+              </div>
+
               <textarea
-                v-model="staticJsonInput"
-                placeholder='{"value": 10.5, "unit": "kV", "categories": ["01:00", "02:00"], "series": [10, 20]}'
-                class="w-full h-36 bg-[#060b17] border border-slate-800 focus:border-cyan-400 rounded-lg p-2.5 text-xs text-slate-100 font-mono outline-hidden resize-none"
+                :value="staticJsonInput"
+                @input="handleJsonInput(($event.target as HTMLTextAreaElement).value)"
+                placeholder="请输入符合当前图元契约的 JSON 数据..."
+                rows="10"
+                class="w-full bg-[#030712] border focus:border-cyan-400 rounded-lg p-2.5 text-xs font-mono outline-hidden resize-y leading-relaxed transition-all"
+                :class="jsonValidationStatus === 'invalid' ? 'border-red-500/70 text-red-200' : 'border-slate-800 text-cyan-200'"
               ></textarea>
             </div>
 
@@ -2438,9 +3171,10 @@ const toggleBatchLock = () => {
 
             <button
               @click="handleApplyStaticData"
-              class="w-full py-2 rounded-lg bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs cursor-pointer transition-colors shadow-sm"
+              class="w-full py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs cursor-pointer transition-all shadow-md flex items-center justify-center gap-1.5"
             >
-              应用静态数据到组件
+              <Check class="w-4 h-4" />
+              <span>立即确认并同步此 JSON 数据</span>
             </button>
           </div>
         </div>

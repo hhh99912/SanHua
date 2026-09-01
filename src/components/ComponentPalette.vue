@@ -73,13 +73,14 @@ onMounted(() => {
 
 const categories: { id: ComponentCategory | 'all'; label: string }[] = [
   { id: 'all', label: '全部' },
-  { id: 'basic', label: '📐 基础图元/按键' },
-  { id: 'electrical', label: '⚡ 电力一次图' },
-  { id: 'custom', label: '🧩 复合组合图元' },
-  { id: 'industrial', label: '🏭 工控/SCADA' },
-  { id: 'metrics', label: '🔢 指标/遥测' },
-  { id: 'charts', label: '📊 图表' },
-  { id: 'decoration', label: '✨ 科技边框' },
+  { id: 'status', label: '🟢 状态图元/遥信' },
+  { id: 'metrics', label: '🔢 数值图元/遥测' },
+  { id: 'electrical', label: '⚡ 电力一次系统' },
+  { id: 'industrial', label: '🏭 工业管网/设备' },
+  { id: 'charts', label: '📊 统计图表/曲线' },
+  { id: 'decoration', label: '✨ 科技边框/修饰' },
+  { id: 'basic', label: '📐 基础几何/按键' },
+  { id: 'custom', label: '🧩 复合自定义图元' },
 ];
 
 const iconMap: Record<string, any> = {

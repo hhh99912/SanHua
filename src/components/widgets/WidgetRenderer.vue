@@ -99,7 +99,7 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
 
     <!-- 5. Status Indicator / Signal LED Light (0: 停止/分闸, 1: 运行/合闸, 2: 故障/告警) -->
     <StatusIndicator
-      v-else-if="component.type === 'ctrl-indicator'"
+      v-else-if="component.type === 'ctrl-indicator' || (component.category === 'status' && component.type !== 'ind-matrix')"
       :component="component"
       :datasets="datasets"
     />

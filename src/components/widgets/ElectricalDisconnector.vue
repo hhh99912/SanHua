@@ -15,12 +15,23 @@ const disconnectorState = computed(() => {
   const isGrounding = props.component.type === 'elec-grounding';
   
   const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey || data?.mapping?.valueKey;
-  const defaultVal = customProps?.state !== undefined ? customProps.state : (isGrounding ? 0 : 1);
+  
+  let defaultVal = isGrounding ? 0 : 1;
+  if (data?.staticData?.state !== undefined) {
+    defaultVal = data.staticData.state;
+  } else if (props.component.activeState !== undefined) {
+    defaultVal = Number(props.component.activeState);
+  } else if (customProps?.state !== undefined) {
+    defaultVal = customProps.state;
+  }
 
   const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
   const isClosed = resolved.isClosed || resolved.numericValue === 1;
 
-  const statusColor = isClosed ? (isGrounding ? '#ffb703' : '#ff3344') : '#00e676';
+  const colorClosed = customProps?.color1 || style.color1 || data?.staticData?.color1 || (isGrounding ? '#ffb703' : '#ff3344');
+  const colorOpen = customProps?.color0 || style.color0 || data?.staticData?.color0 || '#00e676';
+
+  const statusColor = isClosed ? colorClosed : colorOpen;
 
   return {
     isGrounding,
@@ -28,7 +39,7 @@ const disconnectorState = computed(() => {
     statusColor,
     statusText: resolved.statusText,
     numericValue: resolved.numericValue,
-    stroke: style.stroke || statusColor,
+    stroke: style.stroke && style.stroke !== '#00f2ff' ? style.stroke : statusColor,
     strokeWidth: style.strokeWidth || 2.5
   };
 });

@@ -552,13 +552,13 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   },
   {
     type: 'ctrl-indicator',
-    category: 'basic',
-    name: '状态指示灯 (0:绿/1:红)',
-    nameEn: 'LED Status Indicator (0:Green/1:Red)',
+    category: 'status',
+    name: '金属高光圆信号灯',
+    nameEn: 'Metallic Circle Status LED',
     iconName: 'CircleDot',
-    description: '纯原子化工业LED信号灯(无文字)，0:绿色，1:红色，支持多形态与闪烁',
-    defaultWidth: 44,
-    defaultHeight: 44,
+    description: '纯原子化工业金属外圈LED信号灯，0:绿(分闸/正常), 1:红(合闸/带电), 2:黄(故障)',
+    defaultWidth: 40,
+    defaultHeight: 40,
     defaultStyle: {
       indicatorShape: 'circle',
       indicatorState: 0,
@@ -574,6 +574,233 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
         statusKey: 'DEV_101_YX_1'
       }
     }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '科技脉冲光环状态点',
+    nameEn: 'Pulse Radar Status Ring',
+    iconName: 'Disc',
+    description: '科技同心圆脉冲状态指示点，带虚线旋转环与发光晶核',
+    defaultWidth: 40,
+    defaultHeight: 40,
+    defaultStyle: {
+      indicatorShape: 'circle',
+      indicatorState: 0
+    },
+    defaultCustomProps: {
+      state: 0,
+      indicatorStyle: 'ring-pulse'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '菱形联锁工控状态灯',
+    nameEn: 'Diamond Interlock LED',
+    iconName: 'Diamond',
+    description: '45°菱形多边形联锁逻辑信号灯，适用于重合闸与联锁状态',
+    defaultWidth: 40,
+    defaultHeight: 40,
+    defaultStyle: {
+      indicatorShape: 'diamond',
+      indicatorState: 1
+    },
+    defaultCustomProps: {
+      state: 1,
+      indicatorStyle: 'diamond-badge'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '蜂巢六角工控指示灯',
+    nameEn: 'Hexagon Pilot Lamp',
+    iconName: 'Hexagon',
+    description: '正六边形机甲蜂巢指示灯，高密度工控状态监控',
+    defaultWidth: 40,
+    defaultHeight: 40,
+    defaultStyle: {
+      indicatorShape: 'hexagon',
+      indicatorState: 0
+    },
+    defaultCustomProps: {
+      state: 0,
+      indicatorStyle: 'hexagon-pilot'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '拓扑准星状态定位点',
+    nameEn: 'Crosshair Topology Reticle',
+    iconName: 'Crosshair',
+    description: '配电拓扑接线节点准星定位点，十字发光刻度与核心状态指示',
+    defaultWidth: 40,
+    defaultHeight: 40,
+    defaultStyle: {
+      indicatorShape: 'crosshair',
+      indicatorState: 1
+    },
+    defaultCustomProps: {
+      state: 1,
+      indicatorStyle: 'crosshair-target'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '荧光微型高亮状态点',
+    nameEn: 'Neon Dot Indicator',
+    iconName: 'Dot',
+    description: '无边框超高密度荧光发光微点，适合密布在主接线与工艺管路图',
+    defaultWidth: 28,
+    defaultHeight: 28,
+    defaultStyle: {
+      indicatorShape: 'dot',
+      indicatorState: 0
+    },
+    defaultCustomProps: {
+      state: 0,
+      indicatorStyle: 'neon-dot'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '工牌铭牌状态指示点',
+    nameEn: 'Status Tag Plate',
+    iconName: 'Tag',
+    description: '微型状态工牌，带分合闸状态编码与双色指示灯',
+    defaultWidth: 90,
+    defaultHeight: 32,
+    defaultStyle: {
+      indicatorState: 1
+    },
+    defaultCustomProps: {
+      state: 1,
+      indicatorStyle: 'status-plate'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '现代扁平高亮LED',
+    nameEn: 'Flat High-Lumen LED',
+    iconName: 'Circle',
+    description: '扁平超高亮度发光二极管，带双重动态光晕',
+    defaultWidth: 36,
+    defaultHeight: 36,
+    defaultStyle: {
+      indicatorShape: 'circle',
+      indicatorState: 1
+    },
+    defaultCustomProps: {
+      state: 1,
+      indicatorStyle: 'flat-led'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '方型工业信号灯',
+    nameEn: 'Square Pilot Lamp',
+    iconName: 'Square',
+    description: '经典工控方型信号灯，带斜切内凹发光灯芯',
+    defaultWidth: 36,
+    defaultHeight: 36,
+    defaultStyle: {
+      indicatorShape: 'square',
+      indicatorState: 0
+    },
+    defaultCustomProps: {
+      state: 0,
+      indicatorStyle: 'square-lamp'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ctrl-indicator',
+    category: 'status',
+    name: '胶囊椭圆指示灯',
+    nameEn: 'Pill Capsule Status Tag',
+    iconName: 'ToggleRight',
+    description: '胶囊条形指示灯，适合水平排布于机柜面板',
+    defaultWidth: 54,
+    defaultHeight: 28,
+    defaultStyle: {
+      indicatorShape: 'pill',
+      indicatorState: 1
+    },
+    defaultCustomProps: {
+      state: 1,
+      indicatorStyle: 'pill-tag'
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        statusKey: 'DEV_101_YX_1'
+      }
+    }
+  },
+  {
+    type: 'ind-matrix',
+    category: 'status',
+    name: '全站测点状态矩阵',
+    nameEn: 'Full Station Status Matrix',
+    iconName: 'Layers',
+    description: '全站所有间隔遥信遥测运行状态矩阵看板',
+    defaultWidth: 320,
+    defaultHeight: 180,
+    defaultStyle: {},
+    defaultData: { mapping: {} }
   },
 
   // ==========================================
@@ -747,8 +974,8 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     type: 'metric-float',
     category: 'metrics',
-    name: '浮点数遥测数值',
-    nameEn: 'Float Metric Value',
+    name: '极简等宽遥测数值',
+    nameEn: 'Pure Digital Telemetry Metric',
     iconName: 'Binary',
     description: '纯净浮点数遥测数值，支持小数位与数据源绑定，100%全比例边界缩放贴合',
     defaultWidth: 140,
@@ -757,6 +984,166 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
       decimals: 2,
       textColor: '#00f2ff',
       fill: 'transparent'
+    },
+    defaultCustomProps: {
+      displayStyle: 'pure-digital',
+      unit: 'kV',
+      decimals: 2
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_1'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '科技胶囊光标微框数值',
+    nameEn: 'Cyber Badge Numeric Point',
+    iconName: 'Hash',
+    description: '科技微框胶囊数值点，深色底板带发光边框与两侧角标，支持测点标签与单位',
+    defaultWidth: 150,
+    defaultHeight: 42,
+    defaultStyle: {
+      decimals: 2,
+      textColor: '#00f2ff'
+    },
+    defaultCustomProps: {
+      displayStyle: 'cyber-badge',
+      label: '101_Ua',
+      unit: 'kV',
+      decimals: 2
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_1'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '7段工业数码管数值点',
+    nameEn: '7-Segment LED Metric',
+    iconName: 'Cpu',
+    description: '经典7段LED工业数码管，带内凹黑盒阴影与高亮晶体笔画',
+    defaultWidth: 150,
+    defaultHeight: 44,
+    defaultStyle: {
+      decimals: 1,
+      textColor: '#00ff66'
+    },
+    defaultCustomProps: {
+      displayStyle: 'led-segment',
+      unit: 'A',
+      decimals: 1
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_2'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '赛博霓虹双色发光数值',
+    nameEn: 'Neon Glow Telemetry Value',
+    iconName: 'Sparkles',
+    description: '赛博朋克双色渐变发光数值，高亮白芯搭配荧光外光晕',
+    defaultWidth: 160,
+    defaultHeight: 48,
+    defaultStyle: {
+      decimals: 2,
+      textColor: '#ff007f'
+    },
+    defaultCustomProps: {
+      displayStyle: 'neon-glow',
+      unit: 'MW',
+      decimals: 2
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_3'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '工业测点卡片标牌',
+    nameEn: 'Industrial Telemetry Tag Card',
+    iconName: 'Tag',
+    description: '紧凑型工业测点标签卡，集成测点名称、物理单位与大号数值',
+    defaultWidth: 160,
+    defaultHeight: 52,
+    defaultStyle: {
+      decimals: 2,
+      textColor: '#38bdf8'
+    },
+    defaultCustomProps: {
+      displayStyle: 'industrial-tag',
+      label: '主变有功功率',
+      unit: 'MW',
+      decimals: 2
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_3'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '量程百分比光条数值',
+    nameEn: 'Range Progress Metric Bar',
+    iconName: 'Sliders',
+    description: '数值下方集成动态百分比光条，实时反映量程占用度',
+    defaultWidth: 170,
+    defaultHeight: 50,
+    defaultStyle: {
+      decimals: 1,
+      textColor: '#f59e0b'
+    },
+    defaultCustomProps: {
+      displayStyle: 'progress-bar',
+      label: '主变负载率',
+      unit: '%',
+      min: 0,
+      max: 100,
+      decimals: 1
+    },
+    defaultData: {
+      datasetId: 'ds-scada-station',
+      mapping: {
+        valueKey: 'DEV_101_YC_1'
+      }
+    }
+  },
+  {
+    type: 'metric-float',
+    category: 'metrics',
+    name: '工业仪表黑匣测点',
+    nameEn: 'Industrial Meter Box Metric',
+    iconName: 'Box',
+    description: '工业控制台内嵌黑匣仪表，带四周铆钉装饰与内凹光影',
+    defaultWidth: 150,
+    defaultHeight: 46,
+    defaultStyle: {
+      decimals: 2,
+      textColor: '#00f2ff'
+    },
+    defaultCustomProps: {
+      displayStyle: 'meter-box',
+      unit: 'Hz',
+      decimals: 2
     },
     defaultData: {
       datasetId: 'ds-scada-station',
@@ -958,30 +1345,188 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
   {
     type: 'deco-border-neon',
     category: 'decoration',
-    name: '霓虹科技发光边框',
-    nameEn: 'Cyber Neon Border',
+    name: '霓虹四角标科技框',
+    nameEn: 'Cyber Neon Corner Border',
     iconName: 'Frame',
-    description: '赛博朋克发光外边框，带四角切角与动态脉冲粒子流光',
+    description: '赛博朋克发光外边框，四角高亮直角括弧与中心微标',
     defaultWidth: 340,
     defaultHeight: 220,
     defaultStyle: {
-      stroke: '#00f2ff',
-      borderRadius: 12
+      stroke: '#00f2ff'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-neon'
     },
     defaultData: { mapping: {} }
   },
   {
-    type: 'deco-tech-plate',
+    type: 'deco-border-tech',
     category: 'decoration',
-    name: '工业机甲装甲面板',
-    nameEn: 'Industrial Armor Plate',
+    name: '科技切角装甲框',
+    nameEn: 'Tech Chamfer Armor Frame',
+    iconName: 'ShieldAlert',
+    description: '45° 精准矢量多边形切角装甲框，带上下科技标尺线',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#00f2ff'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-tech'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-mech',
+    category: 'decoration',
+    name: '重装机甲铆钉边框',
+    nameEn: 'Heavy Mech Rivet Plate',
     iconName: 'SquareCode',
-    description: '带螺栓铆钉与倾斜切角的机甲底板，适用于重工业SCADA控制大屏',
+    description: '工业沉头铆钉与深色防刮面板，重工业SCADA监控专享',
     defaultWidth: 340,
     defaultHeight: 220,
     defaultStyle: {
       stroke: '#38bdf8',
-      fill: 'rgba(15, 23, 42, 0.7)'
+      fill: 'rgba(6, 14, 28, 0.75)'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-mech'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-hud-double',
+    category: 'decoration',
+    name: '双线流光HUD科技框',
+    nameEn: 'HUD Double Streamer Frame',
+    iconName: 'Layers',
+    description: '动态双层微框与四周刻度标尺，增强大屏纵深感',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#00f2ff'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-hud-double'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-cyber-corner',
+    category: 'decoration',
+    name: '四角发光斜切微框',
+    nameEn: 'Cyber Corner Cuts Border',
+    iconName: 'Crosshair',
+    description: '极简科技四角对角切痕与微弱虚线轮廓',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#00f2ff'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-cyber-corner'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-gradient-pulse',
+    category: 'decoration',
+    name: '渐变律动发光科技框',
+    nameEn: 'Gradient Pulse Cyber Frame',
+    iconName: 'Sparkles',
+    description: '全包围双色发光光晕与上下霓虹渐变发光柱',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#8b5cf6'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-gradient-pulse'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-hazard',
+    category: 'decoration',
+    name: '工业警示斜纹边框',
+    nameEn: 'Hazard Stripe Industrial Frame',
+    iconName: 'AlertTriangle',
+    description: '45° 工业防灾警示斜纹边框，适用于高危重工监控大屏',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#f59e0b'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-hazard'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-bracket',
+    category: 'decoration',
+    name: '极简对角卡尺定位框',
+    nameEn: 'Minimal Bracket Caliper',
+    iconName: 'Box',
+    description: '极简四角卡尺定位标记，无缝贴合大屏内部图表容器',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#38bdf8'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-bracket'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-matrix-panel',
+    category: 'decoration',
+    name: '点阵发光机箱面板',
+    nameEn: 'Dot Matrix Mesh Panel',
+    iconName: 'Cpu',
+    description: '密集透气孔点阵发光机箱外壳面板，自带系统铭牌标签',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#00f2ff'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-matrix-panel'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-quantum-box',
+    category: 'decoration',
+    name: '量子悬浮光条框',
+    nameEn: 'Quantum Levitation Box',
+    iconName: 'Disc',
+    description: '上下居中悬浮发光条与虚线微边框',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#06b6d4'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-quantum-box'
+    },
+    defaultData: { mapping: {} }
+  },
+  {
+    type: 'deco-border-scada-card',
+    category: 'decoration',
+    name: 'SCADA标准工控外框',
+    nameEn: 'SCADA Standard Card Frame',
+    iconName: 'LayoutDashboard',
+    description: '集控中心标准监视外框，带状态圆点与卡片抬头',
+    defaultWidth: 340,
+    defaultHeight: 220,
+    defaultStyle: {
+      stroke: '#3b82f6'
+    },
+    defaultCustomProps: {
+      borderStyle: 'deco-border-scada-card'
     },
     defaultData: { mapping: {} }
   }

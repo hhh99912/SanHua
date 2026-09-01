@@ -14,15 +14,27 @@ const breakerState = computed(() => {
   const { data, style, customProps } = props.component;
   
   const sKey = data?.mapping?.stateKey || data?.mapping?.statusKey || data?.mapping?.valueKey;
-  const defaultVal = customProps?.state !== undefined ? customProps.state : 1;
+  
+  let defaultVal = 1;
+  if (data?.staticData?.state !== undefined) {
+    defaultVal = data.staticData.state;
+  } else if (props.component.activeState !== undefined) {
+    defaultVal = Number(props.component.activeState);
+  } else if (customProps?.state !== undefined) {
+    defaultVal = customProps.state;
+  }
 
   const resolved = resolveTeleSignalState(props.datasets, data?.datasetId, sKey, defaultVal);
 
   const isClosed = resolved.isClosed || resolved.numericValue === 1;
   const status = resolved.isFault ? 'fault' : (isClosed ? 'closed' : 'open');
-  const statusColor = resolved.color || (status === 'fault' 
+  
+  const colorClosed = customProps?.color1 || style.breakerColorClosed || data?.staticData?.color1 || '#ff3344';
+  const colorOpen = customProps?.color0 || style.breakerColorOpen || data?.staticData?.color0 || '#00e676';
+  
+  const statusColor = status === 'fault' 
     ? '#ffb703' 
-    : (isClosed ? (style.breakerColorClosed || '#ff3344') : (style.breakerColorOpen || '#00e676')));
+    : (isClosed ? colorClosed : colorOpen);
 
   return {
     status,
@@ -30,7 +42,7 @@ const breakerState = computed(() => {
     statusColor,
     statusText: resolved.statusText,
     numericValue: resolved.numericValue,
-    stroke: style.stroke || statusColor,
+    stroke: style.stroke && style.stroke !== '#00f2ff' ? style.stroke : statusColor,
     strokeWidth: style.strokeWidth || 2.5
   };
 });

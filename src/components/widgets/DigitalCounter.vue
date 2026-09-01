@@ -11,28 +11,53 @@ const props = defineProps<Props>();
 
 const counterState = computed(() => {
   const { data, style, customProps, type } = props.component;
-  const boundDataset = props.datasets?.find(d => d.id === data.datasetId);
-  const activeData = boundDataset?.data || data.staticData || {};
+  const boundDataset = props.datasets?.find(d => d.id === data?.datasetId);
+  const activeData = (data?.useStatic !== false && data?.staticData) 
+    ? data.staticData 
+    : (boundDataset?.data || data?.staticData || {});
 
-  const rawValue = (data.mapping.valueKey && activeData[data.mapping.valueKey]) ?? 
-    activeData.daily_output ?? 
-    customProps?.value ?? 
-    89420;
+  let rawValue: any = customProps?.value ?? 89420;
 
-  const unit = data.mapping.unitKey ?? customProps?.unit ?? (type === 'metric-progress' ? '%' : '');
-  const title = (data.mapping.titleKey && activeData[data.mapping.titleKey]) ?? props.component.name;
-  const themeColor = style.textColor || style.stroke || style.fill || '#00f2ff';
+  if (data?.staticData !== undefined && data?.staticData !== null) {
+    if (typeof data.staticData === 'number') {
+      rawValue = data.staticData;
+    } else if (typeof data.staticData === 'object' && data.staticData.value !== undefined) {
+      rawValue = data.staticData.value;
+    }
+  }
+
+  if (data?.useStatic !== true) {
+    if (data?.mapping?.valueKey && activeData[data.mapping.valueKey] !== undefined) {
+      rawValue = activeData[data.mapping.valueKey];
+    } else if (activeData.daily_output !== undefined) {
+      rawValue = activeData.daily_output;
+    }
+  }
+
+  // Strict numeric conversion (reject text strings, format cleanly)
+  let cleanNum = 0;
+  if (typeof rawValue === 'number') {
+    cleanNum = isNaN(rawValue) ? 0 : rawValue;
+  } else if (typeof rawValue === 'string') {
+    const sanitized = rawValue.replace(/[^0-9.-]/g, '');
+    const parsed = parseFloat(sanitized);
+    cleanNum = isNaN(parsed) ? 0 : parsed;
+  }
+
+  const unit = data?.mapping?.unitKey ?? customProps?.unit ?? (data?.staticData?.unit || (type === 'metric-progress' ? '%' : ''));
+  const title = (data?.mapping?.titleKey && activeData[data.mapping.titleKey]) ?? props.component.name;
+  const themeColor = style?.textColor || style?.stroke || style?.fill || '#00f2ff';
   const prefix = customProps?.prefix || '';
   const isFlipper = type === 'metric-flipper';
   const isTitle = type === 'metric-title';
   const isProgress = type === 'metric-progress';
 
   // Format number digits
-  const numStr = String(rawValue);
+  const numStr = String(cleanNum);
   const digits = numStr.split('');
 
   return {
-    rawValue,
+    rawValue: cleanNum,
     unit,
     title,
     themeColor,

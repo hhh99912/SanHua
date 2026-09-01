@@ -1,11 +1,12 @@
 export type ComponentCategory = 
-  | 'basic'        // 基础图元与控制器 (矩形/圆形/多边形/星形/菱形/文本/按钮/指示灯等)
-  | 'electrical'   // 电力一次系统图元 (断路器/手车/隔离开关/主变/互感器/避雷器/母线/电表)
-  | 'industrial'   // 工业SCADA与流体 (储罐/管道/泵阀/电机/矩阵/报警)
-  | 'charts'       // 统计图表与监控仪表
-  | 'metrics'      // 测控遥测与数据显示
-  | 'decoration'   // 科技边框与修饰
-  | 'custom'       // 复合组合图元与自定义资产
+  | 'status'       // 🟢 状态图元 (遥信/指示灯/状态码/拓扑状态点)
+  | 'metrics'      // 🔢 数值图元 (遥测/数码管/仪表盘/计数器)
+  | 'electrical'   // ⚡ 电力一次系统图元 (断路器/手车/隔离开关/主变/互感器/避雷器/母线/电表)
+  | 'industrial'   // 🏭 工业SCADA与流体 (储罐/管道/泵阀/电机/矩阵/报警)
+  | 'charts'       // 📊 统计图表与监控仪表 (ECharts/折线/柱状/饼图/雷达)
+  | 'decoration'   // ✨ 科技边框与修饰
+  | 'basic'        // 📐 基础几何图元与控制器 (矩形/圆形/多边形/文本/按钮等)
+  | 'custom'       // 🧩 复合组合图元与自定义资产
   | 'drawing'      // 矢量绘制
   | 'media';
 
@@ -93,13 +94,25 @@ export type ComponentType =
   | 'custom-svg'
   | 'custom-html'
 
-  // 9. Decorations
+  // 9. Decorations (丰富科技边框)
   | 'deco-border-neon'
+  | 'deco-border-tech'
+  | 'deco-border-mech'
+  | 'deco-border-hud-double'
+  | 'deco-border-cyber-corner'
+  | 'deco-border-gradient-pulse'
+  | 'deco-border-hazard'
+  | 'deco-border-bracket'
+  | 'deco-border-matrix-panel'
+  | 'deco-border-quantum-box'
+  | 'deco-border-scada-card'
   | 'deco-border-industrial'
   | 'deco-tech-plate'
   | 'deco-corner-bracket'
   | 'deco-hazard-stripe'
   | 'deco-glow-ring'
+  | 'deco-line-glow'
+  | 'deco-target-reticle'
 
   // 10. Vector Pen Drawing
   | 'draw-pen-path'
@@ -179,11 +192,14 @@ export interface StyleConfig {
   isPressed?: boolean;
 
   // Status Indicator
-  indicatorShape?: 'circle' | 'square' | 'ring' | 'pill';
+  indicatorShape?: 'circle' | 'square' | 'ring' | 'pill' | 'diamond' | 'hexagon' | 'crosshair' | 'dot' | 'status-plate' | string;
+  indicatorStyle?: 'bezel-circle' | 'flat-led' | 'square-lamp' | 'pill-tag' | 'ring-pulse' | 'diamond-badge' | 'hexagon-pilot' | 'crosshair-target' | 'neon-dot' | 'status-plate' | string;
   indicatorState?: 'normal' | 'alarm' | 'warning' | 'standby' | 'offline' | number | string;
   indicatorColor?: string;
   indicatorBlinkSpeed?: 'none' | 'slow' | 'fast' | 'auto';
   indicatorLabel?: string;
+  displayStyle?: 'pure-digital' | 'cyber-badge' | 'led-segment' | 'neon-glow' | 'industrial-tag' | 'progress-bar' | 'meter-box' | string;
+  metricStyle?: string;
 }
 
 export interface AnimationConfig {
@@ -273,9 +289,12 @@ export interface ScadaDeviceItem {
 }
 
 export interface DataFieldMapping {
+  // SCADA 4-Remote Single Point Mapping (四遥单点关联)
   deviceId?: string;        // 装置号
+  deviceName?: string;      // 装置名称
   pointCategory?: 'telemetry' | 'teleSignal' | 'energy' | 'teleControl' | 'teleRegulation'; // 遥测/遥信/电度/遥控/遥调
   pointId?: string | number;// 装置下挂点号
+  pointName?: string;       // 测点中文名
   valueKey?: string;
   titleKey?: string;
   unitKey?: string;
@@ -293,6 +312,26 @@ export interface DataFieldMapping {
   thresholdMax?: number;
   thresholdMin?: number;
   alertLevelKey?: string;
+  targetYxPointId?: number;
+  targetYcPointId?: number;
+  ykPointId?: number;
+  ytPointId?: number;
+
+  // DataV Structured JSON Dataset Mapping (结构化/复合数据集关联)
+  datasetMode?: 'scada-point' | 'json-dataset';
+  xField?: string;
+  yField?: string;
+  timeField?: string;
+  groupField?: string;
+  seriesList?: Array<{
+    name: string;
+    key?: string;
+    field?: string;
+    color?: string;
+    strokeWidth?: number;
+    data?: number[];
+  }>;
+  dataFilter?: string; // JavaScript Filter function code
 }
 
 export interface ComponentAction {

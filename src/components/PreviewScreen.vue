@@ -56,7 +56,7 @@ const emit = defineEmits<{
 const containerRef = ref<HTMLDivElement | null>(null);
 const windowWidth = ref(window.innerWidth);
 const windowHeight = ref(window.innerHeight);
-const scaleMode = ref<'fit' | 'fill' | 'original'>('fit');
+const scaleMode = ref<'fit' | 'fill' | 'original'>('fill');
 const isBrowserFullscreen = ref(false);
 
 // Modals inside Preview
@@ -108,54 +108,14 @@ const handleResize = () => {
   windowHeight.value = window.innerHeight;
 };
 
-// Calculate content bounding box of all visible components
-const contentBounds = computed(() => {
-  const visibleComps = (props.components || []).filter(c => c.visible !== false);
-  
-  if (visibleComps.length === 0) {
-    return {
-      minX: 0,
-      minY: 0,
-      maxX: props.screen.width || 1920,
-      maxY: props.screen.height || 1080,
-      width: props.screen.width || 1920,
-      height: props.screen.height || 1080
-    };
-  }
-
-  let minX = Infinity;
-  let minY = Infinity;
-  let maxX = -Infinity;
-  let maxY = -Infinity;
-
-  visibleComps.forEach(c => {
-    minX = Math.min(minX, c.x);
-    minY = Math.min(minY, c.y);
-    maxX = Math.max(maxX, c.x + c.width);
-    maxY = Math.max(maxY, c.y + c.height);
-  });
-
-  const width = Math.max(10, maxX - minX);
-  const height = Math.max(10, maxY - minY);
-
-  return {
-    minX,
-    minY,
-    maxX,
-    maxY,
-    width,
-    height
-  };
-});
-
-// Screen dimensions
-const canvasWidth = computed(() => contentBounds.value.width);
-const canvasHeight = computed(() => contentBounds.value.height);
+// Screen dimensions based on active screen resolution
+const canvasWidth = computed(() => props.screen.width || 1920);
+const canvasHeight = computed(() => props.screen.height || 1080);
 
 // Calculate scale factor
 const scaleRatio = computed(() => {
-  const cw = contentBounds.value.width;
-  const ch = contentBounds.value.height;
+  const cw = canvasWidth.value;
+  const ch = canvasHeight.value;
   if (scaleMode.value === 'original') return { scaleX: 1, scaleY: 1 };
   const sx = windowWidth.value / cw;
   const sy = windowHeight.value / ch;
@@ -496,8 +456,8 @@ onBeforeUnmount(() => {
           'cursor-pointer': comp.data?.action && comp.data.action.type !== 'none'
         }"
         :style="{
-          left: `${comp.x - contentBounds.minX}px`,
-          top: `${comp.y - contentBounds.minY}px`,
+          left: `${comp.x}px`,
+          top: `${comp.y}px`,
           width: `${comp.width}px`,
           height: `${comp.height}px`,
           transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'none',

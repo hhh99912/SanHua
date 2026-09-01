@@ -161,19 +161,61 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
   ) => {
     if (!containerElement) return;
     const rect = containerElement.getBoundingClientRect();
-    const availableW = rect.width;
-    const availableH = rect.height;
+    const availableW = Math.max(100, rect.width - 24);
+    const availableH = Math.max(100, rect.height - 24);
 
     // Calculate fit zoom
-    const zoomW = (availableW - 80) / canvasWidth;
-    const zoomH = (availableH - 80) / canvasHeight;
-    const fitZoom = Math.min(1.2, Math.max(0.15, Number(Math.min(zoomW, zoomH).toFixed(2))));
+    const zoomW = availableW / (canvasWidth || 1920);
+    const zoomH = availableH / (canvasHeight || 1080);
+    const fitZoom = Math.min(3.0, Math.max(0.1, Number(Math.min(zoomW, zoomH).toFixed(2))));
 
     zoom.value = fitZoom;
-    panOffset.value = {
-      x: Math.round((availableW - canvasWidth * fitZoom) / 2),
-      y: Math.round((availableH - canvasHeight * fitZoom) / 2)
-    };
+    panOffset.value = { x: 24, y: 24 };
+  };
+
+  // Fit canvas starting from (0, 0) and scaling to neatly fill the editing viewport,
+  // encompassing all components with optimal scale and no excessive blank space.
+  const fitCanvasToViewport = (
+    canvasWidth: number,
+    canvasHeight: number,
+    containerElement: HTMLElement | null,
+    components?: Array<{ x: number; y: number; width: number; height: number; visible?: boolean }>,
+    onZoomChange?: (newZoom: number) => void
+  ) => {
+    if (!containerElement) return;
+    const rect = containerElement.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return;
+
+    // Available viewport space (accounting for 24px top & left rulers and tight 4px buffer)
+    const availableW = Math.max(100, rect.width - 24 - 4);
+    const availableH = Math.max(100, rect.height - 24 - 4);
+
+    const visibleComps = (components || []).filter(c => c.visible !== false);
+    let targetW = canvasWidth || 1920;
+    let targetH = canvasHeight || 1080;
+
+    if (visibleComps.length > 0) {
+      // Find maximum extent of components starting from origin (0, 0)
+      const maxX = Math.max(...visibleComps.map(c => Math.max(0, (c.x || 0) + (c.width || 0))));
+      const maxY = Math.max(...visibleComps.map(c => Math.max(0, (c.y || 0) + (c.height || 0))));
+      
+      // If components occupy space, fit to the maximal extent
+      if (maxX > 50 && maxY > 50) {
+        targetW = Math.max(maxX, 100);
+        targetH = Math.max(maxY, 100);
+      }
+    }
+
+    const zoomW = availableW / targetW;
+    const zoomH = availableH / targetH;
+    const fitZoom = Math.min(3.5, Math.max(0.1, Number(Math.min(zoomW, zoomH).toFixed(2))));
+
+    zoom.value = fitZoom;
+    if (onZoomChange) {
+      onZoomChange(fitZoom);
+    }
+    // Origin is placed strictly at (24, 24) matching the ruler's (0, 0) tick
+    panOffset.value = { x: 24, y: 24 };
   };
 
   // Calculate Content Bounding Box of all components
@@ -363,6 +405,7 @@ export function useCanvasEngine(options: CanvasEngineOptions = {}) {
     updatePan,
     endPan,
     centerCanvasInViewport,
+    fitCanvasToViewport,
     getContentBoundingBox,
     fitAndCenterContentInViewport,
     snapAllToGrid,

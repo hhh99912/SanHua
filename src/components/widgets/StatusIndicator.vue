@@ -17,59 +17,110 @@ const mapping = computed(() => props.component.data?.mapping || {});
 // Resolve strictly 0 (Green) vs 1 (Red) state
 const indicatorState = computed(() => {
   const sKey = mapping.value.statusKey || mapping.value.stateKey || mapping.value.valueKey;
-  const defaultVal = customProps.value.state ?? style.value.indicatorState ?? 0;
-
-  const resolved = resolveTeleSignalState(props.datasets, props.component.data?.datasetId, sKey, defaultVal);
-  const numVal = resolved.numericValue;
-
-  // 0: Green (分闸/停止/正常0状态), 1: Red (合闸/运行/带电1状态), 2: Yellow/Warning, 3/other: Gray
-  let color = '#00e676'; // Default 0: Green
-  let glow = 'rgba(0, 230, 118, 0.95)';
-  let isBlinking = false;
-
-  if (numVal === 1 || defaultVal === 1 || defaultVal === '1' || defaultVal === 'closed' || defaultVal === 'alarm') {
-    color = '#ff2233'; // 1: Red
-    glow = 'rgba(255, 34, 51, 0.95)';
-  } else if (numVal === 0 || defaultVal === 0 || defaultVal === '0' || defaultVal === 'open' || defaultVal === 'normal') {
-    color = '#00e676'; // 0: Green
-    glow = 'rgba(0, 230, 118, 0.95)';
-  } else if (numVal === 2 || defaultVal === 2 || defaultVal === '2' || defaultVal === 'warning') {
-    color = '#ffaa00'; // 2: Yellow / Warning
-    glow = 'rgba(255, 170, 0, 0.95)';
-  } else if (numVal === 3 || defaultVal === 3 || defaultVal === '3' || defaultVal === 'offline') {
-    color = '#64748b'; // 3: Offline / Gray
-    glow = 'rgba(100, 116, 139, 0.4)';
+  
+  // 1. Resolve raw base state from staticData, activeState, customProps, or style
+  let rawState: any = 0;
+  if (props.component.data?.staticData?.state !== undefined) {
+    rawState = props.component.data.staticData.state;
+  } else if (props.component.data?.staticData?.value !== undefined) {
+    rawState = props.component.data.staticData.value;
+  } else if (props.component.activeState !== undefined) {
+    rawState = props.component.activeState;
+  } else if (customProps.value.state !== undefined) {
+    rawState = customProps.value.state;
+  } else if (style.value.indicatorState !== undefined) {
+    rawState = style.value.indicatorState;
   }
 
-  // Allow custom override color from style.stroke or customProps.color
-  if (customProps.value.color) {
-    color = customProps.value.color;
-    glow = `${color}cc`;
+  let effectiveState = 0;
+
+  // 2. If SCADA live telemetry point is bound and not static override
+  if (props.component.data?.useStatic !== true && sKey) {
+    const resolved = resolveTeleSignalState(props.datasets, props.component.data?.datasetId, sKey, rawState);
+    effectiveState = resolved.numericValue;
+  } else {
+    // 3. Static or direct JSON injection parsing
+    if (typeof rawState === 'number') {
+      effectiveState = isNaN(rawState) ? 0 : rawState;
+    } else if (typeof rawState === 'boolean') {
+      effectiveState = rawState ? 1 : 0;
+    } else if (typeof rawState === 'string') {
+      const lower = rawState.trim().toLowerCase();
+      if (lower === '1' || lower.includes('合') || lower.includes('close') || lower.includes('run') || lower === 'on') {
+        effectiveState = 1;
+      } else if (lower === '0' || lower.includes('分') || lower.includes('open') || lower.includes('stop') || lower === 'off') {
+        effectiveState = 0;
+      } else if (lower === '2' || lower.includes('障') || lower.includes('fault') || lower.includes('trip') || lower.includes('err') || lower === 'alarm') {
+        effectiveState = 2;
+      } else if (lower === '3' || lower.includes('试') || lower.includes('test') || lower.includes('offline')) {
+        effectiveState = 3;
+      } else {
+        const parsed = parseInt(lower, 10);
+        effectiveState = isNaN(parsed) ? 0 : parsed;
+      }
+    }
+  }
+
+  // Custom 0-state color (default: #00e676 green) and 1-state color (default: #ff2233 red)
+  const color0 = customProps.value.color0 || style.value.color0 || props.component.data?.staticData?.color0 || '#00e676';
+  const color1 = customProps.value.color1 || style.value.color1 || props.component.data?.staticData?.color1 || '#ff2233';
+  const color2 = customProps.value.color2 || style.value.color2 || '#ffaa00';
+  const color3 = customProps.value.color3 || style.value.color3 || '#64748b';
+
+  const text0 = customProps.value.text0 || props.component.data?.staticData?.text0 || '分闸 0';
+  const text1 = customProps.value.text1 || props.component.data?.staticData?.text1 || '合闸 1';
+  const text2 = customProps.value.text2 || '故障 2';
+
+  // 0: Green (分闸/停止/正常0状态), 1: Red (合闸/运行/带电1状态), 2: Yellow/Warning, 3/other: Gray
+  let color = color0; // Default 0: Green
+  let glow = `${color0}cc`;
+  let isBlinking = false;
+  let text = text0;
+
+  if (effectiveState === 1) {
+    color = color1; // 1: Red (合闸 / 运行)
+    glow = `${color1}cc`;
+    text = text1;
+  } else if (effectiveState === 0) {
+    color = color0; // 0: Green (分闸 / 停止)
+    glow = `${color0}cc`;
+    text = text0;
+  } else if (effectiveState === 2) {
+    color = color2; // 2: Yellow / Warning
+    glow = `${color2}cc`;
+    text = text2;
+  } else if (effectiveState === 3) {
+    color = color3; // 3: Offline / Gray
+    glow = 'rgba(100, 116, 139, 0.4)';
+    text = '离线 3';
   }
 
   const blinkSpeed = customProps.value.blink || customProps.value.blinkSpeed || style.value.indicatorBlinkSpeed || 'none';
   if (blinkSpeed === 'auto') {
-    isBlinking = numVal === 1 || numVal === 2;
+    isBlinking = effectiveState === 1 || effectiveState === 2;
   } else if (blinkSpeed === 'slow' || blinkSpeed === 'fast') {
     isBlinking = true;
   }
 
   return {
-    numVal,
+    numVal: effectiveState,
     color,
     glow,
     blinkSpeed,
-    isBlinking
+    isBlinking,
+    text,
+    color0,
+    color1
   };
 });
 
-// Indicator Style Type: 'bezel-circle' | 'flat-led' | 'square-lamp' | 'pill-tag'
+// Indicator Style Type
 const indicatorStyleType = computed(() => customProps.value.indicatorStyle || style.value.indicatorStyle || 'bezel-circle');
 </script>
 
 <template>
   <div class="w-full h-full flex items-center justify-center select-none overflow-hidden p-0.5">
-    <!-- 1. STYLE: Square Pilot Lamp (工业方型信号指示灯 - 纯图元无文字) -->
+    <!-- 1. STYLE: Square Pilot Lamp (工业方型信号指示灯) -->
     <div 
       v-if="indicatorStyleType === 'square-lamp'"
       class="w-full h-full flex items-center justify-center p-0.5"
@@ -96,7 +147,7 @@ const indicatorStyleType = computed(() => customProps.value.indicatorStyle || st
       </div>
     </div>
 
-    <!-- 2. STYLE: Flat Modern High-Brightness LED (现代扁平发光LED - 纯图元无文字) -->
+    <!-- 2. STYLE: Flat Modern High-Brightness LED (现代扁平发光LED) -->
     <div 
       v-else-if="indicatorStyleType === 'flat-led'"
       class="w-full h-full flex items-center justify-center relative p-0.5"
@@ -123,7 +174,7 @@ const indicatorStyleType = computed(() => customProps.value.indicatorStyle || st
       </div>
     </div>
 
-    <!-- 3. STYLE: Capsule / Pill Lamp (胶囊椭圆指示灯 - 纯图元无文字) -->
+    <!-- 3. STYLE: Capsule / Pill Lamp (胶囊椭圆指示灯) -->
     <div 
       v-else-if="indicatorStyleType === 'pill-tag'"
       class="w-full h-full flex items-center justify-center p-0.5"
@@ -150,7 +201,144 @@ const indicatorStyleType = computed(() => customProps.value.indicatorStyle || st
       </div>
     </div>
 
-    <!-- 4. STYLE: Classic Metallic Bezel Circle Lamp (默认经典金属高光外圈信号灯 - 纯图元无文字) -->
+    <!-- 4. STYLE: Ring Pulse / Radar Ring (科技脉冲光环状态点) -->
+    <div 
+      v-else-if="indicatorStyleType === 'ring-pulse'"
+      class="w-full h-full flex items-center justify-center min-w-0 min-h-0"
+    >
+      <svg viewBox="0 0 40 40" class="w-full h-full max-w-full max-h-full" preserveAspectRatio="xMidYMid meet">
+        <!-- Outer dynamic pulse ring -->
+        <circle cx="20" cy="20" r="18" fill="none" :stroke="indicatorState.color" stroke-width="1.2" stroke-dasharray="4,2" opacity="0.6" />
+        <circle cx="20" cy="20" r="13" fill="none" :stroke="indicatorState.color" stroke-width="1.8" opacity="0.85" />
+        <!-- Core light dot -->
+        <circle 
+          cx="20" cy="20" r="7" 
+          :fill="indicatorState.color" 
+          :style="{ filter: `drop-shadow(0 0 6px ${indicatorState.color})` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping origin-center': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+        <circle cx="18" cy="18" r="2" fill="#ffffff" opacity="0.8" />
+      </svg>
+    </div>
+
+    <!-- 5. STYLE: Diamond Interlock (菱形联锁工控状态灯) -->
+    <div 
+      v-else-if="indicatorStyleType === 'diamond-badge'"
+      class="w-full h-full flex items-center justify-center min-w-0 min-h-0"
+    >
+      <svg viewBox="0 0 40 40" class="w-full h-full max-w-full max-h-full" preserveAspectRatio="xMidYMid meet">
+        <polygon points="20,2 38,20 20,38 2,20" fill="#040a18" :stroke="indicatorState.color" stroke-width="2" />
+        <polygon 
+          points="20,7 33,20 20,33 7,20" 
+          :fill="indicatorState.color" 
+          :style="{ filter: `drop-shadow(0 0 8px ${indicatorState.color})` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping origin-center': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+        <polygon points="20,11 29,20 20,20 11,20" fill="#ffffff" opacity="0.4" />
+      </svg>
+    </div>
+
+    <!-- 6. STYLE: Hexagon Pilot (蜂巢六角工控指示灯) -->
+    <div 
+      v-else-if="indicatorStyleType === 'hexagon-pilot'"
+      class="w-full h-full flex items-center justify-center min-w-0 min-h-0"
+    >
+      <svg viewBox="0 0 40 40" class="w-full h-full max-w-full max-h-full" preserveAspectRatio="xMidYMid meet">
+        <polygon points="20,2 36,11 36,29 20,38 4,29 4,11" fill="#030712" :stroke="indicatorState.color" stroke-width="2" />
+        <polygon 
+          points="20,7 31,14 31,26 20,33 9,26 9,14" 
+          :fill="indicatorState.color" 
+          :style="{ filter: `drop-shadow(0 0 8px ${indicatorState.color})` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping origin-center': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+        <polygon points="20,7 31,14 20,20 9,14" fill="#ffffff" opacity="0.35" />
+      </svg>
+    </div>
+
+    <!-- 7. STYLE: Crosshair Target (配电拓扑准星状态定位点) -->
+    <div 
+      v-else-if="indicatorStyleType === 'crosshair-target'"
+      class="w-full h-full flex items-center justify-center min-w-0 min-h-0"
+    >
+      <svg viewBox="0 0 40 40" class="w-full h-full max-w-full max-h-full" preserveAspectRatio="xMidYMid meet">
+        <!-- Reticle Cross Lines -->
+        <line x1="20" y1="2" x2="20" y2="12" :stroke="indicatorState.color" stroke-width="1.5" />
+        <line x1="20" y1="28" x2="20" y2="38" :stroke="indicatorState.color" stroke-width="1.5" />
+        <line x1="2" y1="20" x2="12" y2="20" :stroke="indicatorState.color" stroke-width="1.5" />
+        <line x1="28" y1="20" x2="38" y2="20" :stroke="indicatorState.color" stroke-width="1.5" />
+        <circle cx="20" cy="20" r="12" fill="none" :stroke="indicatorState.color" stroke-width="1" stroke-dasharray="2,2" opacity="0.6" />
+        <!-- Target Core Dot -->
+        <circle 
+          cx="20" cy="20" r="5.5" 
+          :fill="indicatorState.color" 
+          :style="{ filter: `drop-shadow(0 0 7px ${indicatorState.color})` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping origin-center': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+      </svg>
+    </div>
+
+    <!-- 8. STYLE: Neon Dot (极简微型高发光点 - 适合密布在主接线图) -->
+    <div 
+      v-else-if="indicatorStyleType === 'neon-dot'"
+      class="w-full h-full flex items-center justify-center min-w-0 min-h-0"
+    >
+      <svg viewBox="0 0 24 24" class="w-full h-full max-w-full max-h-full" preserveAspectRatio="xMidYMid meet">
+        <circle 
+          cx="12" cy="12" r="7" 
+          :fill="indicatorState.color" 
+          :style="{ filter: `drop-shadow(0 0 6px ${indicatorState.color}) drop-shadow(0 0 12px ${indicatorState.color})` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping origin-center': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+        <circle cx="10.5" cy="10.5" r="2.2" fill="#ffffff" opacity="0.9" />
+      </svg>
+    </div>
+
+    <!-- 9. STYLE: Status Plate with Code (工牌铭牌状态点) -->
+    <div 
+      v-else-if="indicatorStyleType === 'status-plate'"
+      class="w-full h-full flex items-center justify-center p-0.5"
+    >
+      <div 
+        class="w-full h-full rounded border flex items-center justify-between px-2 py-0.5 shadow-md"
+        :style="{
+          borderColor: indicatorState.color,
+          backgroundColor: '#020617',
+          boxShadow: `0 0 10px ${indicatorState.glow}`
+        }"
+      >
+        <div 
+          class="w-2.5 h-2.5 rounded-full flex-shrink-0"
+          :style="{ backgroundColor: indicatorState.color, boxShadow: `0 0 6px ${indicatorState.color}` }"
+          :class="{
+            'animate-pulse': indicatorState.blinkSpeed === 'slow',
+            'animate-ping': indicatorState.blinkSpeed === 'fast'
+          }"
+        />
+        <span 
+          class="font-mono font-bold text-xs"
+          :style="{ color: indicatorState.color }"
+        >
+          {{ indicatorState.text === '1' ? '合闸 1' : (indicatorState.text === '0' ? '分闸 0' : (indicatorState.text === '2' ? '故障 2' : '离线')) }}
+        </span>
+      </div>
+    </div>
+
+    <!-- 10. STYLE: Classic Metallic Bezel Circle Lamp (默认经典金属高光外圈信号灯) -->
     <div 
       v-else
       class="w-full h-full flex items-center justify-center min-w-0 min-h-0"

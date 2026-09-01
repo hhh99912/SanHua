@@ -84,6 +84,7 @@ const {
   updatePan,
   endPan,
   centerCanvasInViewport,
+  fitCanvasToViewport,
   getContentBoundingBox,
   fitAndCenterContentInViewport,
   snapAllToGrid,
@@ -284,30 +285,45 @@ const onWheelWorkspace = (e: WheelEvent) => {
   }
 };
 
+// 一键居中 / 铺满画布：将画布从 (0,0) 开始以最佳比例铺满整个编辑界面视口，包含所有组件
+const handleFitAndCenter = () => {
+  const container = infinitePlaneRef.value || containerRef.value;
+  if (!container) return;
+  fitCanvasToViewport(
+    props.screen.width || 1920,
+    props.screen.height || 1080,
+    container,
+    props.components,
+    (newZoom) => {
+      emit('update:zoom', newZoom);
+    }
+  );
+};
+
 // 视口复位至标尺原点坐标 (0, 0)
 const handleResetViewport = () => {
   panOffset.value = { x: 24, y: 24 };
 };
 
-// 一键定位：平移全图图元左上角至 (0, 0) 原点坐标，并复位视口
+// 一键定位：平移全图图元左上角至 (0, 0) 原点坐标，并复位视口及铺满自适应
 const handleAlignToOrigin = () => {
-  panOffset.value = { x: 24, y: 24 };
+  handleFitAndCenter();
   if (props.components && props.components.length > 0) {
     const updated = alignContentToOrigin(props.components, 0, 0);
     emit('update:components', updated);
   }
 };
 
-// Whenever screen id changes or on mounted, auto-position viewport to (0px, 0px)
-watch(() => props.screen.id, () => {
+// Whenever screen id or dimensions change or on mounted, auto-fit and center to (0,0)
+watch(() => [props.screen.id, props.screen.width, props.screen.height], () => {
   nextTick(() => {
-    handleResetViewport();
+    handleFitAndCenter();
   });
 }, { immediate: true });
 
 onMounted(() => {
   nextTick(() => {
-    handleResetViewport();
+    handleFitAndCenter();
   });
 });
 
@@ -1115,6 +1131,7 @@ onMounted(() => {
   window.addEventListener('mousemove', handleMouseMoveWorkspace);
   window.addEventListener('mouseup', handleMouseUpWorkspace);
   window.addEventListener('click', closeContextMenu);
+  window.addEventListener('resize', handleFitAndCenter);
 });
 
 onBeforeUnmount(() => {
@@ -1124,14 +1141,17 @@ onBeforeUnmount(() => {
   window.removeEventListener('mousemove', handleMouseMoveWorkspace);
   window.removeEventListener('mouseup', handleMouseUpWorkspace);
   window.removeEventListener('click', closeContextMenu);
+  window.removeEventListener('resize', handleFitAndCenter);
 });
 
 defineExpose({
   snapAllToGrid: handleSnapAllToGrid,
-  centerAll: handleAlignToOrigin,
-  centerView: handleResetViewport,
+  centerAll: handleFitAndCenter,
+  centerView: handleFitAndCenter,
+  fitAndCenter: handleFitAndCenter,
+  fitToScreen: handleFitAndCenter,
   alignToOrigin: handleAlignToOrigin,
-  resetOrigin: handleAlignToOrigin
+  resetOrigin: handleResetViewport
 });
 </script>
 
