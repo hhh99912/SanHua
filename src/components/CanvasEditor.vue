@@ -1374,7 +1374,7 @@ defineExpose({
 
           <!-- Selection Bounding Box & Handles (Single vs Multi-Selection) -->
           <template v-if="drawTool === 'select' && selectedIds.includes(comp.id)">
-            <!-- 1. Single Selection Active State: 8 Resizers + Rotation Grip + Border + Tag -->
+            <!-- 1. Single Selection Active State: 4 Edge Hit Bars + 8 Resizers + Rotation Grip + Border + Tag -->
             <div 
               v-if="selectedIds.length === 1"
               class="absolute -inset-0.5 border-2 border-cyan-400 pointer-events-none rounded-xs z-40 shadow-[0_0_14px_rgba(0,242,255,0.75)]"
@@ -1388,26 +1388,115 @@ defineExpose({
 
               <!-- Top Rotation Handle (自由旋转控件) -->
               <template v-if="!comp.locked">
-                <div class="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+                <div class="absolute -top-8 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto z-50">
                   <div 
                     @mousedown="handleStartRotate"
-                    class="w-5 h-5 bg-cyan-400 text-slate-950 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-lg hover:scale-110 transition-transform"
+                    class="w-6 h-6 bg-cyan-400 text-slate-950 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-lg hover:scale-115 transition-transform"
                     title="按住旋转 (按Shift吸附15°)"
                   >
-                    <RotateCw class="w-3 h-3 stroke-[2.5]" />
+                    <RotateCw class="w-3.5 h-3.5 stroke-[2.5]" />
                   </div>
                   <div class="w-[1.5px] h-2 bg-cyan-400" />
                 </div>
 
-                <!-- 8 Resize Handles -->
-                <div @mousedown="handleStartResize($event, 'nw')" class="pointer-events-auto absolute -top-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'n')" class="pointer-events-auto absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'ne')" class="pointer-events-auto absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'e')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'se')" class="pointer-events-auto absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 's')" class="pointer-events-auto absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'sw')" class="pointer-events-auto absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
-                <div @mousedown="handleStartResize($event, 'w')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
+                <!-- 4 Interactive Edge Resize Bars (四边框超大易触发拉伸区域) -->
+                <!-- Top Edge -->
+                <div 
+                  @mousedown="handleStartResize($event, 'n')"
+                  class="pointer-events-auto absolute -top-2 left-2 right-2 h-4 cursor-ns-resize z-40 group/edge hover:bg-cyan-400/20 rounded-xs transition-colors"
+                  title="拖动调整高度 (上边框)"
+                />
+                <!-- Bottom Edge -->
+                <div 
+                  @mousedown="handleStartResize($event, 's')"
+                  class="pointer-events-auto absolute -bottom-2 left-2 right-2 h-4 cursor-ns-resize z-40 group/edge hover:bg-cyan-400/20 rounded-xs transition-colors"
+                  title="拖动调整高度 (下边框)"
+                />
+                <!-- Left Edge -->
+                <div 
+                  @mousedown="handleStartResize($event, 'w')"
+                  class="pointer-events-auto absolute top-2 bottom-2 -left-2 w-4 cursor-ew-resize z-40 group/edge hover:bg-cyan-400/20 rounded-xs transition-colors"
+                  title="拖动调整宽度 (左边框)"
+                />
+                <!-- Right Edge -->
+                <div 
+                  @mousedown="handleStartResize($event, 'e')"
+                  class="pointer-events-auto absolute top-2 bottom-2 -right-2 w-4 cursor-ew-resize z-40 group/edge hover:bg-cyan-400/20 rounded-xs transition-colors"
+                  title="拖动调整宽度 (右边框)"
+                />
+
+                <!-- 8 Resize Corner & Mid-point Handles (扩展20px高灵敏度触控热区) -->
+                <!-- NW (Top-Left) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'nw')"
+                  class="group pointer-events-auto absolute -top-2.5 -left-2.5 w-5 h-5 flex items-center justify-center cursor-nwse-resize z-50"
+                  title="缩放调整 (左上角)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- N (Top-Center) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'n')"
+                  class="group pointer-events-auto absolute -top-2.5 left-1/2 -translate-x-1/2 w-5 h-5 flex items-center justify-center cursor-ns-resize z-50"
+                  title="调整高度 (上中点)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- NE (Top-Right) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'ne')"
+                  class="group pointer-events-auto absolute -top-2.5 -right-2.5 w-5 h-5 flex items-center justify-center cursor-nesw-resize z-50"
+                  title="缩放调整 (右上角)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- E (Right-Center) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'e')"
+                  class="group pointer-events-auto absolute top-1/2 -translate-y-1/2 -right-2.5 w-5 h-5 flex items-center justify-center cursor-ew-resize z-50"
+                  title="调整宽度 (右中点)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- SE (Bottom-Right) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'se')"
+                  class="group pointer-events-auto absolute -bottom-2.5 -right-2.5 w-5 h-5 flex items-center justify-center cursor-nwse-resize z-50"
+                  title="缩放调整 (右下角)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- S (Bottom-Center) -->
+                <div 
+                  @mousedown="handleStartResize($event, 's')"
+                  class="group pointer-events-auto absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-5 h-5 flex items-center justify-center cursor-ns-resize z-50"
+                  title="调整高度 (下中点)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- SW (Bottom-Left) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'sw')"
+                  class="group pointer-events-auto absolute -bottom-2.5 -left-2.5 w-5 h-5 flex items-center justify-center cursor-nesw-resize z-50"
+                  title="缩放调整 (左下角)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
+
+                <!-- W (Left-Center) -->
+                <div 
+                  @mousedown="handleStartResize($event, 'w')"
+                  class="group pointer-events-auto absolute top-1/2 -translate-y-1/2 -left-2.5 w-5 h-5 flex items-center justify-center cursor-ew-resize z-50"
+                  title="调整宽度 (左中点)"
+                >
+                  <div class="w-2.5 h-2.5 bg-cyan-400 border-[1.5px] border-slate-950 rounded-[2px] shadow-[0_0_6px_rgba(0,242,255,0.8)] group-hover:scale-130 transition-transform" />
+                </div>
               </template>
             </div>
 
@@ -1434,7 +1523,7 @@ defineExpose({
           </template>
         </div>
 
-        <!-- Overall Multi-Selection Group Bounding Box & Fast Action Toolbar -->
+        <!-- Overall Multi-Selection Group Bounding Box (Visual Only, No Floating Menu) -->
         <div
           v-if="drawTool === 'select' && selectedGroupBBox && selectedIds.length > 1"
           class="absolute border-2 border-dashed border-cyan-300/80 bg-cyan-400/[0.04] pointer-events-none z-45 shadow-[0_0_25px_rgba(0,242,255,0.25)] rounded-xs transition-all duration-75"
@@ -1450,73 +1539,6 @@ defineExpose({
           <div class="absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
           <div class="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
           <div class="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
-
-          <!-- Floating Group Multi-Selection Indicator & Fast Action Toolbar -->
-          <div 
-            class="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#080e1c]/95 border border-cyan-400/90 rounded-lg px-2.5 py-1 text-xs font-mono shadow-[0_4px_20px_rgba(0,0,0,0.8)] pointer-events-auto text-slate-200 whitespace-nowrap z-50 backdrop-blur-md"
-            @mousedown.stop
-          >
-            <!-- Badge with icon and count -->
-            <div class="flex items-center gap-1.5 text-cyan-300 font-bold border-r border-slate-700/80 pr-2">
-              <CheckSquare class="w-3.5 h-3.5 text-cyan-400" />
-              <span>已多选 {{ selectedIds.length }} 个元件</span>
-              <span class="text-[10px] text-slate-400 font-normal">({{ selectedGroupBBox.width }}×{{ selectedGroupBBox.height }})</span>
-            </div>
-
-            <!-- Group (Ctrl+G) -->
-            <button
-              @click="emit('group', selectedComponents)"
-              class="px-2 py-0.5 bg-cyan-950/80 hover:bg-cyan-500/30 text-cyan-300 hover:text-cyan-100 border border-cyan-500/40 rounded text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1"
-              title="组合为图元群组 (Ctrl+G)"
-            >
-              <span>组合</span>
-            </button>
-
-            <!-- Align Left -->
-            <button
-              @click="emit('align', 'left')"
-              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
-              title="左对齐"
-            >
-              <AlignLeft class="w-3.5 h-3.5" />
-            </button>
-
-            <!-- Align Center -->
-            <button
-              @click="emit('align', 'center')"
-              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
-              title="水平居中对齐"
-            >
-              <AlignCenter class="w-3.5 h-3.5" />
-            </button>
-
-            <!-- Distribute H -->
-            <button
-              @click="emit('align', 'distribute-h')"
-              class="px-1.5 py-0.5 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded text-[10px] font-medium cursor-pointer transition-colors"
-              title="水平均布"
-            >
-              均布
-            </button>
-
-            <!-- Duplicate -->
-            <button
-              @click="emit('duplicate', selectedComponents)"
-              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
-              title="创建副本 (Ctrl+D)"
-            >
-              <Copy class="w-3.5 h-3.5" />
-            </button>
-
-            <!-- Delete -->
-            <button
-              @click="emit('delete', selectedIds)"
-              class="p-1 hover:bg-red-950/80 text-red-400 hover:text-red-200 rounded cursor-pointer transition-colors"
-              title="删除所选 (Delete)"
-            >
-              <Trash2 class="w-3.5 h-3.5" />
-            </button>
-          </div>
         </div>
 
         <!-- Marquee Drag Selection Box (拉框多选框: 需全包围) -->
