@@ -180,6 +180,12 @@ const toggleLock = (comp: ScreenComponent, e: Event) => {
 
           <!-- Editable Name / Static Name -->
           <div class="flex-1 min-w-0 flex items-center gap-1">
+            <span 
+              v-if="activeSelectedIds.includes(comp.id) && activeSelectedIds.length > 1" 
+              class="px-1 py-0.2 bg-cyan-400 text-slate-950 rounded-[2px] font-bold text-[9px] leading-tight shrink-0"
+            >
+              #{{ activeSelectedIds.indexOf(comp.id) + 1 }}
+            </span>
             <input
               v-if="editingId === comp.id"
               v-model="editingName"

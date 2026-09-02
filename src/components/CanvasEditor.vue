@@ -253,9 +253,55 @@ const getCanvasCoords = (clientX: number, clientY: number, forceRaw = false) => 
   return clientToCanvas(clientX, clientY, targetElement, forceRaw, props.zoom);
 };
 
+// Calculate component exact Axis-Aligned Bounding Box (AABB) taking rotation into account
+const getComponentAABB = (c: ScreenComponent) => {
+  const x = c.x ?? 0;
+  const y = c.y ?? 0;
+  const w = Math.max(1, c.width ?? 0);
+  const h = Math.max(1, c.height ?? 0);
+
+  if (!c.rotation || c.rotation % 360 === 0) {
+    return {
+      minX: x,
+      minY: y,
+      maxX: x + w,
+      maxY: y + h
+    };
+  }
+
+  const rad = (c.rotation * Math.PI) / 180;
+  const cos = Math.abs(Math.cos(rad));
+  const sin = Math.abs(Math.sin(rad));
+  const rotatedHalfW = (w / 2) * cos + (h / 2) * sin;
+  const rotatedHalfH = (w / 2) * sin + (h / 2) * cos;
+  const centerX = x + w / 2;
+  const centerY = y + h / 2;
+
+  return {
+    minX: centerX - rotatedHalfW,
+    minY: centerY - rotatedHalfH,
+    maxX: centerX + rotatedHalfW,
+    maxY: centerY + rotatedHalfH
+  };
+};
+
 // Selected Components Array
 const selectedComponents = computed(() => {
   return props.components.filter(c => props.selectedIds.includes(c.id));
+});
+
+// Selection Order Index
+const getSelectionIndex = (id: string) => {
+  const idx = props.selectedIds.indexOf(id);
+  return idx >= 0 ? idx + 1 : 0;
+};
+
+// Combined bounding box of all currently selected components in multi-select mode
+const selectedGroupBBox = computed(() => {
+  if (props.selectedIds.length <= 1) return null;
+  const selectedList = props.components.filter(c => props.selectedIds.includes(c.id) && c.visible !== false);
+  if (selectedList.length <= 1) return null;
+  return calculateComponentsBoundingBox(selectedList);
 });
 
 // Primary selected component (if 1 selected)
@@ -425,7 +471,7 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
     return;
   }
 
-  // 4. Marquee Selection Drag (拉框多选)
+  // 4. Marquee Selection Drag (拉框多选：完全包围整个组件才判定为选中)
   if (isSelectingMarquee.value) {
     const minX = Math.min(marqueeBox.value.startX, coords.rawX);
     const minY = Math.min(marqueeBox.value.startY, coords.rawY);
@@ -442,13 +488,20 @@ const handleMouseMoveWorkspace = (e: MouseEvent) => {
     marqueeBox.value.height = h;
 
     if (hasMovedMarquee.value) {
+      const boxLeft = minX;
+      const boxTop = minY;
+      const boxRight = minX + w;
+      const boxBottom = minY + h;
+
       const selected = props.components.filter(c => {
         if (c.visible === false) return false;
+        const aabb = getComponentAABB(c);
+        // 严格全包围判定：只有当拉框区域完全容纳该图元的全部包围盒边界时才判定为选中，触碰不算选中
         return (
-          c.x < minX + w &&
-          c.x + c.width > minX &&
-          c.y < minY + h &&
-          c.y + c.height > minY
+          aabb.minX >= boxLeft &&
+          aabb.maxX <= boxRight &&
+          aabb.minY >= boxTop &&
+          aabb.maxY <= boxBottom
         );
       });
       emit('select', selected.map(c => c.id));
@@ -1319,49 +1372,173 @@ defineExpose({
             <Lock class="w-3 h-3" />
           </div>
 
-          <!-- Selection Bounding Box & 8 Resize Handles & Rotation Handle -->
-          <div 
-            v-if="drawTool === 'select' && selectedIds.includes(comp.id)"
-            class="absolute -inset-0.5 border-2 border-cyan-400 pointer-events-none rounded-xs z-40 shadow-[0_0_12px_rgba(0,242,255,0.6)]"
-          >
-            <!-- Single Selection Only Controls: Rotation Handle & 8 Resizers -->
-            <template v-if="selectedIds.length === 1 && !comp.locked">
-              <!-- Top Rotation Handle (自由旋转控件) -->
-              <div class="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
-                <div 
-                  @mousedown="handleStartRotate"
-                  class="w-5 h-5 bg-cyan-400 text-slate-950 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-lg hover:scale-110 transition-transform"
-                  title="按住旋转 (按Shift吸附15°)"
-                >
-                  <RotateCw class="w-3 h-3 stroke-[2.5]" />
-                </div>
-                <div class="w-[1.5px] h-2 bg-cyan-400" />
+          <!-- Selection Bounding Box & Handles (Single vs Multi-Selection) -->
+          <template v-if="drawTool === 'select' && selectedIds.includes(comp.id)">
+            <!-- 1. Single Selection Active State: 8 Resizers + Rotation Grip + Border + Tag -->
+            <div 
+              v-if="selectedIds.length === 1"
+              class="absolute -inset-0.5 border-2 border-cyan-400 pointer-events-none rounded-xs z-40 shadow-[0_0_14px_rgba(0,242,255,0.75)]"
+            >
+              <!-- Single Selection Tag Badge -->
+              <div class="absolute -top-6 left-0 flex items-center gap-1.5 bg-[#080e1c]/95 border border-cyan-400/90 text-cyan-200 px-2 py-0.5 rounded text-[10px] font-mono font-bold shadow-lg pointer-events-none whitespace-nowrap z-50">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span class="truncate max-w-[120px]">{{ comp.name }}</span>
+                <Lock v-if="comp.locked" class="w-2.5 h-2.5 text-amber-400 ml-0.5" />
               </div>
 
-              <!-- 8 Resize Handles -->
-              <div @mousedown="handleStartResize($event, 'nw')" class="pointer-events-auto absolute -top-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'n')" class="pointer-events-auto absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'ne')" class="pointer-events-auto absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'e')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'se')" class="pointer-events-auto absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 's')" class="pointer-events-auto absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'sw')" class="pointer-events-auto absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
-              <div @mousedown="handleStartResize($event, 'w')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
-            </template>
+              <!-- Top Rotation Handle (自由旋转控件) -->
+              <template v-if="!comp.locked">
+                <div class="absolute -top-7 left-1/2 -translate-x-1/2 flex flex-col items-center pointer-events-auto">
+                  <div 
+                    @mousedown="handleStartRotate"
+                    class="w-5 h-5 bg-cyan-400 text-slate-950 rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing shadow-lg hover:scale-110 transition-transform"
+                    title="按住旋转 (按Shift吸附15°)"
+                  >
+                    <RotateCw class="w-3 h-3 stroke-[2.5]" />
+                  </div>
+                  <div class="w-[1.5px] h-2 bg-cyan-400" />
+                </div>
+
+                <!-- 8 Resize Handles -->
+                <div @mousedown="handleStartResize($event, 'nw')" class="pointer-events-auto absolute -top-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'n')" class="pointer-events-auto absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'ne')" class="pointer-events-auto absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'e')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'se')" class="pointer-events-auto absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nwse-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 's')" class="pointer-events-auto absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ns-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'sw')" class="pointer-events-auto absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-nesw-resize rounded-[2px]" />
+                <div @mousedown="handleStartResize($event, 'w')" class="pointer-events-auto absolute top-1/2 -translate-y-1/2 -left-1.5 w-3 h-3 bg-cyan-400 border-2 border-slate-950 cursor-ew-resize rounded-[2px]" />
+              </template>
+            </div>
+
+            <!-- 2. Multi-Selection Active State: High-contrast Cyan Outline + Area Tint + 4 Corner Accents + Numbered Tag -->
+            <div 
+              v-else
+              class="absolute -inset-0.5 border-2 border-cyan-400 bg-cyan-400/15 pointer-events-none rounded-xs z-40 shadow-[0_0_16px_rgba(0,242,255,0.7)]"
+            >
+              <!-- 4 White Corner Brackets for Maximum Visibility -->
+              <div class="absolute -top-1 -left-1 w-2.5 h-2.5 border-t-2 border-l-2 border-white shadow-xs" />
+              <div class="absolute -top-1 -right-1 w-2.5 h-2.5 border-t-2 border-r-2 border-white shadow-xs" />
+              <div class="absolute -bottom-1 -left-1 w-2.5 h-2.5 border-b-2 border-l-2 border-white shadow-xs" />
+              <div class="absolute -bottom-1 -right-1 w-2.5 h-2.5 border-b-2 border-r-2 border-white shadow-xs" />
+
+              <!-- High-visibility Multi-Select Index & Name Tag -->
+              <div class="absolute -top-6 left-0 flex items-center gap-1 bg-[#050b18]/95 border border-cyan-300 text-cyan-200 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold shadow-[0_2px_8px_rgba(0,0,0,0.8)] pointer-events-none whitespace-nowrap z-50">
+                <span class="px-1 py-0.2 bg-cyan-400 text-slate-950 rounded-[2px] font-bold text-[9px] leading-tight">
+                  #{{ getSelectionIndex(comp.id) }}
+                </span>
+                <span class="truncate max-w-[100px] text-white">{{ comp.name }}</span>
+                <Lock v-if="comp.locked" class="w-2.5 h-2.5 text-amber-400 ml-0.5" />
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Overall Multi-Selection Group Bounding Box & Fast Action Toolbar -->
+        <div
+          v-if="drawTool === 'select' && selectedGroupBBox && selectedIds.length > 1"
+          class="absolute border-2 border-dashed border-cyan-300/80 bg-cyan-400/[0.04] pointer-events-none z-45 shadow-[0_0_25px_rgba(0,242,255,0.25)] rounded-xs transition-all duration-75"
+          :style="{
+            left: `${selectedGroupBBox.minX - 4}px`,
+            top: `${selectedGroupBBox.minY - 4}px`,
+            width: `${selectedGroupBBox.width + 8}px`,
+            height: `${selectedGroupBBox.height + 8}px`
+          }"
+        >
+          <!-- 4 Corner Grip Markers for Group Frame -->
+          <div class="absolute -top-1.5 -left-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
+          <div class="absolute -top-1.5 -right-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
+          <div class="absolute -bottom-1.5 -left-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
+          <div class="absolute -bottom-1.5 -right-1.5 w-3 h-3 bg-cyan-300 border-2 border-slate-950 rounded-xs shadow-xs" />
+
+          <!-- Floating Group Multi-Selection Indicator & Fast Action Toolbar -->
+          <div 
+            class="absolute -top-10 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#080e1c]/95 border border-cyan-400/90 rounded-lg px-2.5 py-1 text-xs font-mono shadow-[0_4px_20px_rgba(0,0,0,0.8)] pointer-events-auto text-slate-200 whitespace-nowrap z-50 backdrop-blur-md"
+            @mousedown.stop
+          >
+            <!-- Badge with icon and count -->
+            <div class="flex items-center gap-1.5 text-cyan-300 font-bold border-r border-slate-700/80 pr-2">
+              <CheckSquare class="w-3.5 h-3.5 text-cyan-400" />
+              <span>已多选 {{ selectedIds.length }} 个元件</span>
+              <span class="text-[10px] text-slate-400 font-normal">({{ selectedGroupBBox.width }}×{{ selectedGroupBBox.height }})</span>
+            </div>
+
+            <!-- Group (Ctrl+G) -->
+            <button
+              @click="emit('group', selectedComponents)"
+              class="px-2 py-0.5 bg-cyan-950/80 hover:bg-cyan-500/30 text-cyan-300 hover:text-cyan-100 border border-cyan-500/40 rounded text-[11px] font-bold cursor-pointer transition-colors flex items-center gap-1"
+              title="组合为图元群组 (Ctrl+G)"
+            >
+              <span>组合</span>
+            </button>
+
+            <!-- Align Left -->
+            <button
+              @click="emit('align', 'left')"
+              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
+              title="左对齐"
+            >
+              <AlignLeft class="w-3.5 h-3.5" />
+            </button>
+
+            <!-- Align Center -->
+            <button
+              @click="emit('align', 'center')"
+              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
+              title="水平居中对齐"
+            >
+              <AlignCenter class="w-3.5 h-3.5" />
+            </button>
+
+            <!-- Distribute H -->
+            <button
+              @click="emit('align', 'distribute-h')"
+              class="px-1.5 py-0.5 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded text-[10px] font-medium cursor-pointer transition-colors"
+              title="水平均布"
+            >
+              均布
+            </button>
+
+            <!-- Duplicate -->
+            <button
+              @click="emit('duplicate', selectedComponents)"
+              class="p-1 hover:bg-slate-800 text-slate-300 hover:text-cyan-300 rounded cursor-pointer transition-colors"
+              title="创建副本 (Ctrl+D)"
+            >
+              <Copy class="w-3.5 h-3.5" />
+            </button>
+
+            <!-- Delete -->
+            <button
+              @click="emit('delete', selectedIds)"
+              class="p-1 hover:bg-red-950/80 text-red-400 hover:text-red-200 rounded cursor-pointer transition-colors"
+              title="删除所选 (Delete)"
+            >
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
 
-        <!-- Marquee Drag Selection Box (拉框多选框) -->
+        <!-- Marquee Drag Selection Box (拉框多选框: 需全包围) -->
         <div
           v-if="isSelectingMarquee"
-          class="absolute border border-cyan-400 bg-cyan-500/15 pointer-events-none z-50 border-dashed"
+          class="absolute border-2 border-cyan-400 bg-cyan-500/20 pointer-events-none z-50 border-dashed shadow-[0_0_15px_rgba(0,242,255,0.35)]"
           :style="{
             left: `${marqueeBox.x}px`,
             top: `${marqueeBox.y}px`,
             width: `${marqueeBox.width}px`,
             height: `${marqueeBox.height}px`
           }"
-        />
+        >
+          <!-- Live Marquee Tag Tooltip (实时提示已包围选中数量) -->
+          <div
+            v-if="marqueeBox.width > 20 && marqueeBox.height > 20"
+            class="absolute -top-6 left-0 bg-[#060c18]/90 border border-cyan-400/80 text-cyan-300 px-1.5 py-0.5 rounded text-[10px] font-mono shadow-md whitespace-nowrap flex items-center gap-1"
+          >
+            <span>全包围选中: </span>
+            <span class="font-bold text-white">{{ selectedIds.length }} 个元件</span>
+          </div>
+        </div>
 
         <!-- Interactive Polyline Drawing Live SVG Overlay (Rendered in Canvas Coordinate Space) -->
         <svg 
