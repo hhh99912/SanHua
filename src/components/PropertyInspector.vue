@@ -976,6 +976,24 @@ const updateComponentCustomProps = (customPropsUpdates: Record<string, any>) => 
   });
 };
 
+const updateComponentStyleAndCustomProps = (
+  styleUpdates: Partial<ScreenComponent['style']>, 
+  customPropsUpdates?: Record<string, any>
+) => {
+  if (!props.component) return;
+  emit('update:component', {
+    ...props.component,
+    style: {
+      ...props.component.style,
+      ...styleUpdates
+    },
+    customProps: {
+      ...(props.component.customProps || {}),
+      ...(customPropsUpdates || {})
+    }
+  });
+};
+
 const handleTextTitleChange = (newVal: string) => {
   if (!props.component) return;
   if (props.component.type === 'ctrl-button') {
@@ -1348,6 +1366,254 @@ const toggleBatchLock = () => {
 
         <!-- TAB 2: STYLE & PALETTE -->
         <div v-if="activeTab === 'style'" class="space-y-4">
+          <!-- 0. SPECIAL: Float Metric & Numeric Display Controls (极简等宽遥测数值专用配置 - 置顶展示) -->
+          <div v-if="component.type === 'metric-float' || component.type === 'metric-flipper'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
+            <div class="flex items-center justify-between text-xs font-bold text-cyan-300">
+              <div class="flex items-center gap-1.5">
+                <Hash class="w-4 h-4 text-cyan-400" />
+                <span>极简等宽遥测数值参数配置</span>
+              </div>
+              <span class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[10px] font-mono">
+                零边距等宽数码
+              </span>
+            </div>
+
+            <!-- Decimals & Fixed Font Size -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">
+                  小数位数 (直接截断不进位)
+                </label>
+                <select
+                  :value="component.style.decimals ?? component.customProps?.decimals ?? 2"
+                  @change="updateComponentStyleAndCustomProps({ decimals: Number(($event.target as HTMLSelectElement).value) }, { decimals: Number(($event.target as HTMLSelectElement).value) })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option :value="0">0 位 (纯整数截断如: 0.98 -> 0)</option>
+                  <option :value="1">截断 1 位 (如: 0.98 -> 0.9)</option>
+                  <option :value="2">截断 2 位 (如: 0.98 -> 0.98)</option>
+                  <option :value="3">截断 3 位 (如: 0.9814 -> 0.981)</option>
+                  <option :value="4">截断 4 位 (如: 0.98142 -> 0.9814)</option>
+                  <option :value="5">截断 5 位 (最多 5 位)</option>
+                  <option :value="6">截断 6 位 (最多 6 位)</option>
+                </select>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">
+                  固定数字字号 ({{ component.style.fontSize || 22 }}px)
+                </label>
+                <div class="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="10"
+                    max="120"
+                    step="1"
+                    :value="component.style.fontSize || 22"
+                    @input="updateComponentStyleAndCustomProps({ fontSize: Number(($event.target as HTMLInputElement).value) })"
+                    class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-cyan-300 font-mono text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Trailing Zeros Option -->
+            <div class="p-2 rounded bg-[#081026] border border-slate-800 flex items-center justify-between">
+              <div>
+                <div class="text-xs font-semibold text-slate-200">自动去除末尾无效 0</div>
+                <div class="text-[11px] text-slate-400">如 120.50 显示为 120.5，120.00 显示为 120</div>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="component.style.trimZeros ?? component.customProps?.trimZeros ?? true"
+                  @change="updateComponentStyleAndCustomProps({ trimZeros: ($event.target as HTMLInputElement).checked }, { trimZeros: ($event.target as HTMLInputElement).checked })"
+                  class="sr-only peer"
+                />
+                <div class="w-9 h-5 bg-slate-800 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-cyan-500"></div>
+              </label>
+            </div>
+
+            <!-- Text Align & Font Weight -->
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">对齐方式</label>
+                <div class="grid grid-cols-3 gap-1">
+                  <button
+                    type="button"
+                    @click="updateComponentStyleAndCustomProps({ textAlign: 'left' })"
+                    class="py-1 px-1.5 rounded text-[11px] font-medium border text-center cursor-pointer transition-all"
+                    :class="(component.style.textAlign || 'center') === 'left' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                  >
+                    居左
+                  </button>
+                  <button
+                    type="button"
+                    @click="updateComponentStyleAndCustomProps({ textAlign: 'center' })"
+                    class="py-1 px-1.5 rounded text-[11px] font-medium border text-center cursor-pointer transition-all"
+                    :class="(component.style.textAlign || 'center') === 'center' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                  >
+                    居中
+                  </button>
+                  <button
+                    type="button"
+                    @click="updateComponentStyleAndCustomProps({ textAlign: 'right' })"
+                    class="py-1 px-1.5 rounded text-[11px] font-medium border text-center cursor-pointer transition-all"
+                    :class="(component.style.textAlign || 'center') === 'right' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
+                  >
+                    居右
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">字重 (Weight)</label>
+                <select
+                  :value="component.style.fontWeight || 'bold'"
+                  @change="updateComponentStyleAndCustomProps({ fontWeight: ($event.target as HTMLSelectElement).value as any })"
+                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+                >
+                  <option value="normal">常规 (400)</option>
+                  <option value="600">半粗 (600)</option>
+                  <option value="bold">粗体 (700)</option>
+                  <option value="900">极粗 (900)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Colors: Text Color & Background Color with Prominent Large Swatches -->
+            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
+              <!-- Text Color -->
+              <div>
+                <label class="text-xs font-semibold text-slate-200 block mb-1">数值文字颜色</label>
+                <div class="flex items-center gap-2">
+                  <label 
+                    class="relative flex items-center justify-center w-8 h-8 rounded-md border-2 border-slate-600 hover:border-cyan-400 bg-slate-900 cursor-pointer overflow-hidden shrink-0 shadow-md transition-colors"
+                    title="点击选取文字颜色"
+                  >
+                    <div 
+                      class="w-full h-full"
+                      :style="{ backgroundColor: component.style.textColor || component.customProps?.textColor || '#00f2ff' }"
+                    />
+                    <input
+                      type="color"
+                      :value="component.style.textColor || component.customProps?.textColor || '#00f2ff'"
+                      @input="updateComponentStyleAndCustomProps({ textColor: ($event.target as HTMLInputElement).value }, { textColor: ($event.target as HTMLInputElement).value })"
+                      class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    :value="component.style.textColor || component.customProps?.textColor || '#00f2ff'"
+                    @input="updateComponentStyleAndCustomProps({ textColor: ($event.target as HTMLInputElement).value }, { textColor: ($event.target as HTMLInputElement).value })"
+                    class="flex-1 min-w-0 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-slate-100 font-mono text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+
+              <!-- Component Background Color -->
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label class="text-xs font-semibold text-slate-200">组件背景底色</label>
+                  <button
+                    type="button"
+                    @click="updateComponentStyleAndCustomProps({ fill: 'transparent' }, { bgColor: 'transparent' })"
+                    class="px-1.5 py-0.5 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 rounded border border-slate-700 cursor-pointer transition-colors"
+                    :class="component.style.fill === 'transparent' || (!component.style.fill && (!component.customProps?.bgColor || component.customProps?.bgColor === 'transparent')) ? 'border-cyan-400 text-cyan-300 font-bold bg-cyan-950/40' : ''"
+                  >
+                    透明
+                  </button>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label 
+                    class="relative flex items-center justify-center w-8 h-8 rounded-md border-2 border-slate-600 hover:border-cyan-400 bg-slate-900 cursor-pointer overflow-hidden shrink-0 shadow-md transition-colors"
+                    title="点击选取背景底色"
+                  >
+                    <div 
+                      v-if="component.style.fill && component.style.fill !== 'transparent'"
+                      class="w-full h-full"
+                      :style="{ backgroundColor: component.style.fill }"
+                    />
+                    <div v-else class="w-full h-full flex items-center justify-center text-[10px] text-slate-400 font-mono bg-slate-950/80">
+                      透明
+                    </div>
+                    <input
+                      type="color"
+                      :value="component.style.fill && component.style.fill !== 'transparent' ? component.style.fill : '#050c1c'"
+                      @input="updateComponentStyleAndCustomProps({ fill: ($event.target as HTMLInputElement).value }, { bgColor: ($event.target as HTMLInputElement).value })"
+                      class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    :value="component.style.fill || 'transparent'"
+                    @input="updateComponentStyleAndCustomProps({ fill: ($event.target as HTMLInputElement).value }, { bgColor: ($event.target as HTMLInputElement).value })"
+                    class="flex-1 min-w-0 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-slate-100 font-mono text-xs outline-hidden"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <!-- Border Stroke & Width (No roundness) -->
+            <div class="space-y-1.5 pt-2 border-t border-slate-800/80">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-slate-200">边框描边与粗细</label>
+                <button
+                  type="button"
+                  @click="updateComponentStyleAndCustomProps({ stroke: 'transparent', strokeWidth: 0 }, { borderColor: 'transparent', borderWidth: 0 })"
+                  class="px-2 py-0.5 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 rounded border border-slate-700 cursor-pointer transition-colors"
+                  :class="(!component.style.stroke || component.style.stroke === 'transparent' || component.style.strokeWidth === 0) ? 'border-cyan-400 text-cyan-300 font-bold bg-cyan-950/40' : ''"
+                >
+                  无边框
+                </button>
+              </div>
+
+              <div class="grid grid-cols-2 gap-2">
+                <!-- Stroke Color Swatch & Input -->
+                <div class="flex items-center gap-2">
+                  <label 
+                    class="relative flex items-center justify-center w-8 h-8 rounded-md border-2 border-slate-600 hover:border-cyan-400 bg-slate-900 cursor-pointer overflow-hidden shrink-0 shadow-md transition-colors"
+                    title="点击选取边框颜色"
+                  >
+                    <div 
+                      v-if="component.style.stroke && component.style.stroke !== 'transparent' && (component.style.strokeWidth ?? 1) > 0"
+                      class="w-full h-full"
+                      :style="{ backgroundColor: component.style.stroke }"
+                    />
+                    <div v-else class="w-full h-full flex items-center justify-center text-[10px] text-slate-400 font-mono bg-slate-950/80">
+                      无
+                    </div>
+                    <input
+                      type="color"
+                      :value="component.style.stroke && component.style.stroke !== 'transparent' ? component.style.stroke : '#00f2ff'"
+                      @input="updateComponentStyleAndCustomProps({ stroke: ($event.target as HTMLInputElement).value, strokeWidth: component.style.strokeWidth || 1 }, { borderColor: ($event.target as HTMLInputElement).value, borderWidth: component.style.strokeWidth || 1 })"
+                      class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                  </label>
+                  <input
+                    type="text"
+                    :value="component.style.stroke && component.style.stroke !== 'transparent' ? component.style.stroke : 'transparent'"
+                    @input="updateComponentStyleAndCustomProps({ stroke: ($event.target as HTMLInputElement).value, strokeWidth: component.style.strokeWidth || 1 }, { borderColor: ($event.target as HTMLInputElement).value, borderWidth: component.style.strokeWidth || 1 })"
+                    class="flex-1 min-w-0 bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2 py-1.5 text-slate-100 font-mono text-xs outline-hidden"
+                  />
+                </div>
+
+                <!-- Stroke Width Selector -->
+                <div>
+                  <select
+                    :value="component.style.strokeWidth ?? (component.style.stroke && component.style.stroke !== 'transparent' ? 1 : 0)"
+                    @change="updateComponentStyleAndCustomProps({ strokeWidth: Number(($event.target as HTMLSelectElement).value), stroke: component.style.stroke && component.style.stroke !== 'transparent' ? component.style.stroke : '#00f2ff' }, { borderWidth: Number(($event.target as HTMLSelectElement).value) })"
+                    class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
+                  >
+                    <option :value="0">0px (无边框)</option>
+                    <option :value="1">1px 细边框</option>
+                    <option :value="2">2px 标准边框</option>
+                    <option :value="3">3px 加粗边框</option>
+                    <option :value="4">4px 粗边框</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 1. Electrical Component Switch Status -->
           <div v-if="component && ['elec-breaker', 'elec-disconnector', 'elec-grounding'].includes(component.type)" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-2.5">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
@@ -1370,8 +1636,8 @@ const toggleBatchLock = () => {
             </div>
           </div>
 
-          <!-- 2. Typography & Text Styling (适用于所有文本、按钮、标签组件) -->
-          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
+          <!-- 2. Typography & Text Styling (适用于所有通用文本、按钮、标签组件) -->
+          <div v-if="!['metric-float', 'metric-flipper'].includes(component.type)" class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Type class="w-4 h-4 text-cyan-400" />
               <span>文本与排版样式 (Typography)</span>
@@ -1470,7 +1736,7 @@ const toggleBatchLock = () => {
           </div>
 
           <!-- 3. Line & Stroke Styling (线条与描边) -->
-          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
+          <div v-if="!['metric-float', 'metric-flipper'].includes(component.type)" class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Workflow class="w-4 h-4 text-cyan-400" />
               <span>线条与描边属性 (Line & Stroke)</span>
@@ -1566,7 +1832,7 @@ const toggleBatchLock = () => {
           </div>
 
           <!-- 4. Fill, Background & Roundness (填充与容器样式) -->
-          <div class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
+          <div v-if="!['metric-float', 'metric-flipper'].includes(component.type)" class="p-3 rounded-lg bg-[#060b17] border border-slate-800 space-y-3">
             <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
               <Palette class="w-4 h-4 text-cyan-400" />
               <span>填充、背景与圆角 (Fill & Container)</span>
@@ -1869,160 +2135,6 @@ const toggleBatchLock = () => {
                 <option value="fast">急闪 (2.5 Hz)</option>
                 <option value="auto">1或2状态时自动闪烁</option>
               </select>
-            </div>
-          </div>
-
-          <!-- SPECIAL: Float Metric (数值点) Style Controls -->
-          <div v-if="component.type === 'metric-float'" class="p-3 rounded-lg bg-cyan-950/40 border border-cyan-500/50 space-y-3">
-            <div class="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
-              <Hash class="w-4 h-4 text-cyan-400" />
-              <span>遥测数值点样式与参数配置</span>
-            </div>
-
-            <!-- Display Style Presets -->
-            <div>
-              <label class="text-xs font-semibold text-slate-200 block mb-1">数值呈现样式 (Display Style)</label>
-              <div class="grid grid-cols-2 gap-1.5">
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'pure-digital' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="(component.customProps?.displayStyle || 'pure-digital') === 'pure-digital' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  极简等宽数码
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'cyber-badge' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="component.customProps?.displayStyle === 'cyber-badge' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  科技微框胶囊
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'led-segment' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="component.customProps?.displayStyle === 'led-segment' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  7段工业数码管
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'neon-glow' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="component.customProps?.displayStyle === 'neon-glow' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  赛博霓虹双色
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'industrial-tag' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="component.customProps?.displayStyle === 'industrial-tag' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  工业测点卡片
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'progress-bar' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all"
-                  :class="component.customProps?.displayStyle === 'progress-bar' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  百分比光条数值
-                </button>
-                <button
-                  @click="updateComponentCustomProps({ displayStyle: 'meter-box' })"
-                  class="py-1.5 px-2 rounded-lg text-xs font-medium border text-left cursor-pointer transition-all col-span-2"
-                  :class="component.customProps?.displayStyle === 'meter-box' ? 'bg-cyan-500 text-slate-950 font-bold border-cyan-400' : 'bg-slate-900 text-slate-300 border-slate-800'"
-                >
-                  经典工业仪表黑匣
-                </button>
-              </div>
-            </div>
-
-            <!-- Value, Unit, Decimals, Label -->
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">物理单位 (如 kV, A, ℃)</label>
-                <input
-                  type="text"
-                  :value="component.customProps?.unit || component.style.unit || ''"
-                  @input="updateComponentCustomProps({ unit: ($event.target as HTMLInputElement).value })"
-                  placeholder="如: kV, A, MW, ℃"
-                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs font-mono outline-hidden"
-                />
-              </div>
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">测点标签 / 简记名</label>
-                <input
-                  type="text"
-                  :value="component.customProps?.label || ''"
-                  @input="updateComponentCustomProps({ label: ($event.target as HTMLInputElement).value })"
-                  placeholder="如: 101_Ua, 主变"
-                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-100 text-xs outline-hidden"
-                />
-              </div>
-            </div>
-
-            <!-- Decimals & Default Value -->
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">小数保留位数</label>
-                <select
-                  :value="component.customProps?.decimals ?? component.style.decimals ?? 2"
-                  @change="updateComponentCustomProps({ decimals: Number(($event.target as HTMLSelectElement).value) })"
-                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-slate-200 text-xs outline-hidden cursor-pointer"
-                >
-                  <option :value="0">0 位 (整数如: 120)</option>
-                  <option :value="1">1 位 (如: 120.5)</option>
-                  <option :value="2">2 位 (如: 120.55)</option>
-                  <option :value="3">3 位 (如: 120.552)</option>
-                  <option :value="4">4 位 (如: 120.5521)</option>
-                </select>
-              </div>
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">默认模拟数值</label>
-                <input
-                  type="number"
-                  step="any"
-                  :value="component.customProps?.value ?? 0"
-                  @input="updateComponentCustomProps({ value: Number(($event.target as HTMLInputElement).value) })"
-                  class="w-full bg-[#081026] border border-slate-700/80 focus:border-cyan-400 rounded-lg px-2.5 py-1.5 text-cyan-300 font-mono text-xs outline-hidden"
-                />
-              </div>
-            </div>
-
-            <!-- Custom Colors: Text Color & Background Color -->
-            <div class="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80">
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">数值文字颜色</label>
-                <div class="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    :value="component.style.textColor || component.style.fill || component.customProps?.textColor || '#00f2ff'"
-                    @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ textColor: ($event.target as HTMLInputElement).value })"
-                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
-                  />
-                  <input
-                    type="text"
-                    :value="component.style.textColor || component.style.fill || component.customProps?.textColor || '#00f2ff'"
-                    @input="updateComponentStyle({ textColor: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ textColor: ($event.target as HTMLInputElement).value })"
-                    class="flex-1 bg-[#081026] border border-slate-700/80 rounded px-2 py-1 text-slate-100 font-mono text-xs outline-hidden"
-                  />
-                </div>
-              </div>
-              <div>
-                <label class="text-xs font-semibold text-slate-200 block mb-1">组件背景底色</label>
-                <div class="flex items-center gap-1.5">
-                  <input
-                    type="color"
-                    :value="component.style.fill && component.style.fill !== 'transparent' ? component.style.fill : (component.customProps?.bgColor || '#050c1c')"
-                    @input="updateComponentStyle({ fill: ($event.target as HTMLInputElement).value }), updateComponentCustomProps({ bgColor: ($event.target as HTMLInputElement).value })"
-                    class="w-7 h-7 rounded bg-transparent border-0 cursor-pointer"
-                  />
-                  <button
-                    @click="updateComponentStyle({ fill: 'transparent' }), updateComponentCustomProps({ bgColor: 'transparent' })"
-                    class="px-2 py-1 bg-slate-900 hover:bg-slate-800 text-[10px] text-slate-400 hover:text-slate-200 rounded border border-slate-700 cursor-pointer"
-                  >
-                    透明
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
 

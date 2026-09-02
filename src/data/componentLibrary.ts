@@ -977,173 +977,24 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     name: '极简等宽遥测数值',
     nameEn: 'Pure Digital Telemetry Metric',
     iconName: 'Binary',
-    description: '纯净浮点数遥测数值，支持小数位与数据源绑定，100%全比例边界缩放贴合',
-    defaultWidth: 140,
-    defaultHeight: 48,
+    description: '纯净浮点数遥测数值，零边距极简等宽数码呈现，支持小数位数、固定字号与测点映射',
+    defaultWidth: 100,
+    defaultHeight: 36,
     defaultStyle: {
       decimals: 2,
+      trimZeros: true,
+      fontSize: 22,
       textColor: '#00f2ff',
-      fill: 'transparent'
+      fill: 'transparent',
+      stroke: 'transparent',
+      strokeWidth: 0,
+      borderRadius: 0,
+      textAlign: 'center'
     },
     defaultCustomProps: {
       displayStyle: 'pure-digital',
-      unit: 'kV',
-      decimals: 2
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_1'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '科技胶囊光标微框数值',
-    nameEn: 'Cyber Badge Numeric Point',
-    iconName: 'Hash',
-    description: '科技微框胶囊数值点，深色底板带发光边框与两侧角标，支持测点标签与单位',
-    defaultWidth: 150,
-    defaultHeight: 42,
-    defaultStyle: {
       decimals: 2,
-      textColor: '#00f2ff'
-    },
-    defaultCustomProps: {
-      displayStyle: 'cyber-badge',
-      label: '101_Ua',
-      unit: 'kV',
-      decimals: 2
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_1'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '7段工业数码管数值点',
-    nameEn: '7-Segment LED Metric',
-    iconName: 'Cpu',
-    description: '经典7段LED工业数码管，带内凹黑盒阴影与高亮晶体笔画',
-    defaultWidth: 150,
-    defaultHeight: 44,
-    defaultStyle: {
-      decimals: 1,
-      textColor: '#00ff66'
-    },
-    defaultCustomProps: {
-      displayStyle: 'led-segment',
-      unit: 'A',
-      decimals: 1
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_2'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '赛博霓虹双色发光数值',
-    nameEn: 'Neon Glow Telemetry Value',
-    iconName: 'Sparkles',
-    description: '赛博朋克双色渐变发光数值，高亮白芯搭配荧光外光晕',
-    defaultWidth: 160,
-    defaultHeight: 48,
-    defaultStyle: {
-      decimals: 2,
-      textColor: '#ff007f'
-    },
-    defaultCustomProps: {
-      displayStyle: 'neon-glow',
-      unit: 'MW',
-      decimals: 2
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_3'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '工业测点卡片标牌',
-    nameEn: 'Industrial Telemetry Tag Card',
-    iconName: 'Tag',
-    description: '紧凑型工业测点标签卡，集成测点名称、物理单位与大号数值',
-    defaultWidth: 160,
-    defaultHeight: 52,
-    defaultStyle: {
-      decimals: 2,
-      textColor: '#38bdf8'
-    },
-    defaultCustomProps: {
-      displayStyle: 'industrial-tag',
-      label: '主变有功功率',
-      unit: 'MW',
-      decimals: 2
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_3'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '量程百分比光条数值',
-    nameEn: 'Range Progress Metric Bar',
-    iconName: 'Sliders',
-    description: '数值下方集成动态百分比光条，实时反映量程占用度',
-    defaultWidth: 170,
-    defaultHeight: 50,
-    defaultStyle: {
-      decimals: 1,
-      textColor: '#f59e0b'
-    },
-    defaultCustomProps: {
-      displayStyle: 'progress-bar',
-      label: '主变负载率',
-      unit: '%',
-      min: 0,
-      max: 100,
-      decimals: 1
-    },
-    defaultData: {
-      datasetId: 'ds-scada-station',
-      mapping: {
-        valueKey: 'DEV_101_YC_1'
-      }
-    }
-  },
-  {
-    type: 'metric-float',
-    category: 'metrics',
-    name: '工业仪表黑匣测点',
-    nameEn: 'Industrial Meter Box Metric',
-    iconName: 'Box',
-    description: '工业控制台内嵌黑匣仪表，带四周铆钉装饰与内凹光影',
-    defaultWidth: 150,
-    defaultHeight: 46,
-    defaultStyle: {
-      decimals: 2,
-      textColor: '#00f2ff'
-    },
-    defaultCustomProps: {
-      displayStyle: 'meter-box',
-      unit: 'Hz',
-      decimals: 2
+      trimZeros: true
     },
     defaultData: {
       datasetId: 'ds-scada-station',
@@ -1159,11 +1010,14 @@ export const COMPONENT_DEFINITIONS: ComponentDefinition[] = [
     nameEn: 'Digital Flipper Counter',
     iconName: 'Binary',
     description: '工业电子LED数字数码管翻牌器，适用于累计发电量、运行时长与报警数',
-    defaultWidth: 220,
-    defaultHeight: 70,
+    defaultWidth: 120,
+    defaultHeight: 40,
     defaultStyle: {
+      decimals: 0,
+      fontSize: 24,
       textColor: '#00f2ff',
-      fontSize: 28
+      fill: 'transparent',
+      textAlign: 'center'
     },
     defaultData: {
       datasetId: 'ds-scada-station',

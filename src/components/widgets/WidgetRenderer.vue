@@ -39,33 +39,23 @@ const emit = defineEmits<{
   (e: 'jump:screen', screenId: string): void;
 }>();
 
-const isChart = computed(() => props.component?.category === 'charts' || (typeof props.component?.type === 'string' && props.component.type.startsWith('chart-')));
-const isIndustrial = computed(() => props.component?.category === 'industrial' || (typeof props.component?.type === 'string' && props.component.type.startsWith('ind-')));
-const isElectrical = computed(() => props.component?.category === 'electrical' || (typeof props.component?.type === 'string' && props.component.type.startsWith('elec-')));
-const isDrawing = computed(() => 
-  props.component?.category === 'drawing' || 
-  (props.component?.category === 'basic' && !['ctrl-button', 'ctrl-indicator', 'draw-line', 'draw-arrow', 'draw-polyline'].includes(props.component?.type)) ||
-  [
-    'draw-rect', 'draw-rounded-rect', 'draw-circle', 'draw-ellipse', 
-    'draw-triangle', 'draw-triangle-down', 'draw-triangle-right',
-    'draw-diamond', 'draw-pentagon', 'draw-hexagon', 'draw-polygon', 'draw-octagon',
-    'draw-star', 'draw-star4', 'draw-trapezoid', 'draw-parallelogram', 'draw-cross',
-    'draw-ring', 'draw-sector', 'draw-heart', 'draw-bubble', 'draw-cube', 'draw-cylinder',
-    'draw-arc', 'draw-double-arrow', 'draw-elbow', 'draw-text', 'draw-pen-path', 'draw-svg-icon'
-  ].includes(props.component?.type || '')
-);
-const isDecoration = computed(() => props.component?.category === 'decoration' || (typeof props.component?.type === 'string' && props.component.type.startsWith('deco-')));
-const isMetrics = computed(() => props.component?.category === 'metrics' || (typeof props.component?.type === 'string' && props.component.type.startsWith('metric-')));
-const isCustom = computed(() => props.component?.category === 'custom' || props.component?.type === 'custom-svg' || props.component?.type === 'custom-html');
-const isNav = computed(() => props.component?.type === 'nav-tabs');
+const compType = computed(() => props.component?.type || '');
+const compCategory = computed(() => props.component?.category || '');
 const isComposite = computed(() => props.component?.type === 'composite-symbol' || Boolean(props.component?.children?.length));
 </script>
 
 <template>
   <div v-if="component" class="w-full h-full relative overflow-hidden pointer-events-none">
-    <!-- 1. Composite & Grouped SCADA Custom Symbol -->
+    <!-- 1. Float Metric Fast Route (Most Common SCADA Component - 400+ points fast-path) -->
+    <FloatMetric 
+      v-if="compType === 'metric-float'"
+      :component="component"
+      :datasets="datasets"
+    />
+
+    <!-- 2. Composite & Grouped SCADA Custom Symbol -->
     <CompositeSymbol
-      v-if="isComposite"
+      v-else-if="isComposite"
       :component="component"
       :datasets="datasets"
       :preview-mode="previewMode"
@@ -73,9 +63,9 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       class="pointer-events-auto"
     />
 
-    <!-- 2. Control Button -->
+    <!-- 3. Control Button -->
     <ControlButton
-      v-else-if="component.type === 'ctrl-button'"
+      v-else-if="compType === 'ctrl-button'"
       :component="component"
       :datasets="datasets"
       :preview-mode="previewMode"
@@ -83,87 +73,109 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       class="pointer-events-auto"
     />
 
-    <!-- 3. Straight Electrical Conductor Line & Arrows -->
+    <!-- 4. Straight Electrical Conductor Line & Arrows -->
     <StraightLine
-      v-else-if="component.type === 'draw-line' || component.type === 'draw-arrow'"
+      v-else-if="compType === 'draw-line' || compType === 'draw-arrow'"
       :component="component"
       :datasets="datasets"
     />
 
-    <!-- 4. Polyline / Orthogonal Bus Routing -->
+    <!-- 5. Polyline / Orthogonal Bus Routing -->
     <PolyLine
-      v-else-if="component.type === 'draw-polyline'"
+      v-else-if="compType === 'draw-polyline'"
       :component="component"
       :datasets="datasets"
     />
 
-    <!-- 5. Status Indicator / Signal LED Light (0: 停止/分闸, 1: 运行/合闸, 2: 故障/告警) -->
+    <!-- 6. Status Indicator / Signal LED Light (0: 停止/分闸, 1: 运行/合闸, 2: 故障/告警) -->
     <StatusIndicator
-      v-else-if="component.type === 'ctrl-indicator' || (component.category === 'status' && component.type !== 'ind-matrix')"
+      v-else-if="compType === 'ctrl-indicator' || (compCategory === 'status' && compType !== 'ind-matrix')"
       :component="component"
       :datasets="datasets"
     />
 
-    <!-- 6. ECharts Visualizations -->
+    <!-- 7. Digital Counter / Tabular Readout -->
+    <DigitalCounter 
+      v-else-if="compType === 'ind-counter' || compType === 'metric-counter' || compType === 'metric-digital'"
+      :component="component"
+      :datasets="datasets"
+    />
+
+    <!-- 8. ECharts Visualizations -->
     <EChartWidget 
-      v-else-if="isChart"
+      v-else-if="compCategory === 'charts' || compType.startsWith('chart-')"
       :component="component"
       :datasets="datasets"
     />
 
-    <!-- 7. Electrical Power Primary System Symbols -->
-    <div v-else-if="isElectrical" class="w-full h-full">
+    <!-- 9. Electrical Power Primary System Symbols -->
+    <div v-else-if="compCategory === 'electrical' || compType.startsWith('elec-')" class="w-full h-full">
       <ElectricalBreaker
-        v-if="component.type === 'elec-breaker'"
+        v-if="compType === 'elec-breaker'"
         :component="component"
         :datasets="datasets"
       />
       <ElectricalHandcart
-        v-else-if="component.type === 'elec-handcart'"
+        v-else-if="compType === 'elec-handcart'"
         :component="component"
         :datasets="datasets"
       />
       <ElectricalDisconnector
-        v-else-if="component.type === 'elec-disconnector' || component.type === 'elec-grounding'"
+        v-else-if="compType === 'elec-disconnector' || compType === 'elec-grounding'"
         :component="component"
         :datasets="datasets"
       />
       <ElectricalTransformer
-        v-else-if="component.type === 'elec-transformer'"
+        v-else-if="compType === 'elec-transformer'"
         :component="component"
         :datasets="datasets"
       />
       <ElectricalSensor
-        v-else-if="component.type === 'elec-ct' || component.type === 'elec-pt' || component.type === 'elec-arrester'"
+        v-else-if="compType === 'elec-ct' || compType === 'elec-pt' || compType === 'elec-arrester'"
         :component="component"
         :datasets="datasets"
       />
       <ElectricalBusbar
-        v-else-if="component.type === 'elec-busbar'"
+        v-else-if="compType === 'elec-busbar'"
         :component="component"
         :datasets="datasets"
       />
     </div>
 
-    <!-- 8. Industrial & SCADA Components -->
-    <div v-else-if="isIndustrial" class="w-full h-full">
+    <!-- 10. Metrics & Digital Displays & Time Clocks -->
+    <div v-else-if="compCategory === 'metrics' || compType.startsWith('metric-')" class="w-full h-full">
+      <TimeClockWidget
+        v-if="compType === 'metric-clock' || compType === 'metric-time-banner' || compType === 'metric-clock-analog' || compType === 'metric-countdown'"
+        :component="component"
+        :datasets="datasets"
+        :preview-mode="previewMode"
+      />
+      <DigitalCounter 
+        v-else
+        :component="component"
+        :datasets="datasets"
+      />
+    </div>
+
+    <!-- 11. Industrial & SCADA Components -->
+    <div v-else-if="compCategory === 'industrial' || compType.startsWith('ind-')" class="w-full h-full">
       <FluidTank 
-        v-if="component.type === 'ind-tank'"
+        v-if="compType === 'ind-tank'"
         :component="component"
         :datasets="datasets"
       />
       <PipeFlow 
-        v-else-if="component.type === 'ind-pipe' || component.type === 'draw-pipe'"
+        v-else-if="compType === 'ind-pipe' || compType === 'draw-pipe'"
         :component="component"
         :datasets="datasets"
       />
       <StatusMatrix 
-        v-else-if="component.type === 'ind-matrix'"
+        v-else-if="compType === 'ind-matrix'"
         :component="component"
         :datasets="datasets"
       />
       <AlarmFeed 
-        v-else-if="component.type === 'ind-alarm-list'"
+        v-else-if="compType === 'ind-alarm-list'"
         :component="component"
         :datasets="datasets"
       />
@@ -174,9 +186,9 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       />
     </div>
 
-    <!-- 9. Navigation Bar -->
+    <!-- 12. Navigation Bar -->
     <MultiScreenNavWidget
-      v-else-if="isNav"
+      v-else-if="compType === 'nav-tabs'"
       :component="component"
       :datasets="datasets"
       :preview-mode="previewMode"
@@ -184,35 +196,15 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       class="pointer-events-auto"
     />
 
-    <!-- 10. Metrics & Digital Displays & Time Clocks -->
-    <div v-else-if="isMetrics" class="w-full h-full">
-      <TimeClockWidget
-        v-if="component.type === 'metric-clock' || component.type === 'metric-time-banner' || component.type === 'metric-clock-analog' || component.type === 'metric-countdown'"
-        :component="component"
-        :datasets="datasets"
-        :preview-mode="previewMode"
-      />
-      <FloatMetric 
-        v-else-if="component.type === 'metric-float'"
-        :component="component"
-        :datasets="datasets"
-      />
-      <DigitalCounter 
-        v-else
-        :component="component"
-        :datasets="datasets"
-      />
-    </div>
-
-    <!-- 11. Custom User Primitives & Graphics -->
-    <div v-else-if="isCustom" class="w-full h-full">
+    <!-- 13. Custom User Primitives & Graphics -->
+    <div v-else-if="compCategory === 'custom' || compType === 'custom-svg' || compType === 'custom-html'" class="w-full h-full">
       <CustomSvgWidget 
-        v-if="component.type === 'custom-svg'"
+        v-if="compType === 'custom-svg'"
         :component="component"
         :datasets="datasets"
       />
       <CustomHtmlWidget 
-        v-else-if="component.type === 'custom-html'"
+        v-else-if="compType === 'custom-html'"
         :component="component"
         :datasets="datasets"
       />
@@ -224,24 +216,16 @@ const isComposite = computed(() => props.component?.type === 'composite-symbol' 
       </div>
     </div>
 
-    <!-- 12. Cyber Decorations & Borders -->
+    <!-- 14. Cyber Decorations & Borders -->
     <CyberBorder 
-      v-else-if="isDecoration"
+      v-else-if="compCategory === 'decoration' || compType.startsWith('deco-')"
       :component="component"
     />
 
-    <!-- 13. Comprehensive Vector Drawing (All conventional basic primitives) -->
+    <!-- 15. Comprehensive Vector Drawing (All conventional basic primitives) -->
     <CustomLeaferCanvas 
-      v-else-if="isDrawing"
+      v-else
       :component="component"
     />
-
-    <!-- Default Fallback -->
-    <div 
-      v-else
-      class="w-full h-full border border-dashed border-cyan-500/50 rounded flex items-center justify-center p-2 text-center text-xs font-mono text-cyan-400 bg-cyan-950/20"
-    >
-      {{ component.name }}
-    </div>
   </div>
 </template>

@@ -314,44 +314,56 @@ export const INITIAL_DATASETS: DatasetItem[] = [
 
 // Helper function to tick dynamic dataset values realistically
 export function tickDataset(dataset: DatasetItem): DatasetItem {
+  if (!dataset) return dataset;
   if (dataset.type !== 'mock' || !dataset.isStreaming) return dataset;
 
   const devices = dataset.devices || [];
+  const targetData = dataset.data || {};
 
-  devices.forEach(dev => {
+  for (let d = 0; d < devices.length; d++) {
+    const dev = devices[d];
+    const devId = dev.deviceId;
+
     // 1. Tick Telemetries (遥测轻微自然波动)
-    dev.telemetries?.forEach(yc => {
-      if (yc.unit === 'kV') {
-        const delta = (Math.random() - 0.5) * 0.04;
-        yc.value = Math.max(9.8, Math.min(10.6, Number((yc.value + delta).toFixed(2))));
-      } else if (yc.unit === 'A') {
-        const delta = (Math.random() - 0.5) * (yc.value * 0.02);
-        yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
-      } else if (yc.unit === 'kW' || yc.unit === 'kvar') {
-        const delta = (Math.random() - 0.5) * (yc.value * 0.02);
-        yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
-      } else if (yc.unit === 'Hz') {
-        const delta = (Math.random() - 0.5) * 0.02;
-        yc.value = Math.max(49.95, Math.min(50.05, Number((yc.value + delta).toFixed(2))));
-      } else if (yc.unit === '℃') {
-        const delta = (Math.random() - 0.5) * 0.2;
-        yc.value = Math.max(20, Math.min(90, Number((yc.value + delta).toFixed(1))));
+    if (dev.telemetries) {
+      for (let t = 0; t < dev.telemetries.length; t++) {
+        const yc = dev.telemetries[t];
+        if (yc.unit === 'kV') {
+          const delta = (Math.random() - 0.5) * 0.04;
+          yc.value = Math.max(9.8, Math.min(10.6, Number((yc.value + delta).toFixed(2))));
+        } else if (yc.unit === 'A') {
+          const delta = (Math.random() - 0.5) * (yc.value * 0.02);
+          yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
+        } else if (yc.unit === 'kW' || yc.unit === 'kvar') {
+          const delta = (Math.random() - 0.5) * (yc.value * 0.02);
+          yc.value = Math.max(0, Number((yc.value + delta).toFixed(1)));
+        } else if (yc.unit === 'Hz') {
+          const delta = (Math.random() - 0.5) * 0.02;
+          yc.value = Math.max(49.95, Math.min(50.05, Number((yc.value + delta).toFixed(2))));
+        } else if (yc.unit === '℃') {
+          const delta = (Math.random() - 0.5) * 0.2;
+          yc.value = Math.max(20, Math.min(90, Number((yc.value + delta).toFixed(1))));
+        }
+        targetData[`${devId}_YC_${yc.pointId}`] = yc.value;
       }
-    });
+    }
 
     // 2. Increment energy slightly
-    dev.energies?.forEach(dd => {
-      dd.value = Number((dd.value + Math.random() * 0.2).toFixed(1));
-    });
-  });
+    if (dev.energies) {
+      for (let e = 0; e < dev.energies.length; e++) {
+        const dd = dev.energies[e];
+        dd.value = Number((dd.value + Math.random() * 0.2).toFixed(1));
+        targetData[`${devId}_DD_${dd.pointId}`] = dd.value;
+      }
+    }
+  }
 
-  const synced = syncFlatDataFromDevices(devices);
+  targetData.timestamp = new Date().toLocaleTimeString();
 
   return {
     ...dataset,
     devices,
-    data: synced.data,
-    fields: synced.fields
+    data: { ...targetData }
   };
 }
 

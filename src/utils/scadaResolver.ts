@@ -1,6 +1,111 @@
 import { DatasetItem, ScreenComponent, ScadaDeviceItem } from '../types';
 
 /**
+ * Smart Component & Asset Unique Duplicate Name Generator (智能唯一去重与自动递增命名)
+ * 彻底消除重复追加 "(副本)" 导致的长名称问题，智能识别并递增序号:
+ * 例: "遥测数值" -> "遥测数值_1" -> "遥测数值_2" -> ...
+ * 例: "断路器_1" -> "断路器_2"
+ * 例: "开关 (副本)" -> "开关_1" (自动清洗历史副本后缀并重置为整洁编号)
+ */
+export function generateUniqueDuplicateName(
+  originalName: string,
+  existingNames: string[] = [],
+  fallbackBase: string = '组件'
+): string {
+  const cleanOriginal = (originalName || '').trim() || fallbackBase;
+
+  // 1. 彻底清洗所有历史堆叠的 "(副本)", "（副本）", " (副本 2)", "_copy", " - 副本"
+  let base = cleanOriginal
+    .replace(/(?:[\s\-_]*[\(（]?(?:副本|copy)[\)）]?[\s\-_]*\d*)+$/gi, '')
+    .trim();
+
+  if (!base) {
+    base = fallbackBase;
+  }
+
+  // 2. 检查名称末尾是否已自带编号规则 (如 `_1`, `_01`, ` 1`, `(1)`, `（1）`, `#1`)
+  let separator = '_';
+  let hasExistingIndex = false;
+  let baseRoot = base;
+  let startNumber = 1;
+
+  const indexMatch = base.match(/^(.*?)([_#\s\-\(（])(\d+)[\)）]?$/);
+  if (indexMatch && indexMatch[1] && indexMatch[3]) {
+    baseRoot = indexMatch[1].trim() || base;
+    separator = indexMatch[2] === '（' || indexMatch[2] === '(' ? '_' : indexMatch[2];
+    hasExistingIndex = true;
+    startNumber = parseInt(indexMatch[3], 10) + 1;
+  }
+
+  const existingSet = new Set(existingNames.map(n => (n || '').trim().toLowerCase()));
+
+  // 3. 寻找下一个未占用的序号
+  let index = hasExistingIndex ? startNumber : 1;
+  let candidate = `${baseRoot}${separator}${index}`;
+
+  while (existingSet.has(candidate.toLowerCase())) {
+    index++;
+    candidate = `${baseRoot}${separator}${index}`;
+  }
+
+  return candidate;
+}
+
+/**
+ * Direct Truncation Number Formatter (向零直接截断指定小数位数，绝不四舍五入)
+ * 例: 0.98 保留 1 位小数 => 0.9
+ * @param num 输入数值
+ * @param decimals 最大保留小数位数 (0-6)
+ * @param trimZeros 是否自动去除末尾无效 0 (默认 true)
+ */
+export function formatTruncatedNumber(num: number, decimals: number, trimZeros: boolean = true): string {
+  if (isNaN(num) || !isFinite(num)) return '0';
+  
+  const clampedDecimals = Math.max(0, Math.min(6, decimals));
+  
+  if (clampedDecimals === 0) {
+    const intVal = Math.trunc(num);
+    return Object.is(intVal, -0) ? '0' : String(intVal);
+  }
+
+  // 转换为字符串进行直接截断，避免浮点数乘除精度误差
+  const str = String(num);
+  
+  // 检查是否包含科学计数法 (如 1e-7)
+  if (str.includes('e') || str.includes('E')) {
+    const factor = Math.pow(10, clampedDecimals);
+    const truncated = Math.trunc(num * factor) / factor;
+    const s = String(truncated);
+    if (!trimZeros) {
+      const parts = s.split('.');
+      const dec = (parts[1] || '').padEnd(clampedDecimals, '0');
+      return `${parts[0]}.${dec}`;
+    }
+    return s;
+  }
+
+  const dotIndex = str.indexOf('.');
+  if (dotIndex === -1) {
+    if (trimZeros) {
+      return str;
+    }
+    return `${str}.${'0'.repeat(clampedDecimals)}`;
+  }
+
+  const intPart = str.slice(0, dotIndex);
+  // 直接截取指定长度的小数位，不做任何四舍五入
+  const rawDecPart = str.slice(dotIndex + 1, dotIndex + 1 + clampedDecimals);
+
+  if (trimZeros) {
+    const trimmedDec = rawDecPart.replace(/0+$/, '');
+    return trimmedDec.length > 0 ? `${intPart}.${trimmedDec}` : intPart;
+  } else {
+    const paddedDec = rawDecPart.padEnd(clampedDecimals, '0');
+    return `${intPart}.${paddedDec}`;
+  }
+}
+
+/**
  * Strict Numeric Sanitizer & Parser
  * Enforces pure numeric parsing for all numeric components and fields.
  * Strictly strips any text/letters/symbols (except minus sign and decimal dot).
@@ -16,6 +121,10 @@ export function parseStrictNumber(val: any, fallback = 0): number {
   if (typeof val === 'string') {
     const trimmed = val.trim();
     if (!trimmed) return fallback;
+    // Fast path: if already pure numeric string, use native parseFloat
+    const parsedDirect = Number(trimmed);
+    if (!isNaN(parsedDirect)) return parsedDirect;
+
     // Strip everything except digits, negative sign, and decimal point
     const sanitized = trimmed.replace(/[^0-9.-]/g, '');
     if (!sanitized || sanitized === '-' || sanitized === '.') return fallback;
@@ -26,12 +135,81 @@ export function parseStrictNumber(val: any, fallback = 0): number {
 }
 
 /**
+ * Global High-Performance SCADA Point Hash Cache (O(1) Direct Lookup)
+ * Eliminates repeated O(N) array traversals across hundreds of devices & components.
+ */
+const globalPointIndex = new Map<string, any>();
+let lastIndexedDatasetsRef: DatasetItem[] | null = null;
+let lastIndexedTimestamp = 0;
+
+/**
+ * Indexes datasets into a flat O(1) point map if dataset reference changed
+ */
+export function syncDatasetFastIndex(datasets?: DatasetItem[]) {
+  if (!datasets || datasets.length === 0) return;
+  // If same array reference and not invalidated, skip indexing
+  if (datasets === lastIndexedDatasetsRef && Date.now() - lastIndexedTimestamp < 200) {
+    return;
+  }
+
+  lastIndexedDatasetsRef = datasets;
+  lastIndexedTimestamp = Date.now();
+
+  for (let i = 0; i < datasets.length; i++) {
+    const ds = datasets[i];
+    if (!ds) continue;
+    
+    // Index flat data
+    if (ds.data) {
+      const dataKeys = Object.keys(ds.data);
+      for (let k = 0; k < dataKeys.length; k++) {
+        const key = dataKeys[k];
+        globalPointIndex.set(key, ds.data[key]);
+      }
+    }
+
+    // Index device points directly
+    if (Array.isArray(ds.devices)) {
+      for (let d = 0; d < ds.devices.length; d++) {
+        const dev = ds.devices[d];
+        const devId = dev.deviceId;
+
+        // Telemetries
+        if (dev.telemetries) {
+          for (let p = 0; p < dev.telemetries.length; p++) {
+            const pt = dev.telemetries[p];
+            globalPointIndex.set(`${devId}_YC_${pt.pointId}`, pt.value);
+          }
+        }
+        // TeleSignals
+        if (dev.teleSignals) {
+          for (let p = 0; p < dev.teleSignals.length; p++) {
+            const pt = dev.teleSignals[p];
+            globalPointIndex.set(`${devId}_YX_${pt.pointId}`, pt.value);
+          }
+        }
+        // Energies
+        if (dev.energies) {
+          for (let p = 0; p < dev.energies.length; p++) {
+            const pt = dev.energies[p];
+            globalPointIndex.set(`${devId}_DD_${pt.pointId}`, pt.value);
+          }
+        }
+        // Regulations
+        if (dev.teleRegulations) {
+          for (let p = 0; p < dev.teleRegulations.length; p++) {
+            const pt = dev.teleRegulations[p];
+            globalPointIndex.set(`${devId}_YT_${pt.pointId}`, pt.value);
+          }
+        }
+      }
+    }
+  }
+}
+
+/**
  * Resolves a telemetry/tele-signal/energy value from bound dataset or point key.
- * Supports:
- * 1. Direct point key: e.g. 'DEV-101_YC_1', 'DEV-101_YX_1'
- * 2. Template expression: '{{DEV-101_YC_1}}' or '$bind(DEV-101_YC_1)'
- * 3. Direct lookup in dataset.data[key]
- * 4. Device-level search across devices[].telemetries, teleSignals, energies, teleControls, teleRegulations
+ * Features O(1) high-speed lookup, expression unwrapping, and fallback handling.
  */
 export function resolveDataPointValue(
   datasets: DatasetItem[] | undefined,
@@ -39,60 +217,41 @@ export function resolveDataPointValue(
   keyOrExpr: string | undefined,
   fallbackVal: any = undefined
 ): any {
-  if (!datasets || !keyOrExpr) {
+  if (!keyOrExpr) {
     return fallbackVal;
   }
 
   // Extract clean point key from expression if wrapped in {{...}} or $bind(...)
-  let cleanKey = String(keyOrExpr).trim();
-  const bindMatch = cleanKey.match(/^\$bind\((.+)\)$/i) || cleanKey.match(/^\{\{(.+)\}\}$/);
-  if (bindMatch) {
-    cleanKey = bindMatch[1].trim();
+  let cleanKey = typeof keyOrExpr === 'string' ? keyOrExpr.trim() : String(keyOrExpr);
+  if (cleanKey.charCodeAt(0) === 36 /* '$' */ && cleanKey.startsWith('$bind(') && cleanKey.endsWith(')')) {
+    cleanKey = cleanKey.slice(6, -1).trim();
+  } else if (cleanKey.charCodeAt(0) === 123 /* '{' */ && cleanKey.startsWith('{{') && cleanKey.endsWith('}}')) {
+    cleanKey = cleanKey.slice(2, -2).trim();
   }
+
+  // Fast O(1) hash map lookup
+  if (globalPointIndex.has(cleanKey)) {
+    return globalPointIndex.get(cleanKey);
+  }
+
+  // If not yet indexed, update index now
+  if (datasets) {
+    syncDatasetFastIndex(datasets);
+    if (globalPointIndex.has(cleanKey)) {
+      return globalPointIndex.get(cleanKey);
+    }
+  }
+
+  if (!datasets) return fallbackVal;
 
   const effectiveDatasetId = datasetId || datasets[0]?.id;
   const ds = datasets.find(d => d.id === effectiveDatasetId) || datasets[0];
   if (!ds) return fallbackVal;
 
-  // 1. Direct match in flattened dataset.data
+  // Direct match in dataset.data
   if (ds.data && ds.data[cleanKey] !== undefined) {
+    globalPointIndex.set(cleanKey, ds.data[cleanKey]);
     return ds.data[cleanKey];
-  }
-
-  // 2. Direct device point lookup if key formatted like 'DEV-101_YC_1' or 'DEV-101_YX_1'
-  if (Array.isArray(ds.devices)) {
-    const parts = cleanKey.split('_');
-    if (parts.length >= 3) {
-      const devId = parts[0];
-      const type = parts[1].toUpperCase(); // YC, YX, DD, YK, YT
-      const ptId = parts.slice(2).join('_');
-
-      const dev = ds.devices.find(d => d.deviceId === devId);
-      if (dev) {
-        if (type === 'YC') {
-          const pt = dev.telemetries?.find(p => String(p.pointId) === String(ptId));
-          if (pt) return pt.value;
-        } else if (type === 'YX') {
-          const pt = dev.teleSignals?.find(p => String(p.pointId) === String(ptId));
-          if (pt) return pt.value;
-        } else if (type === 'DD') {
-          const pt = dev.energies?.find(p => String(p.pointId) === String(ptId));
-          if (pt) return pt.value;
-        } else if (type === 'YK') {
-          const yk = dev.teleControls?.find(p => String(p.pointId) === String(ptId));
-          const verifyYxId = yk?.targetPointId !== undefined ? yk.targetPointId : 1;
-          const yx = dev.teleSignals?.find(p => String(p.pointId) === String(verifyYxId));
-          if (yx) return yx.value;
-        } else if (type === 'YT') {
-          const yt = dev.teleRegulations?.find(p => String(p.pointId) === String(ptId));
-          if (yt?.targetYcPointId !== undefined) {
-            const yc = dev.telemetries?.find(p => String(p.pointId) === String(yt.targetYcPointId));
-            if (yc) return yc.value;
-          }
-          if (yt) return yt.value;
-        }
-      }
-    }
   }
 
   return fallbackVal;
@@ -100,6 +259,7 @@ export function resolveDataPointValue(
 
 /**
  * Recursively resolves an object by injecting dynamic live data into bound fields or {{expressions}}.
+ * Optimized to avoid unnecessary object cloning.
  */
 function resolveDynamicObjectValues(
   obj: any,
@@ -115,7 +275,9 @@ function resolveDynamicObjectValues(
 
   if (typeof obj === 'object') {
     const result: Record<string, any> = {};
-    for (const key of Object.keys(obj)) {
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
       const val = obj[key];
       // 1. Check if direct property binding exists in bindings
       if (bindings && bindings[key]) {
@@ -132,7 +294,6 @@ function resolveDynamicObjectValues(
             const resolved = resolveDataPointValue(datasets, datasetId, pointKey.trim(), pointKey);
             return resolved !== undefined ? String(resolved) : '';
           });
-          // If the entire string was a single expression and resolved to a number, preserve numeric type
           if (/^\{\{[^}]+\}\}$/.test(val)) {
             const pointKey = val.slice(2, -2).trim();
             const resolvedNum = resolveDataPointValue(datasets, datasetId, pointKey, undefined);
@@ -159,57 +320,68 @@ function resolveDynamicObjectValues(
 
 /**
  * Unified Component Dynamic Data Resolver
- * Dynamically resolves the component's full JSON structure and live properties in real-time.
- * Eliminates the need for manual static data splicing by combining:
- * 1. Component `data.staticData` / JSON schema template
- * 2. Component `data.bindings` (e.g. { "value": "DEV-101_YC_1", "min": "DEV-101_YC_1_min" })
- * 3. Component `data.mapping` (compatible with legacy valueKey / stateKey / categoriesKey / seriesKey)
+ * High-performance resolution with zero-allocation fast path for standard telemetry & metrics.
  */
 export function resolveComponentDynamicData(
   component: ScreenComponent,
   datasets?: DatasetItem[]
 ): Record<string, any> {
+  if (datasets) {
+    syncDatasetFastIndex(datasets);
+  }
+
   const dataConfig = component.data;
   const datasetId = dataConfig?.datasetId;
   const mapping = dataConfig?.mapping || ({} as any);
-  const bindings: Record<string, string> = { ...(dataConfig?.bindings || {}) };
+  const bindings = dataConfig?.bindings;
 
-  // Sync mapping keys into bindings if not already present
-  if (mapping.valueKey && !bindings.value) {
-    bindings.value = mapping.valueKey;
-  }
-  if (mapping.stateKey && !bindings.state) {
-    bindings.state = mapping.stateKey;
-  }
-  if (mapping.unitKey && !bindings.unit) {
-    bindings.unit = mapping.unitKey;
-  }
+  // Ultra-Fast Path for standard SCADA telemetry components without complex static JSON trees
+  if (!dataConfig?.staticData) {
+    const valueKey = bindings?.value || mapping.valueKey;
+    const stateKey = bindings?.state || mapping.stateKey;
+    const unitKey = bindings?.unit || mapping.unitKey;
 
-  let baseData: any = {};
-  if (dataConfig?.staticData !== undefined && dataConfig.staticData !== null) {
-    if (typeof dataConfig.staticData === 'object') {
-      baseData = JSON.parse(JSON.stringify(dataConfig.staticData));
-    } else {
-      baseData = { value: dataConfig.staticData };
+    let value = component.customProps?.value ?? 0;
+    let state = component.customProps?.state ?? 0;
+    let unit = component.customProps?.unit || component.style?.unit || '';
+    let label = component.customProps?.label || component.name || '';
+
+    if (valueKey) {
+      const resolved = resolveDataPointValue(datasets, datasetId, valueKey, undefined);
+      if (resolved !== undefined) value = resolved;
     }
-  } else {
-    // Fallback base data from customProps / style / name
-    baseData = {
-      value: component.customProps?.value ?? 0,
-      state: component.customProps?.state ?? 0,
-      unit: component.customProps?.unit || component.style?.unit || '',
-      label: component.customProps?.label || component.name || ''
+    if (stateKey) {
+      const resolved = resolveDataPointValue(datasets, datasetId, stateKey, undefined);
+      if (resolved !== undefined) state = resolved;
+    }
+    if (unitKey) {
+      const resolved = resolveDataPointValue(datasets, datasetId, unitKey, undefined);
+      if (resolved !== undefined) unit = resolved;
+    }
+
+    return {
+      value,
+      state,
+      unit,
+      label
     };
   }
 
-  // Dynamically resolve properties with live dataset values
-  const resolved = resolveDynamicObjectValues(baseData, bindings, datasets, datasetId);
+  // Fallback for complex structured staticData objects
+  const combinedBindings: Record<string, string> = { ...(bindings || {}) };
+  if (mapping.valueKey && !combinedBindings.value) combinedBindings.value = mapping.valueKey;
+  if (mapping.stateKey && !combinedBindings.state) combinedBindings.state = mapping.stateKey;
+  if (mapping.unitKey && !combinedBindings.unit) combinedBindings.unit = mapping.unitKey;
 
-  // If mapping has valueKey and resolved.value wasn't set, resolve it
+  const baseData = typeof dataConfig.staticData === 'object' 
+    ? (Array.isArray(dataConfig.staticData) ? [...dataConfig.staticData] : { ...dataConfig.staticData }) 
+    : { value: dataConfig.staticData };
+
+  const resolved = resolveDynamicObjectValues(baseData, combinedBindings, datasets, datasetId);
+
   if (mapping.valueKey && resolved.value === undefined) {
     resolved.value = resolveDataPointValue(datasets, datasetId, mapping.valueKey, component.customProps?.value ?? 0);
   }
-  // If mapping has stateKey and resolved.state wasn't set, resolve it
   if (mapping.stateKey && resolved.state === undefined) {
     resolved.state = resolveDataPointValue(datasets, datasetId, mapping.stateKey, component.customProps?.state ?? 0);
   }
@@ -219,21 +391,35 @@ export function resolveComponentDynamicData(
 
 /**
  * Strict Live Numeric Extractor for Numeric Components
- * Guarantees that only pure numeric values are returned, rejecting any text.
+ * Guarantees that only pure numeric values are returned with direct O(1) point resolution.
  */
 export function getComponentLiveNumericValue(
   component: ScreenComponent,
   datasets?: DatasetItem[],
   fallback = 0
 ): number {
-  const dynamic = resolveComponentDynamicData(component, datasets);
-  if (dynamic && dynamic.value !== undefined) {
-    return parseStrictNumber(dynamic.value, fallback);
+  if (datasets) {
+    syncDatasetFastIndex(datasets);
   }
+
+  // Fast direct resolution without building any intermediate objects
+  const valueKey = component.data?.bindings?.value || component.data?.mapping?.valueKey;
+  if (valueKey) {
+    const liveVal = resolveDataPointValue(datasets, component.data?.datasetId, valueKey, undefined);
+    if (liveVal !== undefined) {
+      return parseStrictNumber(liveVal, fallback);
+    }
+  }
+
   const customPropVal = component.customProps?.value;
   if (customPropVal !== undefined) {
     return parseStrictNumber(customPropVal, fallback);
   }
+
+  if (component.data?.staticData !== undefined && typeof component.data.staticData !== 'object') {
+    return parseStrictNumber(component.data.staticData, fallback);
+  }
+
   return fallback;
 }
 

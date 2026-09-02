@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ScreenComponent, DatasetItem } from '../../types';
-import { resolveComponentDynamicData, parseStrictNumber } from '../../utils/scadaResolver';
+import { getComponentLiveNumericValue, formatTruncatedNumber } from '../../utils/scadaResolver';
 
 interface Props {
   component: ScreenComponent;
@@ -10,101 +10,97 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const counterState = computed(() => {
-  const { style, customProps, type } = props.component;
-  const dynamic = resolveComponentDynamicData(props.component, props.datasets);
+// 1. Static/Style properties
+const staticStyle = computed(() => {
+  const { style, customProps } = props.component;
 
-  // Strict numeric conversion (reject text strings, format cleanly)
-  const rawValue = dynamic.value !== undefined ? dynamic.value : (customProps?.value ?? 89420);
-  const cleanNum = parseStrictNumber(rawValue, 0);
+  // Decimals precision & Trailing Zeros
+  const decimals = typeof style?.decimals === 'number' 
+    ? style.decimals 
+    : (typeof customProps?.decimals === 'number' ? customProps.decimals : 0);
+  const clampedDecimals = Math.max(0, Math.min(6, decimals));
 
-  const unit = dynamic.unit ?? customProps?.unit ?? (type === 'metric-progress' ? '%' : '');
-  const title = dynamic.label ?? dynamic.title ?? customProps?.title ?? props.component.name;
-  const themeColor = style?.textColor || style?.stroke || style?.fill || '#00f2ff';
-  const prefix = customProps?.prefix || '';
-  const isFlipper = type === 'metric-flipper';
-  const isTitle = type === 'metric-title';
-  const isProgress = type === 'metric-progress';
+  // Strip trailing zeros: true by default or explicitly configured
+  const trimZeros = style?.trimZeros !== undefined 
+    ? Boolean(style.trimZeros) 
+    : (customProps?.trimZeros !== undefined ? Boolean(customProps.trimZeros) : true);
 
-  // Format number digits
-  const numStr = String(cleanNum);
-  const digits = numStr.split('');
+  // Text color
+  const textColor = style?.textColor || customProps?.textColor || '#00f2ff';
+
+  // Background color
+  const rawFill = style?.fill !== undefined ? style.fill : (customProps?.bgColor !== undefined ? customProps.bgColor : 'transparent');
+  const bgColor = rawFill && rawFill !== 'transparent' ? rawFill : 'transparent';
+
+  // Border
+  const strokeColor = style?.stroke && style.stroke !== 'transparent' 
+    ? style.stroke 
+    : (customProps?.borderColor && customProps.borderColor !== 'transparent' ? customProps.borderColor : '');
+  
+  const strokeWidth = typeof style?.strokeWidth === 'number' 
+    ? style.strokeWidth 
+    : (typeof customProps?.borderWidth === 'number' ? customProps.borderWidth : (strokeColor ? 1 : 0));
+  
+  const hasBorder = Boolean(strokeColor && strokeColor !== 'transparent' && strokeWidth > 0);
+
+  // Fixed font size and styling
+  const fontSize = style?.fontSize ? `${style.fontSize}px` : '22px';
+  const fontWeight = style?.fontWeight || 'bold';
+  const textAlign = style?.textAlign || 'center';
 
   return {
-    rawValue: cleanNum,
-    unit,
-    title,
-    themeColor,
-    prefix,
-    isFlipper,
-    isTitle,
-    isProgress,
-    digits
+    decimals: clampedDecimals,
+    trimZeros,
+    textColor,
+    bgColor,
+    hasBorder,
+    borderColor: strokeColor || 'transparent',
+    borderWidth: hasBorder ? strokeWidth : 0,
+    fontSize,
+    fontWeight,
+    textAlign
   };
+});
+
+// 2. High-speed direct numeric formatting (Direct Truncation without rounding)
+const formattedValue = computed(() => {
+  const cleanNum = getComponentLiveNumericValue(props.component, props.datasets, 0);
+  return formatTruncatedNumber(cleanNum, staticStyle.value.decimals, staticStyle.value.trimZeros);
 });
 </script>
 
 <template>
-  <!-- 1. Pure Large Title -->
   <div 
-    v-if="counterState.isTitle"
-    class="w-full h-full flex items-center justify-center select-none font-mono font-black tracking-widest leading-none overflow-hidden"
+    class="w-full h-full flex items-center p-0 m-0 select-none overflow-hidden leading-none relative box-border transform-gpu"
+    :class="{
+      'justify-start text-left': staticStyle.textAlign === 'left',
+      'justify-center text-center': staticStyle.textAlign === 'center',
+      'justify-end text-right': staticStyle.textAlign === 'right'
+    }"
     :style="{ 
-      color: counterState.themeColor,
-      fontSize: component.style?.fontSize ? `${component.style.fontSize}px` : '24px'
+      backgroundColor: staticStyle.bgColor,
+      borderStyle: staticStyle.hasBorder ? 'solid' : 'none',
+      borderColor: staticStyle.borderColor,
+      borderWidth: `${staticStyle.borderWidth}px`,
+      borderRadius: '0px',
+      boxSizing: 'border-box',
+      contain: 'strict'
     }"
   >
-    {{ counterState.title }}
-  </div>
-
-  <!-- 2. Pure LED Matrix Flipper Display (Digits only, fits 100% bounds) -->
-  <div 
-    v-else-if="counterState.isFlipper"
-    class="w-full h-full flex items-center justify-center gap-1 select-none overflow-hidden"
-  >
-    <div 
-      v-for="(d, idx) in counterState.digits" 
-      :key="idx"
-      class="h-full aspect-2/3 bg-slate-950 rounded border border-cyan-500/70 flex items-center justify-center font-mono font-black text-cyan-300 shadow-[0_0_10px_rgba(0,242,255,0.3)] relative overflow-hidden"
-      :style="{ 
-        fontSize: component.style?.fontSize ? `${component.style.fontSize}px` : '28px',
-        borderColor: counterState.themeColor,
-        color: counterState.themeColor
+    <span
+      class="font-mono font-bold leading-none tracking-tight p-0 m-0 block whitespace-nowrap overflow-hidden select-none w-full"
+      :style="{
+        color: staticStyle.textColor,
+        fontSize: staticStyle.fontSize,
+        fontWeight: staticStyle.fontWeight,
+        textAlign: staticStyle.textAlign as any,
+        fontFamily: `'Chakra Petch', 'JetBrains Mono', Consolas, monospace`,
+        fontVariantNumeric: 'tabular-nums',
+        lineHeight: 1
       }"
     >
-      <div class="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none" />
-      <div class="absolute top-1/2 left-0 right-0 h-[1px] bg-slate-900 z-10" />
-      <span>{{ d }}</span>
-    </div>
-  </div>
-
-  <!-- 3. Pure Progress Bar -->
-  <div 
-    v-else-if="counterState.isProgress"
-    class="w-full h-full flex items-center justify-center p-0.5"
-  >
-    <div class="w-full h-full bg-slate-900 rounded-full overflow-hidden border border-slate-800 p-0.5">
-      <div 
-        class="h-full rounded-full transition-all duration-500"
-        :style="{
-          width: `${Math.min(100, Math.max(0, Number(counterState.rawValue)))}%`,
-          backgroundColor: counterState.themeColor,
-          boxShadow: `0 0 8px ${counterState.themeColor}`
-        }"
-      />
-    </div>
-  </div>
-
-  <!-- 4. Pure Metric Display (Value + Optional Unit) -->
-  <div 
-    v-else
-    class="w-full h-full flex items-center justify-center select-none font-mono font-bold leading-none overflow-hidden"
-    :style="{
-      color: counterState.themeColor,
-      fontSize: component.style?.fontSize ? `${component.style.fontSize}px` : '22px'
-    }"
-  >
-    <span>{{ counterState.prefix }}{{ counterState.rawValue }}</span>
-    <span v-if="counterState.unit" class="text-[0.6em] ml-1 opacity-80">{{ counterState.unit }}</span>
+      {{ formattedValue }}
+    </span>
   </div>
 </template>
+

@@ -1269,9 +1269,10 @@ defineExpose({
             top: `${comp.y}px`,
             width: `${comp.width}px`,
             height: `${comp.height}px`,
-            transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'none',
+            transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'translateZ(0)',
             transformOrigin: 'center center',
-            zIndex: comp.zIndex || 1
+            zIndex: comp.zIndex || 1,
+            contain: 'layout style paint'
           }"
         >
           <!-- Component Content -->

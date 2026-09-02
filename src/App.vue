@@ -10,6 +10,7 @@ import {
   CustomSymbolDef
 } from './types';
 import { INITIAL_DATASETS, tickDataset, executeSimulatedTeleControl, executeSimulatedTeleRegulation } from './data/presetDatasets';
+import { syncDatasetFastIndex, generateUniqueDuplicateName } from './utils/scadaResolver';
 import { PRESET_MULTI_SCREENS } from './data/presetMultiScreens';
 import { getCustomSymbols, addCustomSymbol } from './utils/customSymbolStorage';
 import Navbar from './components/Navbar.vue';
@@ -179,7 +180,8 @@ const handleDuplicateScreen = (screenId: string) => {
   if (!source) return;
 
   const newId = `screen-${Date.now()}`;
-  const uniqueName = getUniqueScreenName(`${source.name} (副本)`);
+  const existingNames = screens.value.map(s => s.name);
+  const uniqueName = generateUniqueDuplicateName(source.name, existingNames, '画面');
   const cloned: ScreenItem = {
     id: newId,
     name: uniqueName,
@@ -421,8 +423,9 @@ const handleUpdateComponent = (comp: ScreenComponent) => {
 };
 
 const handleUpdateComponents = (updatedComps: ScreenComponent[]) => {
+  if (!Array.isArray(updatedComps)) return;
   const map = new Map(updatedComps.map(c => [c.id, c]));
-  components.value = components.value.map(c => map.has(c.id) ? map.get(c.id)! : c);
+  components.value = (components.value || []).map(c => map.has(c.id) ? map.get(c.id)! : c);
   recordHistory();
 };
 
@@ -458,13 +461,16 @@ const handlePaste = (pos?: { x: number; y: number }) => {
     if (c.y < minY) minY = c.y;
   });
 
+  const existingNames = components.value.map(c => c.name);
   const pasted: ScreenComponent[] = clipboard.value.map((comp, idx) => {
     const targetX = pos ? Math.max(0, pos.x + (comp.x - minX)) : (comp.x + 24);
     const targetY = pos ? Math.max(0, pos.y + (comp.y - minY)) : (comp.y + 24);
+    const uniqueName = generateUniqueDuplicateName(comp.name, existingNames, '组件');
+    existingNames.push(uniqueName); // Register immediately for consecutive items in same batch
     return {
       ...JSON.parse(JSON.stringify(comp)),
       id: `comp-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-      name: `${comp.name} (副本)`,
+      name: uniqueName,
       x: targetX,
       y: targetY,
       zIndex: maxZ + idx + 1
@@ -483,14 +489,19 @@ const handleDuplicate = (target: ScreenComponent | ScreenComponent[]) => {
   if (!items || items.length === 0) return;
 
   const maxZ = components.value.reduce((max, c) => Math.max(max, c.zIndex || 1), 0);
-  const duplicates: ScreenComponent[] = items.map((comp, idx) => ({
-    ...JSON.parse(JSON.stringify(comp)),
-    id: `comp-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
-    name: `${comp.name} (副本)`,
-    x: comp.x + 24,
-    y: comp.y + 24,
-    zIndex: maxZ + idx + 1
-  }));
+  const existingNames = components.value.map(c => c.name);
+  const duplicates: ScreenComponent[] = items.map((comp, idx) => {
+    const uniqueName = generateUniqueDuplicateName(comp.name, existingNames, '组件');
+    existingNames.push(uniqueName);
+    return {
+      ...JSON.parse(JSON.stringify(comp)),
+      id: `comp-${Date.now()}-${idx}-${Math.random().toString(36).substr(2, 4)}`,
+      name: uniqueName,
+      x: comp.x + 24,
+      y: comp.y + 24,
+      zIndex: maxZ + idx + 1
+    };
+  });
 
   components.value.push(...duplicates);
   selectedIds.value = duplicates.map(d => d.id);
@@ -830,6 +841,7 @@ let simulationTimer: any = null;
 
 // Tele-Control Execution (YK 遥控指令执行与遥信联动刷新)
 const handleExecuteControl = (deviceId: string, pointId: number | string, targetValue: number) => {
+  if (!Array.isArray(datasets.value)) return;
   datasets.value = datasets.value.map(ds => {
     const hasDevice = ds.devices?.some(d => d.deviceId === deviceId);
     if (hasDevice) {
@@ -843,6 +855,7 @@ const handleExecuteControl = (deviceId: string, pointId: number | string, target
 
 // Tele-Regulation Execution (YT 遥调定值下发与遥测联动)
 const handleExecuteRegulation = (deviceId: string, pointId: number | string, targetValue: number) => {
+  if (!Array.isArray(datasets.value)) return;
   datasets.value = datasets.value.map(ds => {
     const hasDevice = ds.devices?.some(d => d.deviceId === deviceId);
     if (hasDevice) {
@@ -872,8 +885,12 @@ onMounted(() => {
   fitToScreen();
 
   simulationTimer = setInterval(() => {
-    if (isStreaming.value) {
-      datasets.value = datasets.value.map(ds => tickDataset(ds));
+    if (isStreaming.value && Array.isArray(datasets.value) && datasets.value.length > 0) {
+      const nextDatasets = datasets.value.map(ds => tickDataset(ds));
+      syncDatasetFastIndex(nextDatasets);
+      requestAnimationFrame(() => {
+        datasets.value = nextDatasets;
+      });
     }
   }, 1500);
 

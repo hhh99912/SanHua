@@ -28,17 +28,19 @@ import { syncFlatDataFromDevices, executeSimulatedTeleControl, executeSimulatedT
 
 interface Props {
   visible: boolean;
-  datasets: DatasetItem[];
+  datasets?: DatasetItem[];
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  datasets: () => []
+});
 
 const emit = defineEmits<{
   (e: 'close'): void;
   (e: 'update:datasets', datasets: DatasetItem[]): void;
 }>();
 
-const selectedDatasetId = ref<string>(props.datasets[0]?.id || '');
+const selectedDatasetId = ref<string>(props.datasets?.[0]?.id || '');
 const selectedDeviceId = ref<string>('DEV-101');
 const activeCategoryTab = ref<'yc' | 'yx' | 'dd' | 'yk' | 'yt' | 'json' | 'settings'>('yc');
 
@@ -54,7 +56,8 @@ const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success')
 };
 
 const currentDataset = computed<DatasetItem | undefined>(() => {
-  return props.datasets.find(d => d.id === selectedDatasetId.value) || props.datasets[0];
+  const list = props.datasets || [];
+  return list.find(d => d.id === selectedDatasetId.value) || list[0];
 });
 
 const currentDevice = computed<ScadaDeviceItem | undefined>(() => {
@@ -65,7 +68,7 @@ const currentDevice = computed<ScadaDeviceItem | undefined>(() => {
 
 // Update Dataset helper
 const updateDataset = (updater: (ds: DatasetItem) => DatasetItem) => {
-  const updated = props.datasets.map(d => {
+  const updated = (props.datasets || []).map(d => {
     if (d.id === (currentDataset.value?.id || d.id)) {
       return updater(d);
     }

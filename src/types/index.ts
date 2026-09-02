@@ -152,6 +152,7 @@ export interface StyleConfig {
   customSvgCode?: string;
   customHtmlCode?: string;
   decimals?: number;
+  trimZeros?: boolean;
   prefix?: string;
   suffix?: string;
   [key: string]: any;

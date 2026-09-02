@@ -18,12 +18,13 @@ import {
 import { ScreenComponent } from '../types';
 
 interface Props {
-  components: ScreenComponent[];
+  components?: ScreenComponent[];
   selectedIds?: string[];
   selectedId?: string | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
+  components: () => [],
   selectedIds: () => [],
   selectedId: null
 });
@@ -52,7 +53,7 @@ const activeSelectedIds = computed(() => {
 
 // Display components in reverse order (top z-index on top)
 const reversedComponents = computed(() => {
-  const list = [...props.components].map((comp, originalIdx) => ({
+  const list = [...(props.components || [])].map((comp, originalIdx) => ({
     comp,
     originalIdx
   }));

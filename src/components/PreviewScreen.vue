@@ -518,8 +518,9 @@ onBeforeUnmount(() => {
           top: `${(comp.y || 0) + offsetY}px`,
           width: `${comp.width}px`,
           height: `${comp.height}px`,
-          transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'none',
-          zIndex: comp.zIndex || 1
+          transform: comp.rotation ? `rotate(${comp.rotation}deg)` : 'translateZ(0)',
+          zIndex: comp.zIndex || 1,
+          contain: 'layout style paint'
         }"
         @click="handlePreviewCompClick(comp)"
         @mouseenter="handleCompMouseEnter($event, comp)"

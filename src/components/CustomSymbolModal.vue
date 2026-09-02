@@ -22,6 +22,7 @@ import {
   importSymbolsFromJSON
 } from '../utils/customSymbolStorage';
 import { COMPONENT_DEFINITIONS, ComponentDefinition } from '../data/componentLibrary';
+import { generateUniqueDuplicateName } from '../utils/scadaResolver';
 import WidgetRenderer from './widgets/WidgetRenderer.vue';
 
 interface Props {
@@ -801,10 +802,12 @@ const handleDuplicateState = () => {
   if (!current) return;
   const nextVal = getNextAvailableStateValue();
   const newId = `state-${Date.now()}`;
+  const existingNames = editorStates.value.map(s => s.name);
+  const uniqueName = generateUniqueDuplicateName(current.name, existingNames, '状态');
 
   const cloned: SymbolState = {
     id: newId,
-    name: `${current.name} (副本)`,
+    name: uniqueName,
     stateValue: nextVal,
     matchValue: nextVal,
     children: JSON.parse(JSON.stringify(current.children))
@@ -1403,13 +1406,16 @@ const handlePastePrimitives = (targetCanvasX?: number, targetCanvasY?: number) =
   }
 
   const newIds: string[] = [];
+  const existingNames = currentEditingComponents.value.map(c => c.name);
   const pasted: ScreenComponent[] = symbolClipboard.value.map(c => {
     const newId = `sub-${c.type}-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     newIds.push(newId);
+    const uniqueName = generateUniqueDuplicateName(c.name, existingNames, '图元');
+    existingNames.push(uniqueName);
     return {
       ...JSON.parse(JSON.stringify(c)),
       id: newId,
-      name: `${c.name} (副本)`,
+      name: uniqueName,
       x: c.x + offsetX,
       y: c.y + offsetY,
       zIndex: currentEditingComponents.value.length + 1
